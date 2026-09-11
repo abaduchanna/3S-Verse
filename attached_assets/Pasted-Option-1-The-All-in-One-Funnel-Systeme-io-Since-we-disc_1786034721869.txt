@@ -1,0 +1,32 @@
+Option 1: The "All-in-One" Funnel (Systeme.io)
+Since we discussed this earlier, it is arguably your strongest contender for an end-to-end setup.
+
+How it works: You build a 1-page landing page using their drag-and-drop builder.
+
+Why it fits: The permanent free tier lets you connect your custom domain, host the page, and set up an automated email sequence. If a wireless owner enters their email to "Watch the Demo," the system automatically emails them your pitch and booking link.
+
+Cost: $0/month.
+
+Best for: Collecting leads and building an email list of wireless retail owners.
+
+Option 2: The "Developer Route" (GitHub Pages + Lemon Squeezy)
+Since you write Python and use Git, you can easily host your website for free using GitHub Pages.
+
+How it works: You code a simple, lightning-fast HTML/CSS landing page (or use a free template) and host it on GitHub Pages. For the checkout, you embed a "Buy Now" button from Lemon Squeezy or Gumroad.
+
+Why it fits: It is incredibly secure, incredibly fast, and looks highly professional. Platforms like Lemon Squeezy handle the payment processing, global taxes, and will automatically email the customer your .exe file and a license key as soon as they pay.
+
+Cost: $0/month for hosting. (Lemon Squeezy/Gumroad just takes a small percentage—around 5%—when you make a sale).
+
+Best for: Selling the software directly as a downloadable desktop tool with license keys.
+
+Option 3: The "Instant Storefront" (Gumroad)
+If you do not want to design a website at all and just want to start selling immediately.
+
+How it works: You create a product page on Gumroad. You upload your software, add your pricing, and write your sales pitch describing how it saves 15 hours a week on inventory ordering.
+
+Why it fits: You can actually connect a custom domain directly to your Gumroad profile. Your website simply becomes your Gumroad checkout page. It is incredibly clean and designed purely to convert visitors into buyers.
+
+Cost: $0/month (They take a 10% flat fee per sale).
+
+Best for: Launching today with zero design work.

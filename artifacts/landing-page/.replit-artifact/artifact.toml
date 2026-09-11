@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "TechFlow Landing Page"
+description = "A modern, highly animated single-page landing page for a B2B tech company offering process automation, SaaS solutions, attendance management, and custom website building. Royal blue background with cyan-to-royal and purple-to-magenta gradient accents, sharp red CTAs, and lively scroll-triggered animations."
+version = "1.0.0"
+id = "artifacts/landing-page"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18083
+
+[services.development]
+run = "pnpm --filter @workspace/landing-page run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/landing-page", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/landing-page/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18083"
+BASE_PATH = "/"
