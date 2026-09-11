@@ -22,6 +22,21 @@
   PORT = "3000"
   BASE_PATH = "/"
 
+# Serverless backend for the contact form. Resolved relative to the base
+# directory → artifacts/landing-page/netlify/functions. Zero npm deps;
+# needs RESEND_API_KEY in the site's environment variables.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Contact form API — must be listed BEFORE the SPA catch-all below,
+# otherwise every POST to /api/contact would be rewritten to index.html.
+[[redirects]]
+  from = "/api/contact"
+  to = "/.netlify/functions/contact"
+  status = 200
+  force = true
+
 # Single-page app: serve index.html for client-side routes (Netlify
 # serves real files first, so assets are unaffected).
 [[redirects]]
