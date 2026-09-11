@@ -18,9 +18,22 @@
 //                     domain is unverified, set this to onboarding@resend.dev —
 //                     Resend then only allows delivery to your own account email.)
 
-const CONTACT_TO = process.env["CONTACT_TO"] ?? "Connect@3SVerse.com";
+const CONTACT_TO = resolveEnv("CONTACT_TO") ?? "Connect@3SVerse.com";
 const RESEND_FROM =
-  process.env["RESEND_FROM"] ?? "3S Verse Website <connect@3sverse.com>";
+  resolveEnv("RESEND_FROM") ?? "3S Verse Website <connect@3sverse.com>";
+
+/** Case-insensitive env lookup — the Netlify UI happily stores
+ * "Resend_API_Key" while the code expects "RESEND_API_KEY" (env names are
+ * case-sensitive), which silently breaks delivery. Match any casing. */
+function resolveEnv(name: string): string | undefined {
+  const exact = process.env[name];
+  if (exact) return exact;
+  const target = name.toLowerCase();
+  for (const key of Object.keys(process.env)) {
+    if (key.toLowerCase() === target) return process.env[key];
+  }
+  return undefined;
+}
 
 const MAX_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 254;
@@ -136,7 +149,7 @@ export default async function handler(req: Request): Promise<Response> {
     );
   }
 
-  const apiKey = process.env["RESEND_API_KEY"];
+  const apiKey = resolveEnv("RESEND_API_KEY");
   if (!apiKey) {
     console.error(
       "[contact] RESEND_API_KEY is not set — email delivery is not configured.",
@@ -155,7 +168,7 @@ export default async function handler(req: Request): Promise<Response> {
     message,
   ].join("\n");
 
-  try {
+  const sendViaResend = async (fromAddress: string) => {
     const response = await fetch(RESEND_ENDPOINT, {
       method: "POST",
       headers: {
@@ -163,7 +176,7 @@ export default async function handler(req: Request): Promise<Response> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: RESEND_FROM,
+        from: fromAddress,
         to: [CONTACT_TO],
         reply_to: email,
         subject: `New project inquiry from ${name}`.replace(/[\r\n]+/g, " "),
@@ -171,18 +184,37 @@ export default async function handler(req: Request): Promise<Response> {
       }),
       signal: AbortSignal.timeout(15_000),
     });
+    const body = await response.text().catch(() => "");
+    return { ok: response.ok, status: response.status, body };
+  };
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
+  try {
+    let result = await sendViaResend(RESEND_FROM);
+
+    // Resend refuses a "From" address on a domain that isn't verified yet.
+    // Retry once with Resend's sandbox sender — it only delivers to the
+    // Resend account's own email address, so it can never misdeliver.
+    if (!result.ok && result.status === 403 && /domain|verif/i.test(result.body)) {
       console.error(
-        `[contact] Resend rejected submission — status=${response.status} body=${detail.slice(0, 600)}`,
+        `[contact] From-domain rejected by Resend — retrying with onboarding@resend.dev. body=${result.body.slice(0, 400)}`,
+      );
+      result = await sendViaResend("onboarding@resend.dev");
+    }
+
+    if (!result.ok) {
+      console.error(
+        `[contact] Resend rejected submission — status=${result.status} body=${result.body.slice(0, 600)}`,
       );
       return json(502, { error: "The message could not be delivered right now." });
     }
 
-    const data = (await response.json().catch(() => null)) as
-      | { id?: string }
-      | null;
+    const data = (() => {
+      try {
+        return JSON.parse(result.body) as { id?: string };
+      } catch {
+        return null;
+      }
+    })();
     console.log(
       `[contact] Inquiry from ${email} accepted by Resend — id=${data?.id ?? "unknown"}`,
     );
