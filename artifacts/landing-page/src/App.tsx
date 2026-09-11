@@ -51,10 +51,17 @@ type Theme = 'light' | 'dark';
 // the water-swipe reveal expands from this point.
 let waterOrigin = { x: 0, y: 0, r: 0 };
 
-// The site ALWAYS opens in the light theme: fresh loads ignore both the OS
-// color scheme and any previously toggled session. The toggle still switches
-// to dark for the current session — it just never carries over to a reload.
+// Theme choice: first-time visitors start light; once the toggle is used the
+// choice is saved to localStorage and every reload restores it (see the
+// pre-paint script in index.html, which applies the saved class before React
+// boots so a saved dark theme never flashes light).
+const THEME_STORAGE_KEY = '3s-verse-theme';
+
 function getInitialTheme(): Theme {
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'dark' || saved === 'light') return saved;
+  } catch { /* storage unavailable (private mode etc.) — fall through */ }
   return 'light';
 }
 
@@ -115,9 +122,9 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
         }
       } else applyTheme();
     }
-    // Nothing is persisted — the next load always starts light again;
-    // drop any key left over from the old remember-my-choice behavior.
-    window.localStorage.removeItem('3s-verse-theme');
+    // Persist the choice — the next load (and the pre-paint script in
+    // index.html) restores it instead of snapping back to light.
+    try { window.localStorage.setItem(THEME_STORAGE_KEY, theme); } catch { /* storage unavailable */ }
     window.dispatchEvent(new CustomEvent('3s-verse-theme-change', { detail: theme }));
   }, [theme]);
 
@@ -263,7 +270,79 @@ const navItems = [
   { label: 'Capabilities', href: '#capabilities' },
   { label: 'How it works', href: '#approach' },
   { label: 'Outcomes', href: '#outcomes' },
+  { label: 'Work', href: '#work' },
 ];
+
+// PROJECT VIDEOS — to put a project video on the page, add one entry to this
+// list (newest first). `url` accepts:
+//   • a YouTube link        'https://www.youtube.com/watch?v=XXXXXXXXXXX'
+//   • a YouTube Shorts link 'https://youtube.com/shorts/XXXXXXXXXXX'
+//   • a Vimeo link          'https://vimeo.com/123456789'
+//   • a direct video file   '/videos/my-demo.mp4' (drop the file into
+//                           public/videos/) or any hosted .mp4/.webm URL
+// `poster` (optional) is the card thumbnail; leave it out and YouTube links
+// automatically use their own thumbnail, everything else gets a styled
+// gradient placeholder until a poster is added. The three entries below are
+// demo samples standing in until real project recordings replace them.
+const PROJECT_VIDEOS: ProjectVideo[] = [
+  {
+    title: 'Ordering workflow, rebuilt',
+    blurb: 'How a multi-day manual ordering loop became a one-click pipeline with live validation.',
+    tag: 'Automation',
+    url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+  },
+  {
+    title: 'Live operations dashboard',
+    blurb: 'Inventory, sales, and claims in one real-time view — the screen the team opens every morning.',
+    tag: 'Dashboard',
+    url: 'https://www.youtube.com/watch?v=eRsGyueVLvQ',
+  },
+  {
+    title: 'Claims recovery engine',
+    blurb: 'A walk-through of the tooling that recovered six figures in vendor claims and losses.',
+    tag: 'Operations',
+    url: 'https://www.youtube.com/watch?v=R6MlUcmOul8',
+  },
+];
+
+type ProjectVideo = {
+  title: string;
+  blurb: string;
+  tag: string;
+  // YouTube watch/shorts link, Vimeo link, or a direct .mp4/.webm URL
+  // (local files go in public/videos/ and are referenced as /videos/…).
+  url: string;
+  // Optional card thumbnail; YouTube links fall back to their own thumbnail.
+  poster?: string;
+};
+
+// Accept a YouTube / Vimeo / direct-file URL and return what the card and
+// the lightbox need. Anything that is not YouTube/Vimeo is treated as a
+// direct media file URL.
+function parseVideoSource(url: string): { kind: 'youtube' | 'vimeo' | 'file'; id?: string; src: string } {
+  const trimmed = url.trim();
+  let match = trimmed.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/i);
+  if (match) return { kind: 'youtube', id: match[1], src: trimmed };
+  match = trimmed.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+  if (match) return { kind: 'vimeo', id: match[1], src: trimmed };
+  return { kind: 'file', src: trimmed };
+}
+
+function videoEmbedUrl(source: ReturnType<typeof parseVideoSource>): string {
+  if (source.kind === 'youtube' && source.id) {
+    return `https://www.youtube-nocookie.com/embed/${source.id}?autoplay=1&rel=0&modestbranding=1`;
+  }
+  if (source.kind === 'vimeo' && source.id) {
+    return `https://player.vimeo.com/video/${source.id}?autoplay=1&title=0&byline=0`;
+  }
+  return source.src;
+}
+
+function videoThumbUrl(video: ProjectVideo): string | undefined {
+  if (video.poster) return video.poster;
+  const source = parseVideoSource(video.url);
+  return source.kind === 'youtube' && source.id ? `https://i.ytimg.com/vi/${source.id}/hqdefault.jpg` : undefined;
+}
 
 const features = [
   {
@@ -609,6 +688,150 @@ function Outcomes() {
   );
 }
 
+// Full-screen player for a project video. Esc, backdrop click, or the close
+// button dismiss it; body scroll is locked while open. YouTube/Vimeo play in
+// a privacy-minded iframe, direct files in a native <video> element.
+function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!video) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [video, onClose]);
+
+  const source = video ? parseVideoSource(video.url) : null;
+
+  return (
+    <AnimatePresence>
+      {video && source && (
+        <motion.div
+          key="video-lightbox"
+          data-testid="video-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={video.title}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+          onClick={onClose}
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0c0b14]/92 p-4 backdrop-blur-md sm:p-8"
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 28, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.97 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            onClick={(event) => event.stopPropagation()}
+            className="relative w-full max-w-5xl"
+          >
+            <div className="mb-3 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="font-mono-tech text-[9px] uppercase tracking-[.25em] text-[#6ee7ef]">{video.tag}</div>
+                <h3 className="mt-1 truncate text-lg font-semibold tracking-[-.02em] text-[#f7f3e8]">{video.title}</h3>
+              </div>
+              <button
+                ref={closeRef}
+                type="button"
+                onClick={onClose}
+                data-testid="button-video-close"
+                aria-label="Close video"
+                className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#6ee7ef]/30 bg-[#211d38]/80 text-[#f7f3e8] transition-all duration-300 hover:border-[#e44bd7]/60 hover:text-[#e44bd7]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="aspect-video w-full overflow-hidden border border-[#6ee7ef]/25 bg-[#11101c] shadow-[0_36px_100px_rgba(4,3,15,.56)]">
+              {source.kind === 'file' ? (
+                <video key={video.url} src={source.src} controls autoPlay playsInline className="h-full w-full" />
+              ) : (
+                <iframe
+                  key={video.url}
+                  src={videoEmbedUrl(source)}
+                  title={video.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  className="h-full w-full"
+                />
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function Work() {
+  const [active, setActive] = useState<ProjectVideo | null>(null);
+  return (
+    <section id="work" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#11101c] py-28 lg:py-36">
+      <div className="absolute inset-x-0 bottom-0 h-[420px] grid-tech opacity-20 [mask-image:linear-gradient(to_top,black,transparent)]" />
+      <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
+        <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>04 — See the work</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">Watch the systems <span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">in action.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/60">Short walk-throughs of real builds — automation pipelines, dashboards, and tools doing their job. Click any card to play.</p></div></Reveal>
+        <div className="grid gap-4 md:grid-cols-3">
+          {PROJECT_VIDEOS.map((video, i) => {
+            const thumb = videoThumbUrl(video);
+            return (
+              <Reveal key={video.title} delay={i * 0.1}>
+                <motion.article
+                  whileHover={{ y: -8, scale: 1.01 }}
+                  data-testid={`video-card-${i}`}
+                  className="group relative overflow-hidden border border-[#6ee7ef]/15 bg-[#211d38]/80 shadow-[0_16px_45px_rgba(4,3,15,.2)] transition-colors duration-500 hover:border-[#6ee7ef]/45 hover:bg-[#2a2447]"
+                >
+                  <button type="button" onClick={() => setActive(video)} data-testid={`video-play-${i}`} aria-label={`Play video: ${video.title}`} className="block w-full cursor-pointer text-left">
+                    <span className="relative block aspect-video overflow-hidden bg-[#1a1830]">
+                      {thumb ? (
+                        <img
+                          src={thumb}
+                          alt=""
+                          loading="lazy"
+                          draggable={false}
+                          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#211d38] via-[#302953] to-[#211b3b]">
+                          <Play className="h-8 w-8 text-[#6ee7ef]/50" />
+                        </span>
+                      )}
+                      <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#11101c]/85 via-[#11101c]/10 to-transparent" />
+                      <span className="absolute left-4 top-4 border border-[#6ee7ef]/30 bg-[#11101c]/70 px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#6ee7ef] backdrop-blur-sm">{video.tag}</span>
+                      <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
+                        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-[#6ee7ef]/40 bg-[#211d38]/70 text-[#6ee7ef] backdrop-blur-md transition-all duration-300 group-hover:scale-110 group-hover:border-[#e44bd7]/70 group-hover:text-[#e44bd7] group-hover:shadow-[0_0_28px_rgba(228,75,215,.35)]">
+                          <Play className="ml-0.5 h-5 w-5 fill-current" />
+                        </span>
+                      </span>
+                      <span className="absolute bottom-3 right-4 font-mono-tech text-[9px] uppercase tracking-[.2em] text-[#d8d5e8]/60">▶ Watch</span>
+                    </span>
+                  </button>
+                  <div className="p-6 lg:p-7">
+                    <h3 className="text-lg font-semibold tracking-[-.02em] text-[#f7f3e8] transition-colors duration-300 group-hover:text-[#6ee7ef]">{video.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-[#d8d5e8]/65">{video.blurb}</p>
+                    <button type="button" onClick={() => setActive(video)} data-testid={`video-open-${i}`} className="mt-4 inline-flex cursor-pointer items-center gap-2 font-mono-tech text-[10px] uppercase tracking-wider text-[#6ee7ef] transition-colors duration-300 hover:text-[#e44bd7]">
+                      Watch it in action <Play className="h-3 w-3 fill-current" />
+                    </button>
+                  </div>
+                </motion.article>
+              </Reveal>
+            );
+          })}
+        </div>
+      </div>
+      <VideoLightbox video={active} onClose={() => setActive(null)} />
+    </section>
+  );
+}
+
 function Reviews() {
   const reviews = [
     {
@@ -635,7 +858,7 @@ function Reviews() {
     <section id="reviews" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#18152a] py-28 lg:py-36">
       <div className="absolute inset-x-0 top-0 h-[420px] grid-tech opacity-25 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
-        <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>04 — Client reviews</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">People who run on <span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">3S Verse.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/60">Feedback from the operations leaders, finance teams, and managers who trusted us with their day-to-day.</p></div></Reveal>
+        <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>05 — Client reviews</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">People who run on <span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">3S Verse.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/60">Feedback from the operations leaders, finance teams, and managers who trusted us with their day-to-day.</p></div></Reveal>
         <div className="grid gap-4 md:grid-cols-3">
           {reviews.map((review, i) => (
             <Reveal key={review.name} delay={i * .1}>
@@ -789,7 +1012,7 @@ function Footer() {
 }
 
 function Home() {
-  return <div className="noise min-h-[100dvh] overflow-hidden bg-[#11101c]"><ScrollProgress /><Spotlight /><ScrollTop /><CursorLogo /><Nav /><main><Hero /><Capabilities /><Approach /><Outcomes /><Reviews /><Contact /></main><Footer /></div>;
+  return <div className="noise min-h-[100dvh] overflow-hidden bg-[#11101c]"><ScrollProgress /><Spotlight /><ScrollTop /><CursorLogo /><Nav /><main><Hero /><Capabilities /><Approach /><Outcomes /><Work /><Reviews /><Contact /></main><Footer /></div>;
 }
 
 function Router() {
@@ -797,8 +1020,10 @@ function Router() {
 }
 
 function App() {
-  // Apply the (always-light) starting theme before the first React effect
-  // runs so the very first paint is already correctly themed.
+  // Apply the starting theme (saved choice, else light) before the first
+  // React effect runs so the very first paint is already correctly themed.
+  // index.html's inline script normally covers this; it is repeated here so
+  // React-driven navigations (client reload paths) stay consistent too.
   if (typeof document !== 'undefined') {
     const initialTheme = getInitialTheme();
     document.documentElement.classList.toggle('dark', initialTheme === 'dark');

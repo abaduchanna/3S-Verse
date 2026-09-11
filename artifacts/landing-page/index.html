@@ -1,5 +1,18 @@
 <!DOCTYPE html>
 <html lang="en" class="light" style="color-scheme: light">
+    <script>
+      // Restore the saved theme before first paint so a saved dark choice
+      // never flashes light on reload. Default remains light.
+      try {
+        var t = localStorage.getItem('3s-verse-theme');
+        if (t === 'dark' || t === 'light') {
+          var el = document.documentElement;
+          el.classList.toggle('dark', t === 'dark');
+          el.classList.toggle('light', t !== 'dark');
+          el.style.colorScheme = t;
+        }
+      } catch (e) {}
+    </script>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
