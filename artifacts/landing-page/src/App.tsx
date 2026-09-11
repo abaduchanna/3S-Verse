@@ -164,11 +164,14 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
   );
 }
 
-// Small 3S mark that trails the mouse across the page. Driven by a
+// Full 3S wordmark that trails the mouse across the page, floating just to
+// the RIGHT of the pointer (no chip/background). Driven by a
 // requestAnimationFrame lerp loop that writes transforms straight to the
-// DOM node — no re-renders per frame. Only rendered for fine pointers
-// (mouse) with motion allowed; hidden until the first pointer move and
-// when the cursor leaves the window.
+// DOM node — no re-renders per frame. Only rendered for non-touch pointers
+// with motion allowed; hidden until the first pointer move and when the
+// cursor leaves the window.
+const CURSOR_OFFSET_X = 24;
+
 function CursorLogo() {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -201,8 +204,8 @@ function CursorLogo() {
         el.style.opacity = '1';
       }
       const speed = Math.min(1, Math.hypot(event.movementX || 0, event.movementY || 0) / 22);
-      targetScale = 0.9 + speed * 0.3;
-      tilt = Math.max(-12, Math.min(12, (event.movementX || 0) * 1.2));
+      targetScale = 0.9 + speed * 0.25;
+      tilt = Math.max(-9, Math.min(9, (event.movementX || 0) * 1.1));
       window.clearTimeout(idleTimer);
       idleTimer = window.setTimeout(() => { targetScale = 0.9; }, 140);
     };
@@ -215,7 +218,10 @@ function CursorLogo() {
       pos.y += (target.y - pos.y) * 0.14;
       scale += (targetScale - scale) * 0.1;
       tilt *= 0.88;
-      el.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%) rotate(${tilt.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+      // Floats to the RIGHT of the pointer: +24px gap, vertically centred on
+      // the cursor line (translateY(-50%)); no -50% on X — the logo's left
+      // edge starts where the offset ends.
+      el.style.transform = `translate3d(${(pos.x + CURSOR_OFFSET_X).toFixed(1)}px, ${pos.y.toFixed(1)}px, 0) translateY(-50%) rotate(${tilt.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
       raf = requestAnimationFrame(tick);
     };
 
@@ -237,10 +243,15 @@ function CursorLogo() {
     <div
       ref={ref}
       aria-hidden="true"
-      className="pointer-events-none fixed left-0 top-0 z-[70] flex h-11 w-11 items-center justify-center rounded-xl border border-[#6ee7ef]/30 bg-[#211d38]/60 opacity-0 shadow-[0_10px_28px_rgba(4,3,15,.45)] backdrop-blur-md will-change-transform"
+      className="pointer-events-none fixed left-0 top-0 z-[70] opacity-0 will-change-transform"
       style={{ transform: 'translate3d(-200px, -200px, 0)', transition: 'opacity 0.35s ease' }}
     >
-      <img src="/logo.png" alt="" draggable={false} className="h-6 w-auto select-none" />
+      <img
+        src="/logo.png"
+        alt=""
+        draggable={false}
+        className="h-8 w-auto select-none drop-shadow-[0_2px_10px_rgba(4,3,15,.35)]"
+      />
     </div>
   );
 }
