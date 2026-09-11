@@ -77,21 +77,25 @@ function isCount(value: unknown): value is number {
   );
 }
 
-async function readCount(): Promise<number | null> {
+/** Either a usable count, or the reason the counter is down (surfaced as a
+ * short `detail` on the 503 so storage issues can be diagnosed from the
+ * endpoint itself — it never contains secrets). */
+type CountResult = { ok: true; count: number } | { ok: false; detail: string };
+
+async function readCount(): Promise<CountResult> {
   try {
     const { getStore } = await import("@netlify/blobs");
     const store = getStore({ name: STORE_NAME, consistency: "strong" });
     const value = await store.get(COUNT_KEY, { type: "json" });
-    return isCount(value) ? value : 0;
+    return { ok: true, count: isCount(value) ? value : 0 };
   } catch (error) {
-    console.error(
-      `[visits] read failed — ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(`[visits] read failed — ${detail}`);
+    return { ok: false, detail };
   }
 }
 
-async function bumpCount(): Promise<number | null> {
+async function bumpCount(): Promise<CountResult> {
   try {
     const { getStore } = await import("@netlify/blobs");
     const store = getStore({ name: STORE_NAME, consistency: "strong" });
@@ -99,40 +103,45 @@ async function bumpCount(): Promise<number | null> {
     // A corrupt or missing value restarts the count instead of 500-ing.
     const next = (isCount(current) ? current : 0) + 1;
     await store.setJSON(COUNT_KEY, next);
-    return next;
+    return { ok: true, count: next };
   } catch (error) {
-    console.error(
-      `[visits] increment failed — ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(`[visits] increment failed — ${detail}`);
+    return { ok: false, detail };
   }
 }
 
 export default async function handler(req: Request): Promise<Response> {
+  const unavailable = (result: { ok: false; detail: string }) =>
+    json(503, {
+      error: "Visit counter is not available.",
+      detail: result.detail.slice(0, 160),
+    });
+
   if (req.method === "GET") {
-    const count = await readCount();
-    return count === null
-      ? json(503, { error: "Visit counter is not available." })
-      : json(200, { count });
+    const result = await readCount();
+    return result.ok
+      ? json(200, { count: result.count })
+      : unavailable(result);
   }
 
   if (req.method === "POST") {
     const retryAfter = rateLimitRetryAfter(clientKey(req));
     if (retryAfter !== null) {
-      const count = await readCount();
+      const result = await readCount();
       return json(
         429,
         {
           error: "Too many requests.",
-          ...(count === null ? {} : { count }),
+          ...(result.ok ? { count: result.count } : {}),
         },
         { "Retry-After": String(retryAfter) },
       );
     }
-    const count = await bumpCount();
-    return count === null
-      ? json(503, { error: "Visit counter is not available." })
-      : json(200, { count });
+    const result = await bumpCount();
+    return result.ok
+      ? json(200, { count: result.count })
+      : unavailable(result);
   }
 
   return json(405, { error: "Method not allowed." }, { Allow: "GET, POST" });
