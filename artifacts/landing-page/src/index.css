@@ -315,6 +315,14 @@ html.light [class*="border-[#ff9d66]"] { border-color: color-mix(in srgb, var(--
 html.light [class*="from-[#3b1d63]"] {
   background-image: linear-gradient(135deg, var(--contact-from), var(--contact-via), var(--contact-to)) !important;
 }
+/* Gradient-clipped text (hero accents, nav links, footer row) keeps the
+   dark palette's pale cyan → periwinkle → magenta ramp, which washes out
+   on daylight surfaces — worst on the small mono footer text. Give every
+   bg-clip-text element an ink-grade ramp in light mode, same trick as the
+   solid-color overrides above. */
+html.light .bg-clip-text {
+  background-image: linear-gradient(to right, var(--cyan-ink), #4356c7, var(--magenta-ink)) !important;
+}
 html.light [class*="shadow-[0_16px_45px_rgba(4,3,15,.2)]"] { box-shadow: 0 16px 45px var(--shadow-ink) !important; }
 html.light [class*="shadow-[0_32px_90px_rgba(1,17,92,.55)]"] { box-shadow: 0 32px 90px rgba(42, 76, 130, .22) !important; }
 html.light [class*="shadow-[0_24px_80px_rgba(138,42,158,.28)]"] { box-shadow: 0 24px 80px rgba(147, 66, 157, .2) !important; }
