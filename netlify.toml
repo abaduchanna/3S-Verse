@@ -28,12 +28,23 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  # @netlify/blobs ships with the Functions runtime — keep it external so
+  # esbuild never tries to bundle a copy from node_modules.
+  external_node_modules = ["@netlify/blobs"]
 
 # Contact form API — must be listed BEFORE the SPA catch-all below,
 # otherwise every POST to /api/contact would be rewritten to index.html.
 [[redirects]]
   from = "/api/contact"
   to = "/.netlify/functions/contact"
+  status = 200
+  force = true
+
+# Visit counter API — same ordering rule as /api/contact: must be listed
+# BEFORE the SPA catch-all below.
+[[redirects]]
+  from = "/api/visits"
+  to = "/.netlify/functions/visits"
   status = 200
   force = true
 

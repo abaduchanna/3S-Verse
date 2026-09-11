@@ -261,6 +261,25 @@
 .animate-scan { animation: scan 5.5s ease-in-out infinite; }
 .animate-pulse-line { animation: pulse-line 2.6s ease-in-out infinite; }
 .animate-orbit { animation: orbit 12s linear infinite; }
+
+/* Footer email link — a short wiggle every ~4s so the contact address
+   draws the eye without permanently shaking the footer. The motion sits
+   in the first ~35% of the cycle, then the link rests. */
+@keyframes jiggle {
+  0%, 58%, 100% { transform: rotate(0deg) translateY(0); }
+  63% { transform: rotate(-3deg) translateY(-1px); }
+  70% { transform: rotate(2.5deg); }
+  77% { transform: rotate(-2deg) translateY(-1px); }
+  84% { transform: rotate(1.5deg); }
+  91% { transform: rotate(-0.6deg); }
+}
+.animate-jiggle {
+  transform-origin: 50% 85%;
+  animation: jiggle 4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-jiggle { animation: none; }
+}
 ::selection { background: #e44bd7; color: #111119; }
 
 /* The landing page predates the shared token layer and keeps its approved dark

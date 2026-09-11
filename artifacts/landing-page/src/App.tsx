@@ -18,6 +18,7 @@ import {
   Command,
   Cpu,
   Database,
+  Eye,
   Globe2,
   Layers3,
   Menu,
@@ -757,7 +758,32 @@ function Contact() {
 }
 
 function Footer() {
-  return <footer className="border-t border-[#6ee7ef]/10 bg-[#0c0b14]"><div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-10 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div className="flex items-center gap-5"><span data-testid="link-brand-footer" className="shrink-0"><span className="relative inline-block overflow-hidden"><img src="/logo.png" alt="3S Verse" className="h-8 w-auto" /><span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="animate-logo-glass block h-[300px] w-[120px] bg-gradient-to-br from-transparent via-white/40 to-transparent" /></span></span></span><span className="h-5 w-px bg-[#6ee7ef]/20" /><span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent">Software, systems & operations</span></div><div className="group flex flex-wrap items-center gap-6 bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent transition-all duration-300 group-hover:drop-shadow-[0_0_10px_rgba(110,231,239,.7)]"><a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email">{CONTACT_EMAIL}</a><a href="#top" data-testid="link-footer-top">Back to top ↑</a><span>3S Verse {new Date().getFullYear()} ©</span></div></div></footer>;
+  // Footer visit counter — one POST per browser session (sessionStorage
+  // guard), read-only GET on revisits so refreshes never inflate the
+  // count. The endpoint degrades gracefully, so any failure simply
+  // leaves the counter hidden instead of breaking the footer.
+  const [visits, setVisits] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const counted = (() => {
+      try { return window.sessionStorage.getItem('3s-verse-counted') === '1'; } catch { return false; }
+    })();
+    (async () => {
+      try {
+        const response = await fetch('/api/visits', { method: counted ? 'GET' : 'POST' });
+        const payload = (await response.json().catch(() => null)) as { count?: unknown } | null;
+        const count = typeof payload?.count === 'number' && Number.isFinite(payload.count) && payload.count >= 0 ? payload.count : null;
+        if (!cancelled && count !== null) setVisits(count);
+        if (!counted && response.ok) {
+          try { window.sessionStorage.setItem('3s-verse-counted', '1'); } catch { /* storage unavailable */ }
+        }
+      } catch { /* counter is cosmetic — stay hidden */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return <footer className="border-t border-[#6ee7ef]/10 bg-[#0c0b14]"><div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-10 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div className="flex items-center gap-5"><span data-testid="link-brand-footer" className="shrink-0"><span className="relative inline-block overflow-hidden"><img src="/logo.png" alt="3S Verse" className="h-8 w-auto" /><span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="animate-logo-glass block h-[300px] w-[120px] bg-gradient-to-br from-transparent via-white/40 to-transparent" /></span></span></span><span className="h-5 w-px bg-[#6ee7ef]/20" /><span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent">Software, systems & operations</span></div><div className="group flex flex-wrap items-center gap-6 bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent transition-all duration-300 group-hover:drop-shadow-[0_0_10px_rgba(110,231,239,.7)]"><a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle inline-block">{CONTACT_EMAIL}</a>{visits !== null && <span data-testid="footer-visits" className="inline-flex items-center gap-1.5 text-[#d8d5e8]/70"><Eye aria-hidden="true" className="h-3.5 w-3.5 text-[#6ee7ef]" />{visits.toLocaleString('en-US')} visits</span>}<a href="#top" data-testid="link-footer-top">Back to top ↑</a><span>3S Verse {new Date().getFullYear()} ©</span></div></div></footer>;
 }
 
 function Home() {
