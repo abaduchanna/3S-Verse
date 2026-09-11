@@ -661,10 +661,12 @@ function Reviews() {
 function Contact() {
   const [form, setForm] = useState({ name: '', email: '', organization: '', message: '', website: '' });
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [serverNote, setServerNote] = useState('');
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitStatus('sending');
+    setServerNote('');
 
     try {
       const response = await fetch('/api/contact', {
@@ -673,7 +675,19 @@ function Contact() {
         body: JSON.stringify(form),
       });
 
-      if (!response.ok) throw new Error('Contact submission failed');
+      if (!response.ok) {
+        // Surface the server's specific reason (e.g. "Email delivery is not
+        // configured.") so a misconfiguration is visible in the UI, not
+        // swallowed by a generic message.
+        let note = '';
+        try {
+          note = ((await response.json()) as { error?: string }).error ?? '';
+        } catch {
+          // Non-JSON error body — fall back to the generic note.
+        }
+        setServerNote(note);
+        throw new Error('Contact submission failed');
+      }
 
       setForm({ name: '', email: '', organization: '', message: '', website: '' });
       setSubmitStatus('success');
@@ -731,7 +745,7 @@ function Contact() {
                   <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </button>
                 <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/60">
-                  {submitStatus === 'success' ? 'Message sent — we’ll be in touch.' : submitStatus === 'error' ? `Couldn’t send. Email ${CONTACT_EMAIL} directly.` : 'We reply to every message.'}
+                  {submitStatus === 'success' ? 'Message sent — we’ll be in touch.' : submitStatus === 'error' ? `${serverNote || 'Couldn’t send'}. Email ${CONTACT_EMAIL} directly.` : 'We reply to every message.'}
                 </span>
               </div>
             </form>
