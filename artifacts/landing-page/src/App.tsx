@@ -46,6 +46,10 @@ const refreshPage = () => window.location.reload();
 
 type Theme = 'light' | 'dark';
 
+// Viewport coords (px) + covering radius of the last theme-toggle press —
+// the water-swipe reveal expands from this point.
+let waterOrigin = { x: 0, y: 0, r: 0 };
+
 function getInitialTheme(): Theme {
   if (typeof window === 'undefined') return 'light';
   const saved = window.localStorage.getItem('3s-verse-theme');
@@ -69,15 +73,42 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
     };
     if (!alreadyApplied) {
       const doc = document as Document & {
-        startViewTransition?: (cb: () => void) => { finished?: Promise<unknown> };
+        startViewTransition?: (cb: () => void) => {
+          ready?: Promise<void>;
+          finished?: Promise<unknown>;
+        };
       };
-      if (doc.startViewTransition) {
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (doc.startViewTransition && !reducedMotion) {
         try {
           const transition = doc.startViewTransition(applyTheme);
           // Browsers can intentionally skip a transition when another
           // navigation or transition is already in progress. That is
           // expected and should not reach Vite's runtime error overlay.
           transition.finished?.catch(() => undefined);
+          // Water swipe: the new theme floods out from the toggle as a circle
+          // with a soft feathered front. @property-capable browsers run the
+          // feathered mask wavefront in CSS (index.css); older ones get a
+          // hard-edged clip-path reveal driven here instead.
+          if (transition.ready && !('CSSPropertyRule' in window)) {
+            transition.ready
+              .then(() =>
+                document.documentElement.animate(
+                  {
+                    clipPath: [
+                      `circle(0px at ${waterOrigin.x}px ${waterOrigin.y}px)`,
+                      `circle(${waterOrigin.r}px at ${waterOrigin.x}px ${waterOrigin.y}px)`,
+                    ],
+                  },
+                  {
+                    duration: 850,
+                    easing: 'cubic-bezier(0.3, 0, 0.15, 1)',
+                    pseudoElement: '::view-transition-new(root)',
+                  },
+                ),
+              )
+              .catch(() => undefined);
+          }
         } catch {
           applyTheme();
         }
@@ -101,7 +132,20 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
       type="button"
       aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
       aria-pressed={theme === 'dark'}
-      onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+      onClick={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        waterOrigin = {
+          x,
+          y,
+          r: Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y)),
+        };
+        const rootStyle = document.documentElement.style;
+        rootStyle.setProperty('--water-x', `${Math.round(x)}px`);
+        rootStyle.setProperty('--water-y', `${Math.round(y)}px`);
+        setTheme((current) => current === 'dark' ? 'light' : 'dark');
+      }}
       className={`group inline-flex items-center justify-center overflow-hidden border border-[#6ee7ef]/25 bg-[#211d38]/45 text-[#f7f3e8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#e44bd7]/60 hover:text-[#e44bd7] ${mobile ? 'h-10 w-10' : 'h-9 w-9'}`}
     >
       <AnimatePresence mode="wait" initial={false}>

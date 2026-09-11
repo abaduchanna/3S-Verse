@@ -307,22 +307,62 @@ html.light [class*="text-[#c7ef70]"] { color: var(--lime-brand) !important; }
 html.light [class*="text-[#ff9d66]"] { color: var(--orange-brand) !important; }
 html.light [class*="text-[#17121c]"] { color: var(--cta-ink) !important; }
 
-/* ---------- Theme transition (light <-> dark) ---------- */
-/* Smooth cross-fade using the View Transitions API when available. */
-::view-transition-old(root) {
-  animation: vt-theme-out 0.35s ease forwards;
+/* ---------- Theme transition: water swipe from the toggle ---------- */
+/* The new theme floods the page as a circle expanding from the theme toggle
+   (top-right) with a soft, feathered wavefront — like water washing over the
+   page. The circle origin is set per-click via --water-x / --water-y by
+   ThemeToggle; --water-r is a registered custom property so it can be
+   animated inside the mask gradient. Browsers with View Transitions but
+   without @property fall back to the clip-path reveal driven in App.tsx;
+   browsers without View Transitions use the color-transition fallback below. */
+
+@property --water-r {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
 }
+
+::view-transition-old(root),
 ::view-transition-new(root) {
-  animation: vt-theme-in 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: none;
+  mix-blend-mode: normal;
 }
 
-@keyframes vt-theme-out {
-  to { opacity: 0; filter: blur(6px); }
+::view-transition-new(root) {
+  animation: water-front 0.85s cubic-bezier(0.3, 0, 0.15, 1) forwards;
+  mask-image: radial-gradient(
+    circle var(--water-r) at var(--water-x, 100%) var(--water-y, 0%),
+    black 60%,
+    rgba(0, 0, 0, 0.4) 84%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle var(--water-r) at var(--water-x, 100%) var(--water-y, 0%),
+    black 60%,
+    rgba(0, 0, 0, 0.4) 84%,
+    transparent 100%
+  );
 }
 
-@keyframes vt-theme-in {
-  from { opacity: 0; filter: blur(6px); transform: scale(1.01); }
-  to { opacity: 1; filter: blur(0); transform: scale(1); }
+@keyframes water-front {
+  from { --water-r: 0px; }
+  to { --water-r: 170vmax; }
+}
+
+/* The old theme dims and softens as the water passes over it. */
+::view-transition-old(root) {
+  animation: water-out 0.6s ease forwards;
+}
+
+@keyframes water-out {
+  to { filter: brightness(0.92) blur(2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+  }
 }
 
 /* Fallback for browsers without View Transitions: smoothly transition colors. */
