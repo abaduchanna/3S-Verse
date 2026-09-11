@@ -51,11 +51,11 @@ type Theme = 'light' | 'dark';
 // the water-swipe reveal expands from this point.
 let waterOrigin = { x: 0, y: 0, r: 0 };
 
+// The site ALWAYS opens in the light theme: fresh loads ignore both the OS
+// color scheme and any previously toggled session. The toggle still switches
+// to dark for the current session — it just never carries over to a reload.
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light';
-  const saved = window.localStorage.getItem('3s-verse-theme');
-  if (saved === 'light' || saved === 'dark') return saved;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'light';
 }
 
 function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
@@ -65,7 +65,7 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
     const root = document.documentElement;
     const isDark = theme === 'dark';
     // Skip any transition on first mount / when the class already matches
-    // (the flash-prevention script set it before paint).
+    // (App() set it before paint).
     const alreadyApplied = root.classList.contains('dark') === isDark && root.classList.contains('light') !== isDark;
     const applyTheme = () => {
       root.classList.toggle('dark', isDark);
@@ -115,7 +115,9 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
         }
       } else applyTheme();
     }
-    window.localStorage.setItem('3s-verse-theme', theme);
+    // Nothing is persisted — the next load always starts light again;
+    // drop any key left over from the old remember-my-choice behavior.
+    window.localStorage.removeItem('3s-verse-theme');
     window.dispatchEvent(new CustomEvent('3s-verse-theme-change', { detail: theme }));
   }, [theme]);
 
@@ -795,8 +797,8 @@ function Router() {
 }
 
 function App() {
-  // Apply the persisted/system choice before the first React effect runs,
-  // avoiding a bright flash when returning to a dark session.
+  // Apply the (always-light) starting theme before the first React effect
+  // runs so the very first paint is already correctly themed.
   if (typeof document !== 'undefined') {
     const initialTheme = getInitialTheme();
     document.documentElement.classList.toggle('dark', initialTheme === 'dark');
