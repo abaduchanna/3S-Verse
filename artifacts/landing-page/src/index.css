@@ -262,20 +262,23 @@
 .animate-pulse-line { animation: pulse-line 2.6s ease-in-out infinite; }
 .animate-orbit { animation: orbit 12s linear infinite; }
 
-/* Footer email link — a short wiggle every ~4s so the contact address
-   draws the eye without permanently shaking the footer. The motion sits
-   in the first ~35% of the cycle, then the link rests. */
+/* Footer email link — a clearly visible wiggle every 3s. The link owns
+   its own bg-clip-text gradient so the transformed element carries its
+   own paint: a transformed child of the footer's shared bg-clip-text row
+   would otherwise rotate with no visible background behind the glyphs.
+   The motion sits in the second half of each cycle, then the link rests. */
 @keyframes jiggle {
-  0%, 58%, 100% { transform: rotate(0deg) translateY(0); }
-  63% { transform: rotate(-3deg) translateY(-1px); }
-  70% { transform: rotate(2.5deg); }
-  77% { transform: rotate(-2deg) translateY(-1px); }
-  84% { transform: rotate(1.5deg); }
-  91% { transform: rotate(-0.6deg); }
+  0%, 50%, 100% { transform: rotate(0deg) translateY(0); }
+  56% { transform: rotate(-4deg) translateY(-1px); }
+  64% { transform: rotate(3.5deg) translateY(-1px); }
+  72% { transform: rotate(-3deg); }
+  80% { transform: rotate(2.4deg) translateY(-1px); }
+  88% { transform: rotate(-1.2deg); }
+  95% { transform: rotate(0.5deg); }
 }
 .animate-jiggle {
   transform-origin: 50% 85%;
-  animation: jiggle 4s ease-in-out infinite;
+  animation: jiggle 3s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-jiggle { animation: none; }
@@ -347,10 +350,10 @@ html.light [class*="text-[#17121c]"] { color: var(--cta-ink) !important; }
   mix-blend-mode: normal;
 }
 
-/* 1.6s — deliberately slow so the wavefront is clearly visible crossing
-   the page; the feathered mask makes the front read as water, not a wipe. */
+/* 1s — quick flood, still readable as a wavefront crossing the page; the
+   feathered mask makes the front read as water, not a wipe. */
 ::view-transition-new(root) {
-  animation: water-front 1.6s cubic-bezier(0.3, 0, 0.15, 1) forwards;
+  animation: water-front 1s cubic-bezier(0.3, 0, 0.15, 1) forwards;
   mask-image: radial-gradient(
     circle var(--water-r) at var(--water-x, 100%) var(--water-y, 0%),
     black 60%,
@@ -372,7 +375,7 @@ html.light [class*="text-[#17121c]"] { color: var(--cta-ink) !important; }
 
 /* The old theme dims and softens as the water passes over it. */
 ::view-transition-old(root) {
-  animation: water-out 1.15s ease forwards;
+  animation: water-out 0.75s ease forwards;
 }
 
 @keyframes water-out {
