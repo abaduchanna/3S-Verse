@@ -106,6 +106,24 @@ function rateLimitRetryAfter(key: string): number | null {
   return null;
 }
 
+/** Map Resend's rejection to a safe, actionable hint for the form UI
+ * (no internal details — just what the visitor/site-owner should do). */
+function resendHint(status: number, body: string): string | null {
+  if (status === 401) {
+    return "Resend rejected the API key — check it at resend.com/api-keys";
+  }
+  if (/own email address/i.test(body)) {
+    return "Resend sandbox delivers only to your Resend account's own email — verify 3sverse.com at resend.com/domains to unlock Connect@3SVerse.com";
+  }
+  if (/domain|verif/i.test(body)) {
+    return "The 3sverse.com domain is not verified in Resend — add the DNS records shown at resend.com/domains";
+  }
+  if (status === 429) {
+    return "Resend rate limit reached — try again shortly";
+  }
+  return null;
+}
+
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return json(405, { error: "Method not allowed." }, { Allow: "POST" });
@@ -205,7 +223,10 @@ export default async function handler(req: Request): Promise<Response> {
       console.error(
         `[contact] Resend rejected submission — status=${result.status} body=${result.body.slice(0, 600)}`,
       );
-      return json(502, { error: "The message could not be delivered right now." });
+      return json(502, {
+        error: resendHint(result.status, result.body) ??
+          "The message could not be delivered right now.",
+      });
     }
 
     const data = (() => {
