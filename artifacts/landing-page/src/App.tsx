@@ -101,7 +101,7 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
                     ],
                   },
                   {
-                    duration: 850,
+                    duration: 1600,
                     easing: 'cubic-bezier(0.3, 0, 0.15, 1)',
                     pseudoElement: '::view-transition-new(root)',
                   },
@@ -161,6 +161,87 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
         </motion.span>
       </AnimatePresence>
     </button>
+  );
+}
+
+// Small 3S mark that trails the mouse across the page. Driven by a
+// requestAnimationFrame lerp loop that writes transforms straight to the
+// DOM node — no re-renders per frame. Only rendered for fine pointers
+// (mouse) with motion allowed; hidden until the first pointer move and
+// when the cursor leaves the window.
+function CursorLogo() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Skip touch-only devices and users who opt out of motion. Checking the
+    // negative (coarse) rather than requiring a fine pointer also keeps the
+    // follower alive in environments that report no pointer at all.
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const target = { x: -200, y: -200 };
+    const pos = { x: -200, y: -200 };
+    let scale = 0.5;
+    let targetScale = 0.9;
+    let tilt = 0;
+    let raf = 0;
+    let idleTimer = 0;
+    let shown = false;
+
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') return;
+      target.x = event.clientX;
+      target.y = event.clientY;
+      if (!shown) {
+        shown = true;
+        pos.x = target.x;
+        pos.y = target.y;
+        el.style.opacity = '1';
+      }
+      const speed = Math.min(1, Math.hypot(event.movementX || 0, event.movementY || 0) / 22);
+      targetScale = 0.9 + speed * 0.3;
+      tilt = Math.max(-12, Math.min(12, (event.movementX || 0) * 1.2));
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => { targetScale = 0.9; }, 140);
+    };
+
+    const onLeave = () => { el.style.opacity = '0'; };
+    const onEnter = () => { if (shown) el.style.opacity = '1'; };
+
+    const tick = () => {
+      pos.x += (target.x - pos.x) * 0.14;
+      pos.y += (target.y - pos.y) * 0.14;
+      scale += (targetScale - scale) * 0.1;
+      tilt *= 0.88;
+      el.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%) rotate(${tilt.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+      raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener('pointermove', onMove, { passive: true });
+    document.documentElement.addEventListener('mouseleave', onLeave);
+    document.documentElement.addEventListener('mouseenter', onEnter);
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(idleTimer);
+      window.removeEventListener('pointermove', onMove);
+      document.documentElement.removeEventListener('mouseleave', onLeave);
+      document.documentElement.removeEventListener('mouseenter', onEnter);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      aria-hidden="true"
+      className="pointer-events-none fixed left-0 top-0 z-[70] flex h-11 w-11 items-center justify-center rounded-xl border border-[#6ee7ef]/30 bg-[#211d38]/60 opacity-0 shadow-[0_10px_28px_rgba(4,3,15,.45)] backdrop-blur-md will-change-transform"
+      style={{ transform: 'translate3d(-200px, -200px, 0)', transition: 'opacity 0.35s ease' }}
+    >
+      <img src="/logo.png" alt="" draggable={false} className="h-6 w-auto select-none" />
+    </div>
   );
 }
 
@@ -655,7 +736,7 @@ function Footer() {
 }
 
 function Home() {
-  return <div className="noise min-h-[100dvh] overflow-hidden bg-[#11101c]"><ScrollProgress /><Spotlight /><ScrollTop /><Nav /><main><Hero /><Capabilities /><Approach /><Outcomes /><Reviews /><Contact /></main><Footer /></div>;
+  return <div className="noise min-h-[100dvh] overflow-hidden bg-[#11101c]"><ScrollProgress /><Spotlight /><ScrollTop /><CursorLogo /><Nav /><main><Hero /><Capabilities /><Approach /><Outcomes /><Reviews /><Contact /></main><Footer /></div>;
 }
 
 function Router() {

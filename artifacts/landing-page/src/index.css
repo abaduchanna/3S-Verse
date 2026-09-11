@@ -328,8 +328,10 @@ html.light [class*="text-[#17121c]"] { color: var(--cta-ink) !important; }
   mix-blend-mode: normal;
 }
 
+/* 1.6s — deliberately slow so the wavefront is clearly visible crossing
+   the page; the feathered mask makes the front read as water, not a wipe. */
 ::view-transition-new(root) {
-  animation: water-front 0.85s cubic-bezier(0.3, 0, 0.15, 1) forwards;
+  animation: water-front 1.6s cubic-bezier(0.3, 0, 0.15, 1) forwards;
   mask-image: radial-gradient(
     circle var(--water-r) at var(--water-x, 100%) var(--water-y, 0%),
     black 60%,
@@ -351,7 +353,7 @@ html.light [class*="text-[#17121c]"] { color: var(--cta-ink) !important; }
 
 /* The old theme dims and softens as the water passes over it. */
 ::view-transition-old(root) {
-  animation: water-out 0.6s ease forwards;
+  animation: water-out 1.15s ease forwards;
 }
 
 @keyframes water-out {
