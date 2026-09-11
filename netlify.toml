@@ -1,0 +1,30 @@
+# Netlify build configuration for 3S Verse
+#
+# The site is the Vite app in artifacts/landing-page inside this pnpm
+# monorepo. Netlify's auto-detection looks at the repo root and finds
+# nothing buildable — this file points it at the right directories.
+#
+# vite.config.ts hard-requires PORT and BASE_PATH to be set (it throws
+# otherwise), so both are pinned in [build.environment].
+
+[build]
+  base = "artifacts/landing-page"
+  # Install only what the landing-page package needs (plus its workspace
+  # deps), then run its Vite build. Run from the workspace root so pnpm
+  # resolves the lockfile and catalogs.
+  command = "cd ../.. && pnpm install --frozen-lockfile --filter @workspace/landing-page... && pnpm --filter @workspace/landing-page run build"
+  publish = "dist/public"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NETLIFY_USE_PNPM = "true"
+  PNPM_VERSION = "10.17.0"
+  PORT = "3000"
+  BASE_PATH = "/"
+
+# Single-page app: serve index.html for client-side routes (Netlify
+# serves real files first, so assets are unaffected).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
