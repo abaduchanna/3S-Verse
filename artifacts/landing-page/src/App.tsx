@@ -102,7 +102,7 @@ function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
                     ],
                   },
                   {
-                    duration: 1000,
+                    duration: 2500,
                     easing: 'cubic-bezier(0.3, 0, 0.15, 1)',
                     pseudoElement: '::view-transition-new(root)',
                   },

@@ -333,8 +333,11 @@ html.light [class*="bg-[#6ee7ef]"] { background-color: var(--cyan-brand) !import
 html.light [class*="bg-[#7162d9]"] { background-color: #8a7ada !important; }
 html.light [class*="bg-[#c7ef70]"] { background-color: var(--lime-brand) !important; }
 html.light [class*="bg-[#ff9d66]"] { background-color: var(--orange-brand) !important; }
-html.light [class*="text-[#c7ef70]"] { color: var(--lime-brand) !important; }
-html.light [class*="text-[#ff9d66]"] { color: var(--orange-brand) !important; }
+/* Small lime/orange text accents (dashboard labels, alert chips) get
+   ink-grade colors — the brand lime/orange is only ~3.3:1 on daylight
+   panels, too faint at 9-10px. Background dots stay brand-colored. */
+html.light [class*="text-[#c7ef70]"] { color: #55731a !important; }
+html.light [class*="text-[#ff9d66]"] { color: #9c4a22 !important; }
 html.light [class*="text-[#17121c]"] { color: var(--cta-ink) !important; }
 
 /* ---------- Theme transition: water swipe from the toggle ---------- */
@@ -358,10 +361,10 @@ html.light [class*="text-[#17121c]"] { color: var(--cta-ink) !important; }
   mix-blend-mode: normal;
 }
 
-/* 1s — quick flood, still readable as a wavefront crossing the page; the
-   feathered mask makes the front read as water, not a wipe. */
+/* 2.5s — slow, clearly visible flood so the wavefront reads as water
+   crossing the page; the feathered mask keeps the front soft, not a wipe. */
 ::view-transition-new(root) {
-  animation: water-front 1s cubic-bezier(0.3, 0, 0.15, 1) forwards;
+  animation: water-front 2.5s cubic-bezier(0.3, 0, 0.15, 1) forwards;
   mask-image: radial-gradient(
     circle var(--water-r) at var(--water-x, 100%) var(--water-y, 0%),
     black 60%,
@@ -383,7 +386,7 @@ html.light [class*="text-[#17121c]"] { color: var(--cta-ink) !important; }
 
 /* The old theme dims and softens as the water passes over it. */
 ::view-transition-old(root) {
-  animation: water-out 0.75s ease forwards;
+  animation: water-out 1.9s ease forwards;
 }
 
 @keyframes water-out {
