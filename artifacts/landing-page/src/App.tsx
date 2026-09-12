@@ -266,15 +266,8 @@ function CursorLogo() {
   );
 }
 
-const navItems = [
-  { label: 'Capabilities', href: '#capabilities' },
-  { label: 'How it works', href: '#approach' },
-  { label: 'Outcomes', href: '#outcomes' },
-  { label: 'Work', href: '#work' },
-];
-
-// PROJECT VIDEOS — to put a project video on the page, add one entry to this
-// list (newest first). `url` accepts:
+// PROJECT VIDEOS — to show a project video on the page, add one entry to
+// this list. `url` accepts:
 //   • a YouTube link        'https://www.youtube.com/watch?v=XXXXXXXXXXX'
 //   • a YouTube Shorts link 'https://youtube.com/shorts/XXXXXXXXXXX'
 //   • a Vimeo link          'https://vimeo.com/123456789'
@@ -282,27 +275,18 @@ const navItems = [
 //                           public/videos/) or any hosted .mp4/.webm URL
 // `poster` (optional) is the card thumbnail; leave it out and YouTube links
 // automatically use their own thumbnail, everything else gets a styled
-// gradient placeholder until a poster is added. The three entries below are
-// demo samples standing in until real project recordings replace them.
+// gradient placeholder until a poster is added.
+// While this list is empty the whole Work section (and its nav item) stays
+// hidden, so nothing unfinished ever shows on the live page.
 const PROJECT_VIDEOS: ProjectVideo[] = [
-  {
-    title: 'Ordering workflow, rebuilt',
-    blurb: 'How a multi-day manual ordering loop became a one-click pipeline with live validation.',
-    tag: 'Automation',
-    url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
-  },
-  {
-    title: 'Live operations dashboard',
-    blurb: 'Inventory, sales, and claims in one real-time view — the screen the team opens every morning.',
-    tag: 'Dashboard',
-    url: 'https://www.youtube.com/watch?v=eRsGyueVLvQ',
-  },
-  {
-    title: 'Claims recovery engine',
-    blurb: 'A walk-through of the tooling that recovered six figures in vendor claims and losses.',
-    tag: 'Operations',
-    url: 'https://www.youtube.com/watch?v=R6MlUcmOul8',
-  },
+  // Copy this shape for each of your own videos:
+  // {
+  //   title: 'Inventory automation demo',
+  //   blurb: 'One-line description shown under the video title.',
+  //   tag: 'Automation',
+  //   url: 'https://www.youtube.com/watch?v=XXXXXXXXXXX',
+  //   poster: '/videos/demo-poster.jpg',
+  // },
 ];
 
 type ProjectVideo = {
@@ -343,6 +327,18 @@ function videoThumbUrl(video: ProjectVideo): string | undefined {
   const source = parseVideoSource(video.url);
   return source.kind === 'youtube' && source.id ? `https://i.ytimg.com/vi/${source.id}/hqdefault.jpg` : undefined;
 }
+
+const navItems = [
+  { label: 'Capabilities', href: '#capabilities' },
+  { label: 'How it works', href: '#approach' },
+  { label: 'Outcomes', href: '#outcomes' },
+  // "Work" only appears once there is at least one project video to show.
+  ...(PROJECT_VIDEOS.length > 0 ? [{ label: 'Work', href: '#work' }] : []),
+];
+
+// Work is section /04 when it renders; Reviews shifts back to /04 while the
+// video list is empty so the visible numbering never skips.
+const REVIEWS_SECTION_NO = PROJECT_VIDEOS.length > 0 ? '05' : '04';
 
 const features = [
   {
@@ -773,6 +769,10 @@ function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose
 
 function Work() {
   const [active, setActive] = useState<ProjectVideo | null>(null);
+  // Nothing to show yet — the section (and its nav item) stays hidden until
+  // at least one video is added to PROJECT_VIDEOS. The condition is a module
+  // constant, so this branch never flips between renders.
+  if (PROJECT_VIDEOS.length === 0) return null;
   return (
     <section id="work" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#11101c] py-28 lg:py-36">
       <div className="absolute inset-x-0 bottom-0 h-[420px] grid-tech opacity-20 [mask-image:linear-gradient(to_top,black,transparent)]" />
@@ -858,7 +858,7 @@ function Reviews() {
     <section id="reviews" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#18152a] py-28 lg:py-36">
       <div className="absolute inset-x-0 top-0 h-[420px] grid-tech opacity-25 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
-        <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>05 — Client reviews</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">People who run on <span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">3S Verse.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/60">Feedback from the operations leaders, finance teams, and managers who trusted us with their day-to-day.</p></div></Reveal>
+        <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>{REVIEWS_SECTION_NO} — Client reviews</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">People who run on <span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">3S Verse.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/60">Feedback from the operations leaders, finance teams, and managers who trusted us with their day-to-day.</p></div></Reveal>
         <div className="grid gap-4 md:grid-cols-3">
           {reviews.map((review, i) => (
             <Reveal key={review.name} delay={i * .1}>
