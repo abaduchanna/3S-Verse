@@ -897,23 +897,31 @@ function Contact() {
     setServerNote('');
 
     try {
-      const response = await fetch('/api/contact', {
+      // Static hosting (GitHub Pages) has no server functions, so the form
+      // posts through FormSubmit's AJAX relay, which emails the same inbox
+      // (Connect@3SVerse.com) the old /api/contact Netlify function targeted.
+      // First-ever submission sends a one-time activation link to that inbox.
+      const response = await fetch('https://formsubmit.co/ajax/connect@3sverse.com', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          organization: form.organization,
+          message: form.message,
+          _subject: `New project inquiry — ${form.name}${form.organization ? ` (${form.organization})` : ''}`,
+          _template: 'table',
+          _captcha: 'false',
+          _replyto: form.email,
+          _honey: form.website,
+        }),
       });
 
-      if (!response.ok) {
-        // Surface the server's specific reason (e.g. "Email delivery is not
-        // configured.") so a misconfiguration is visible in the UI, not
-        // swallowed by a generic message.
-        let note = '';
-        try {
-          note = ((await response.json()) as { error?: string }).error ?? '';
-        } catch {
-          // Non-JSON error body — fall back to the generic note.
-        }
-        setServerNote(note);
+      const payload = (await response.json().catch(() => null)) as { success?: string; message?: string } | null;
+      if (!response.ok || payload?.success !== 'true') {
+        // Surface the relay's specific reason so a misconfiguration is
+        // visible in the UI, not swallowed by a generic message.
+        setServerNote(payload?.message ?? '');
         throw new Error('Contact submission failed');
       }
 
