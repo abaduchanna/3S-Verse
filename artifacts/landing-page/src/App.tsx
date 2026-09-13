@@ -917,13 +917,24 @@ function Contact() {
     };
 
     try {
-      const response = await fetch('https://formsubmit.co/ajax/connect@3sverse.com', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(fields),
-      });
+      // Challenged visitors would otherwise hang at "Sending..." forever —
+      // cap the relay call at 8s and let the mailto handoff take over.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      let response: Response;
+      let payload: { success?: string; message?: string } | null = null;
+      try {
+        response = await fetch('https://formsubmit.co/ajax/connect@3sverse.com', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(fields),
+          signal: controller.signal,
+        });
+        payload = (await response.json().catch(() => null)) as { success?: string; message?: string } | null;
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
-      const payload = (await response.json().catch(() => null)) as { success?: string; message?: string } | null;
       if (!response.ok || payload?.success !== 'true') {
         // Surface the relay's specific reason so a misconfiguration is
         // visible in the UI, not swallowed by a generic message.
