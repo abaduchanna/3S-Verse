@@ -891,21 +891,6 @@ function Contact() {
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [serverNote, setServerNote] = useState('');
 
-  // The native-POST fallback redirects back here with ?sent=1 after
-  // FormSubmit delivers the message — surface the success state and clean
-  // the URL so a refresh doesn't re-trigger it.
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('sent') === '1') {
-        setSubmitStatus('success');
-        params.delete('sent');
-        const cleaned = params.toString();
-        window.history.replaceState({}, '', `${window.location.pathname}${cleaned ? `?${cleaned}` : ''}`);
-      }
-    } catch { /* URL unavailable — no-op */ }
-  }, []);
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitStatus('sending');
@@ -949,21 +934,16 @@ function Contact() {
       setForm({ name: '', email: '', organization: '', message: '', website: '' });
       setSubmitStatus('success');
     } catch {
-      // AJAX path unavailable (edge/CORS block or network error) — fall
-      // back to the classic POST flow, which always reaches FormSubmit.
+      // Relay unreachable (edge/CORS block or network error) — never lose
+      // the inquiry: hand it to the visitor's own email client with the
+      // message pre-filled. No third-party interstitial, works everywhere.
       try {
-        const native = document.createElement('form');
-        native.method = 'POST';
-        native.action = 'https://formsubmit.co/connect@3sverse.com';
-        Object.entries({ ...fields, _next: `${window.location.origin}/?sent=1` }).forEach(([key, value]) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = value;
-          native.appendChild(input);
-        });
-        document.body.appendChild(native);
-        native.submit();
+        const subject = encodeURIComponent(fields._subject);
+        const body = encodeURIComponent(
+          `Name: ${form.name}\nEmail: ${form.email}\nOrganization: ${form.organization || '—'}\n\n${form.message}`,
+        );
+        window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
+        setServerNote('your email app just opened with the message pre-filled — press send there');
       } catch {
         setSubmitStatus('error');
       }
