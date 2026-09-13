@@ -1054,7 +1054,7 @@ function Footer() {
         let response: Response;
         try {
           response = await fetch(
-            `https://abacus.jasoncameron.dev/${counted ? 'get' : 'hit'}/3sverse_com/visits`,
+            `https://abacus.jasoncameron.dev/${counted ? 'get' : 'hit'}/3sversecom/visits`,
             { method: counted ? 'GET' : 'POST', signal: controller.signal },
           );
         } finally {
