@@ -1049,13 +1049,16 @@ function Footer() {
     (async () => {
       try {
         // Cosmetic call — cap it at 6s so a hanging edge never blocks anything.
+        // Both endpoints are GET (Abacus dropped plain POST /hit — it now
+        // 308-redirects to the docs page); GET /hit increments, GET /get
+        // is read-only.
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 6000);
         let response: Response;
         try {
           response = await fetch(
             `https://abacus.jasoncameron.dev/${counted ? 'get' : 'hit'}/3sversecom/visits`,
-            { method: counted ? 'GET' : 'POST', signal: controller.signal },
+            { method: 'GET', signal: controller.signal },
           );
         } finally {
           clearTimeout(timeoutId);
