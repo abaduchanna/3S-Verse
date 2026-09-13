@@ -955,6 +955,7 @@ function Contact() {
         );
         window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
         setServerNote('your email app just opened with the message pre-filled — press send there');
+        setSubmitStatus('error');
       } catch {
         setSubmitStatus('error');
       }
