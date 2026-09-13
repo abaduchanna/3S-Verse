@@ -891,30 +891,51 @@ function Contact() {
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [serverNote, setServerNote] = useState('');
 
+  // The native-POST fallback redirects back here with ?sent=1 after
+  // FormSubmit delivers the message — surface the success state and clean
+  // the URL so a refresh doesn't re-trigger it.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('sent') === '1') {
+        setSubmitStatus('success');
+        params.delete('sent');
+        const cleaned = params.toString();
+        window.history.replaceState({}, '', `${window.location.pathname}${cleaned ? `?${cleaned}` : ''}`);
+      }
+    } catch { /* URL unavailable — no-op */ }
+  }, []);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitStatus('sending');
     setServerNote('');
 
+    // Static hosting (GitHub Pages) has no server functions, so the form
+    // posts through FormSubmit, which emails the same inbox
+    // (Connect@3SVerse.com) the old /api/contact Netlify function targeted.
+    // First-ever submission sends a one-time activation link to that inbox.
+    // Primary path is AJAX for an inline success state; if the relay's
+    // edge blocks the cross-origin call for a visitor, we fall back to a
+    // classic full-page POST (no CORS involved) that redirects back with
+    // ?sent=1 so the UI can still show the success message.
+    const fields: Record<string, string> = {
+      name: form.name,
+      email: form.email,
+      organization: form.organization,
+      message: form.message,
+      _subject: `New project inquiry — ${form.name}${form.organization ? ` (${form.organization})` : ''}`,
+      _template: 'table',
+      _captcha: 'false',
+      _replyto: form.email,
+      _honey: form.website,
+    };
+
     try {
-      // Static hosting (GitHub Pages) has no server functions, so the form
-      // posts through FormSubmit's AJAX relay, which emails the same inbox
-      // (Connect@3SVerse.com) the old /api/contact Netlify function targeted.
-      // First-ever submission sends a one-time activation link to that inbox.
       const response = await fetch('https://formsubmit.co/ajax/connect@3sverse.com', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          email: form.email,
-          organization: form.organization,
-          message: form.message,
-          _subject: `New project inquiry — ${form.name}${form.organization ? ` (${form.organization})` : ''}`,
-          _template: 'table',
-          _captcha: 'false',
-          _replyto: form.email,
-          _honey: form.website,
-        }),
+        body: JSON.stringify(fields),
       });
 
       const payload = (await response.json().catch(() => null)) as { success?: string; message?: string } | null;
@@ -928,7 +949,24 @@ function Contact() {
       setForm({ name: '', email: '', organization: '', message: '', website: '' });
       setSubmitStatus('success');
     } catch {
-      setSubmitStatus('error');
+      // AJAX path unavailable (edge/CORS block or network error) — fall
+      // back to the classic POST flow, which always reaches FormSubmit.
+      try {
+        const native = document.createElement('form');
+        native.method = 'POST';
+        native.action = 'https://formsubmit.co/connect@3sverse.com';
+        Object.entries({ ...fields, _next: `${window.location.origin}/?sent=1` }).forEach(([key, value]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value;
+          native.appendChild(input);
+        });
+        document.body.appendChild(native);
+        native.submit();
+      } catch {
+        setSubmitStatus('error');
+      }
     }
   };
 
