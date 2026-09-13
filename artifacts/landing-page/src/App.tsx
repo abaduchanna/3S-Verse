@@ -904,15 +904,25 @@ function Contact() {
     // edge blocks the cross-origin call for a visitor, we fall back to a
     // classic full-page POST (no CORS involved) that redirects back with
     // ?sent=1 so the UI can still show the success message.
+    //
+    // Input hygiene (no SQL anywhere — the stack is static files + an email
+    // relay, so injection is structurally impossible; this keeps the email
+    // pipeline sane): strip control characters from anything that becomes
+    // the subject line (header-injection hygiene) and cap field lengths.
+    const oneline = (value: string) => value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+    const cleanName = oneline(form.name).slice(0, 120);
+    const cleanOrganization = oneline(form.organization).slice(0, 160);
+    const cleanEmail = form.email.trim().slice(0, 254);
+    const cleanMessage = form.message.trim().slice(0, 5000);
     const fields: Record<string, string> = {
-      name: form.name,
-      email: form.email,
-      organization: form.organization,
-      message: form.message,
-      _subject: `New project inquiry — ${form.name}${form.organization ? ` (${form.organization})` : ''}`,
+      name: cleanName,
+      email: cleanEmail,
+      organization: cleanOrganization,
+      message: cleanMessage,
+      _subject: `New project inquiry — ${cleanName}${cleanOrganization ? ` (${cleanOrganization})` : ''}`,
       _template: 'table',
       _captcha: 'false',
-      _replyto: form.email,
+      _replyto: cleanEmail,
       _honey: form.website,
     };
 
@@ -990,20 +1000,20 @@ function Contact() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/75">
                   Name
-                  <input required name="name" value={form.name} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-name" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="Your name" />
+                  <input required maxLength={120} name="name" value={form.name} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-name" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="Your name" />
                 </label>
                 <label className="font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/75">
                   Email
-                  <input required type="email" name="email" value={form.email} onChange={(event) => { setForm((current) => ({ ...current, email: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-email" autoComplete="email" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="you@company.com" />
+                  <input required maxLength={254} type="email" name="email" value={form.email} onChange={(event) => { setForm((current) => ({ ...current, email: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-email" autoComplete="email" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="you@company.com" />
                 </label>
                 <label className="font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/75 sm:col-span-2">
                   Organization
-                  <input required name="organization" value={form.organization} onChange={(event) => { setForm((current) => ({ ...current, organization: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-organization" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="Company or organization" />
+                  <input required maxLength={160} name="organization" value={form.organization} onChange={(event) => { setForm((current) => ({ ...current, organization: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-organization" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="Company or organization" />
                 </label>
               </div>
               <label className="mt-4 block font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/75">
                 Message
-                <textarea required name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="What would you like to solve?" />
+                <textarea required maxLength={5000} name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="What would you like to solve?" />
               </label>
               <div className="mt-5 flex flex-wrap items-center gap-4">
                 <button type="submit" disabled={submitStatus === 'sending'} data-testid="button-contact-submit" className="group inline-flex items-center justify-center gap-3 bg-[#e44bd7] px-5 py-3 text-sm font-semibold tracking-tight text-[#17121c] shadow-[0_14px_32px_rgba(228,75,215,.28)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f06ae4] hover:shadow-[0_18px_40px_rgba(228,75,215,.38)] disabled:cursor-wait disabled:opacity-70">
@@ -1023,10 +1033,12 @@ function Contact() {
 }
 
 function Footer() {
-  // Footer visit counter — one POST per browser session (sessionStorage
-  // guard), read-only GET on revisits so refreshes never inflate the
-  // count. The endpoint degrades gracefully, so any failure simply
-  // leaves the counter hidden instead of breaking the footer.
+  // Footer visit counter — static hosting has no server, so the count lives
+  // on the free Abacus counter API (CountAPI-compatible). One POST /hit per
+  // browser session (sessionStorage guard), read-only GET /get on revisits
+  // so refreshes never inflate the count. The endpoint degrades gracefully,
+  // so any failure simply leaves the counter hidden instead of breaking
+  // the footer.
   const [visits, setVisits] = useState<number | null>(null);
 
   useEffect(() => {
@@ -1036,9 +1048,20 @@ function Footer() {
     })();
     (async () => {
       try {
-        const response = await fetch('/api/visits', { method: counted ? 'GET' : 'POST' });
-        const payload = (await response.json().catch(() => null)) as { count?: unknown } | null;
-        const count = typeof payload?.count === 'number' && Number.isFinite(payload.count) && payload.count >= 0 ? payload.count : null;
+        // Cosmetic call — cap it at 6s so a hanging edge never blocks anything.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        let response: Response;
+        try {
+          response = await fetch(
+            `https://abacus.jasoncameron.dev/${counted ? 'get' : 'hit'}/3sverse_com/visits`,
+            { method: counted ? 'GET' : 'POST', signal: controller.signal },
+          );
+        } finally {
+          clearTimeout(timeoutId);
+        }
+        const payload = (await response.json().catch(() => null)) as { value?: unknown } | null;
+        const count = typeof payload?.value === 'number' && Number.isFinite(payload.value) && payload.value >= 0 ? payload.value : null;
         if (!cancelled && count !== null) setVisits(count);
         if (!counted && response.ok) {
           try { window.sessionStorage.setItem('3s-verse-counted', '1'); } catch { /* storage unavailable */ }
