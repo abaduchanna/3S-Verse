@@ -47,6 +47,11 @@ const CONTACT_EMAIL = 'Connect@3SVerse.com';
 const LINKEDIN_URL = 'https://www.linkedin.com/company/3s-verse/';
 const INSTAGRAM_URL = 'https://www.instagram.com/3s.verse/';
 const FACEBOOK_URL = 'https://www.facebook.com/3sverse/';
+// Cloudflare Turnstile site key (public by design) — bot protection for the
+// contact form. Create one free: dash.cloudflare.com → Turnstile → Add site
+// (domain: 3sverse.com) → copy the Site Key here and redeploy. While it is
+// empty the form renders no widget and still relies on the honeypot field.
+const TURNSTILE_SITE_KEY = '';
 const EXPERIENCE_START_YEAR = 2013;
 const YEARS_EXPERIENCE = new Date().getFullYear() - EXPERIENCE_START_YEAR;
 const refreshPage = () => window.location.reload();
@@ -890,13 +895,97 @@ function Reviews() {
   );
 }
 
+// ── Cloudflare Turnstile (contact-form bot protection) ────────────────────
+// The widget renders only when TURNSTILE_SITE_KEY is configured. The script
+// loads once per page; the parent remounts the widget (key prop) after every
+// submission so the next inquiry needs a fresh token. A Turnstile token is
+// included as a form field so the relayed email carries the proof.
+type TurnstileRenderParams = {
+  sitekey: string;
+  theme?: 'light' | 'dark' | 'auto';
+  callback?: (token: string) => void;
+  'expired-callback'?: () => void;
+  'error-callback'?: () => void;
+};
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement, params: TurnstileRenderParams) => string;
+      reset: (widgetId?: string) => void;
+      remove: (widgetId: string) => void;
+    };
+  }
+}
+
+let turnstileScriptPromise: Promise<void> | null = null;
+
+function loadTurnstileScript(): Promise<void> {
+  if (window.turnstile) return Promise.resolve();
+  if (turnstileScriptPromise) return turnstileScriptPromise;
+  turnstileScriptPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      turnstileScriptPromise = null;
+      reject(new Error('Turnstile script failed to load'));
+    };
+    document.head.appendChild(script);
+  });
+  return turnstileScriptPromise;
+}
+
+function TurnstileWidget({ onToken }: { onToken: (token: string) => void }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const onTokenRef = useRef(onToken);
+  onTokenRef.current = onToken;
+
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY || containerRef.current === null) return;
+    let cancelled = false;
+    let widgetId: string | null = null;
+    loadTurnstileScript()
+      .then(() => {
+        if (cancelled || containerRef.current === null || !window.turnstile) return;
+        widgetId = window.turnstile.render(containerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          theme: 'dark',
+          callback: (token) => onTokenRef.current(token),
+          'expired-callback': () => onTokenRef.current(''),
+          'error-callback': () => onTokenRef.current(''),
+        });
+      })
+      .catch(() => { /* widget unavailable — the honeypot still guards the form */ });
+    return () => {
+      cancelled = true;
+      try {
+        if (widgetId !== null && window.turnstile) window.turnstile.remove(widgetId);
+      } catch { /* already gone */ }
+    };
+  }, []);
+
+  return <div ref={containerRef} className="mt-5" data-testid="turnstile-widget" />;
+}
+
 function Contact() {
   const [form, setForm] = useState({ name: '', email: '', organization: '', message: '', website: '' });
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [serverNote, setServerNote] = useState('');
+  const [cfToken, setCfToken] = useState('');
+  const [cfResetCount, setCfResetCount] = useState(0);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Turnstile gate: with a site key configured, a solved widget is required
+    // before anything is sent — script-only spam bots never hold a token.
+    if (TURNSTILE_SITE_KEY && !cfToken) {
+      setSubmitStatus('error');
+      setServerNote('complete the verification box first');
+      return;
+    }
     setSubmitStatus('sending');
     setServerNote('');
 
@@ -928,6 +1017,7 @@ function Contact() {
       _captcha: 'false',
       _replyto: cleanEmail,
       _honey: form.website,
+      ...(cfToken ? { 'cf-turnstile-response': cfToken } : {}),
     };
 
     try {
@@ -957,6 +1047,8 @@ function Contact() {
       }
 
       setForm({ name: '', email: '', organization: '', message: '', website: '' });
+      setCfToken('');
+      setCfResetCount((count) => count + 1);
       setSubmitStatus('success');
     } catch {
       // Relay unreachable (edge/CORS block or network error) — never lose
@@ -969,6 +1061,8 @@ function Contact() {
         );
         window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
         setServerNote('your email app just opened with the message pre-filled — press send there');
+        setCfToken('');
+        setCfResetCount((count) => count + 1);
         setSubmitStatus('error');
       } catch {
         setSubmitStatus('error');
@@ -1019,6 +1113,7 @@ function Contact() {
                 Message
                 <textarea required maxLength={5000} name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="What would you like to solve?" />
               </label>
+              {TURNSTILE_SITE_KEY && <TurnstileWidget key={cfResetCount} onToken={setCfToken} />}
               <div className="mt-5 flex flex-wrap items-center gap-4">
                 <button type="submit" disabled={submitStatus === 'sending'} data-testid="button-contact-submit" className="group inline-flex items-center justify-center gap-3 bg-[#e44bd7] px-5 py-3 text-sm font-semibold tracking-tight text-[#17121c] shadow-[0_14px_32px_rgba(228,75,215,.28)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f06ae4] hover:shadow-[0_18px_40px_rgba(228,75,215,.38)] disabled:cursor-wait disabled:opacity-70">
                   {submitStatus === 'sending' ? 'Sending...' : 'Send message'}
