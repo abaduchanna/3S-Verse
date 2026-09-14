@@ -19,7 +19,9 @@ import {
   Cpu,
   Database,
   Eye,
+  Facebook,
   Globe2,
+  Instagram,
   Layers3,
   Linkedin,
   Menu,
@@ -43,6 +45,8 @@ import {
 const queryClient = new QueryClient();
 const CONTACT_EMAIL = 'Connect@3SVerse.com';
 const LINKEDIN_URL = 'https://www.linkedin.com/company/3s-verse/';
+const INSTAGRAM_URL = 'https://www.instagram.com/3s.verse/';
+const FACEBOOK_URL = 'https://www.facebook.com/3sverse/';
 const EXPERIENCE_START_YEAR = 2013;
 const YEARS_EXPERIENCE = new Date().getFullYear() - EXPERIENCE_START_YEAR;
 const refreshPage = () => window.location.reload();
@@ -1074,7 +1078,7 @@ function Footer() {
     return () => { cancelled = true; };
   }, []);
 
-  return <footer className="border-t border-[#6ee7ef]/10 bg-[#0c0b14]"><div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-10 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div className="flex items-center gap-5"><span data-testid="link-brand-footer" className="shrink-0"><span className="relative inline-block overflow-hidden"><img src="/logo.png" alt="3S Verse" className="h-8 w-auto" /><span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="animate-logo-glass block h-[300px] w-[120px] bg-gradient-to-br from-transparent via-white/40 to-transparent" /></span></span></span><span className="h-5 w-px bg-[#6ee7ef]/20" /><span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent">Software, systems & operations</span></div><div className="group flex flex-wrap items-center gap-6 bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent transition-all duration-300 group-hover:drop-shadow-[0_0_10px_rgba(110,231,239,.7)]"><a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-linkedin" aria-label="3S Verse on LinkedIn" className="inline-flex items-center text-[#d8d5e8]/70 transition-colors hover:text-[#6ee7ef]"><Linkedin aria-hidden="true" className="h-3.5 w-3.5" /></a><a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle inline-block bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">{CONTACT_EMAIL}</a>{visits !== null && <span data-testid="footer-visits" className="inline-flex items-center gap-1.5 text-[#d8d5e8]/70"><Eye aria-hidden="true" className="h-3.5 w-3.5 text-[#6ee7ef]" />{visits.toLocaleString('en-US')} visitors</span>}<a href="#top" data-testid="link-footer-top">Back to top ↑</a><span>3S Verse {new Date().getFullYear()} ©</span></div></div></footer>;
+  return <footer className="border-t border-[#6ee7ef]/10 bg-[#0c0b14]"><div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-10 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div className="flex items-center gap-5"><span data-testid="link-brand-footer" className="shrink-0"><span className="relative inline-block overflow-hidden"><img src="/logo.png" alt="3S Verse" className="h-8 w-auto" /><span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="animate-logo-glass block h-[300px] w-[120px] bg-gradient-to-br from-transparent via-white/40 to-transparent" /></span></span></span><span className="h-5 w-px bg-[#6ee7ef]/20" /><span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent">Software, systems & operations</span></div><div className="group flex flex-wrap items-center gap-6 bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent transition-all duration-300 group-hover:drop-shadow-[0_0_10px_rgba(110,231,239,.7)]"><a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-linkedin" aria-label="3S Verse on LinkedIn" className="inline-flex items-center text-[#d8d5e8]/70 transition-colors hover:text-[#6ee7ef]"><Linkedin aria-hidden="true" className="h-3.5 w-3.5" /></a><a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-instagram" aria-label="3S Verse on Instagram" className="inline-flex items-center text-[#d8d5e8]/70 transition-colors hover:text-[#e44bd7]"><Instagram aria-hidden="true" className="h-3.5 w-3.5" /></a><a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-facebook" aria-label="3S Verse on Facebook" className="inline-flex items-center text-[#d8d5e8]/70 transition-colors hover:text-[#78a6ff]"><Facebook aria-hidden="true" className="h-3.5 w-3.5" /></a><a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle inline-block bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">{CONTACT_EMAIL}</a>{visits !== null && <span data-testid="footer-visits" className="inline-flex items-center gap-1.5 text-[#d8d5e8]/70"><Eye aria-hidden="true" className="h-3.5 w-3.5 text-[#6ee7ef]" />{visits.toLocaleString('en-US')} visitors</span>}<a href="#top" data-testid="link-footer-top">Back to top ↑</a><span>3S Verse {new Date().getFullYear()} ©</span></div></div></footer>;
 }
 
 function Home() {
