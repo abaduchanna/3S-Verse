@@ -183,7 +183,7 @@ function CursorLogo() {
       className="pointer-events-none fixed left-0 top-0 z-[70] opacity-0 will-change-transform"
       style={{ transform: 'translate3d(-200px, -200px, 0)', transition: 'opacity 0.35s ease' }}
     >
-      <img src="/logo.svg" alt="" draggable={false} className="h-8 w-auto select-none opacity-90" />
+      <img src="/logo.png" alt="" draggable={false} className="h-8 w-auto select-none opacity-90" />
     </div>
   );
 }
@@ -337,7 +337,7 @@ function Nav() {
     <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/[.06] bg-[#060509]/75 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <a href="#top" data-testid="link-brand" className="shrink-0">
-          <img src="/logo.svg" alt="3S Verse" className="h-9 w-auto object-contain" />
+          <img src="/logo.png" alt="3S Verse" className="h-9 w-auto object-contain" />
         </a>
         <nav className="hidden items-center gap-9 md:flex">
           {navItems.map((item) => (
@@ -392,7 +392,7 @@ function OpsPanel() {
     >
       <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="" className="h-4 w-auto opacity-90" />
+          <img src="/logo.png" alt="" className="h-4 w-auto opacity-90" />
           <span className="font-mono-tech text-[10px] tracking-[.22em] text-[#8d8a9e]">OPERATIONS / LIVE</span>
         </div>
         <div className="flex items-center gap-3 font-mono-tech text-[10px] text-[#6ee7ef]">
@@ -1501,7 +1501,7 @@ function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm">
-            <img src="/logo.svg" alt="3S Verse" className="h-9 w-auto" />
+            <img src="/logo.png" alt="3S Verse" className="h-9 w-auto" />
             <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
               Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation for businesses that want to move faster.
             </p>
