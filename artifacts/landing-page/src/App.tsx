@@ -4,7 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AnimatePresence, motion, useInView, useScroll, useSpring, type Variants } from 'framer-motion';
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import {
   ArrowDownRight,
   ArrowRight,
@@ -70,43 +70,21 @@ function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; 
   );
 }
 
-/* Abstract glowing torus — 3S Verse cyan -> periwinkle -> magenta.
-   This is the template's hero "energy object", painted in brand colors. */
-function AbstractOrb({ size = 460, tilt = -24, spin = 60, className = '', opacity = 1 }: { size?: number; tilt?: number; spin?: number; className?: string; opacity?: number }) {
-  const id = useRef(`orb-${Math.random().toString(36).slice(2, 8)}`).current;
+/* The template's exact 3D energy shapes — glossy swirl / torus / sphere /
+   segmented ring — dropped in as transparent images on the near-black canvas.
+   v1 = hero spiral, v2 = integrate torus, v3 = sphere, v4 = segmented ring. */
+function Shape({ v, className = '', style }: { v: 1 | 2 | 3 | 4; className?: string; style?: CSSProperties }) {
   return (
-    <div aria-hidden="true" className={`pointer-events-none ${className}`} style={{ width: size, height: size, opacity }}>
-      <motion.svg
-        viewBox="0 0 400 400"
-        className="h-full w-full"
-        animate={{ rotate: [tilt, tilt + 360] }}
-        transition={{ duration: spin, repeat: Infinity, ease: 'linear' }}
-        style={{ overflow: 'visible' }}
-      >
-        <defs>
-          <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6ee7ef" />
-            <stop offset="48%" stopColor="#78a6ff" />
-            <stop offset="100%" stopColor="#e44bd7" />
-          </linearGradient>
-          <filter id={`${id}-blur`} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="18" />
-          </filter>
-          <radialGradient id={`${id}-core`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#6ee7ef" stopOpacity="0.30" />
-            <stop offset="55%" stopColor="#78a6ff" stopOpacity="0.10" />
-            <stop offset="100%" stopColor="#060509" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <circle cx="200" cy="200" r="150" fill={`url(#${id}-core)`} />
-        <g filter={`url(#${id}-blur)`} opacity="0.6">
-          <ellipse cx="200" cy="200" rx="148" ry="92" fill="none" stroke={`url(#${id})`} strokeWidth="32" transform="rotate(-18 200 200)" />
-        </g>
-        <ellipse cx="200" cy="200" rx="148" ry="92" fill="none" stroke={`url(#${id})`} strokeWidth="20" transform="rotate(-18 200 200)" opacity="0.95" />
-        <ellipse cx="200" cy="200" rx="132" ry="78" fill="none" stroke={`url(#${id})`} strokeWidth="11" transform="rotate(52 200 200)" opacity="0.5" />
-        <ellipse cx="200" cy="200" rx="118" ry="86" fill="none" stroke={`url(#${id})`} strokeWidth="6" transform="rotate(112 200 200)" opacity="0.3" />
-      </motion.svg>
-    </div>
+    <img
+      src={`/shapes/shape-v${v}.webp`}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+      loading="lazy"
+      decoding="async"
+      className={`pointer-events-none select-none ${className}`}
+      style={style}
+    />
   );
 }
 
@@ -183,7 +161,7 @@ function CursorLogo() {
       className="pointer-events-none fixed left-0 top-0 z-[70] opacity-0 will-change-transform"
       style={{ transform: 'translate3d(-200px, -200px, 0)', transition: 'opacity 0.35s ease' }}
     >
-      <img src="/logo.png" alt="" draggable={false} className="h-8 w-auto select-none opacity-90" />
+      <img src="/logo.png" alt="" draggable={false} className="h-7 w-auto select-none opacity-90" />
     </div>
   );
 }
@@ -309,12 +287,11 @@ const MARQUEE_ITEMS = [
 function Marquee() {
   const items = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
   return (
-    <div className="relative overflow-hidden border-y border-white/[.06] bg-[#060509] py-7">
-      <div className="flex w-max animate-marquee items-center gap-12">
+    <div className="relative overflow-hidden border-y border-white/[.06] bg-[#060509] py-9">
+      <div className="flex w-max animate-marquee items-center gap-20">
         {items.map((item, i) => (
-          <span key={i} className="flex items-center gap-12 whitespace-nowrap text-[13px] font-medium uppercase tracking-[.3em] text-[#8d8a9e]">
+          <span key={i} className="whitespace-nowrap text-[16px] font-medium uppercase tracking-[.24em] text-[#85829a] sm:text-[19px]">
             {item}
-            <span className="text-[#6ee7ef]/40">✦</span>
           </span>
         ))}
       </div>
@@ -337,7 +314,7 @@ function Nav() {
     <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/[.06] bg-[#060509]/75 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <a href="#top" data-testid="link-brand" className="shrink-0">
-          <img src="/logo.png" alt="3S Verse" className="h-9 w-auto object-contain" />
+          <img src="/logo.png" alt="3S Verse" className="h-7 w-auto object-contain" />
         </a>
         <nav className="hidden items-center gap-9 md:flex">
           {navItems.map((item) => (
@@ -465,7 +442,7 @@ function Hero() {
 
       <div className="relative mx-auto max-w-7xl px-5 pb-10 pt-20 sm:pt-24 lg:px-8">
         <div className="grid items-center gap-14 lg:grid-cols-[1.12fr_.88fr] lg:gap-10">
-          <div>
+          <div className="relative z-10">
             <Reveal>
               <div className="mb-7 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] text-[#6ee7ef]">
                 <Sparkles className="h-3.5 w-3.5 text-[#e44bd7]" /> Software · Systems · Operations
@@ -502,21 +479,14 @@ function Hero() {
               </div>
             </Reveal>
           </div>
+          {/* template's exact hero swirl — huge, bleeding off the right edge */}
           <div className="relative">
-            <AbstractOrb size={620} tilt={-24} spin={80} className="absolute -right-56 -top-32 hidden opacity-80 lg:block" />
-            <div className="relative z-10 hidden lg:block">
-              <div className="h-64" />
-            </div>
+            <Shape v={1} className="absolute -right-[38vw] -top-40 hidden w-[820px] max-w-none opacity-90 sm:block lg:-right-[24vw] lg:-top-52 lg:w-[900px]" />
           </div>
         </div>
         {/* full-width app window, template-style */}
         <div className="relative z-10 mx-auto mt-4 max-w-5xl">
           <OpsPanel />
-        </div>
-      </div>
-      <div className="relative flex justify-center pb-10 pt-4">
-        <div className="hidden items-center gap-3 font-mono-tech text-[9px] uppercase tracking-[.3em] text-[#8d8a9e]/60 md:flex">
-          <span className="h-8 w-px bg-gradient-to-b from-transparent to-[#6ee7ef]/60" /> Scroll to inspect system
         </div>
       </div>
     </section>
@@ -529,9 +499,9 @@ function IntegrateSection() {
   return (
     <section className="relative overflow-hidden py-28 lg:py-40">
       <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.05fr_1px_1fr] lg:gap-0 lg:px-8">
-        <div className="relative flex justify-center">
-          <AbstractOrb size={520} tilt={30} spin={95} className="opacity-90" />
-          <div className="absolute -left-20 top-1/2 hidden h-72 w-72 rounded-full bg-[#6ee7ef]/10 blur-[100px] lg:block" />
+        {/* template's exact torus — cropped off the left edge */}
+        <div className="relative">
+          <Shape v={2} className="w-[340px] opacity-95 sm:w-[440px] lg:-ml-24 lg:w-[560px]" />
         </div>
         <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
         <div className="lg:pl-20">
@@ -1403,7 +1373,7 @@ function Contact() {
     <section id="contact" className="relative overflow-hidden py-28 lg:py-40">
       {/* template CTA glow behind the heading */}
       <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-10 h-[380px] w-[680px] -translate-x-1/2 rounded-full bg-[#e44bd7]/[.07] blur-[120px]" />
-      <AbstractOrb size={420} tilt={-40} spin={110} className="absolute -right-32 -top-16 hidden opacity-40 lg:block" />
+      <Shape v={3} className="absolute -right-40 -top-24 hidden w-[460px] opacity-30 lg:block" />
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
         <Reveal>
           <div className="mx-auto mb-14 max-w-3xl text-center">
@@ -1501,7 +1471,7 @@ function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm">
-            <img src="/logo.png" alt="3S Verse" className="h-9 w-auto" />
+            <img src="/logo.png" alt="3S Verse" className="h-8 w-auto" />
             <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
               Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation for businesses that want to move faster.
             </p>
