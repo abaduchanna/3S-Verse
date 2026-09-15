@@ -1,17 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="light" style="color-scheme: light">
-    <script>
-      // Restore the saved theme before first paint so a saved dark choice
-      // never flashes light on reload. Default remains light.
-      try {
-        var t = localStorage.getItem('3s-verse-theme');
-        if (t !== 'dark' && t !== 'light') t = 'dark';
-        var el = document.documentElement;
-        el.classList.toggle('dark', t === 'dark');
-        el.classList.toggle('light', t !== 'dark');
-        el.style.colorScheme = t;
-      } catch (e) {}
-    </script>
+<html lang="en" class="dark" style="color-scheme: dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
@@ -19,7 +7,7 @@
     <meta name="description" content="3S Verse builds apps, websites, AI agents, dashboards & process automation — software, systems & operations backed by 12+ years of real operations experience." />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://3sverse.com/" />
-    <meta name="theme-color" content="#0a0912" />
+    <meta name="theme-color" content="#060509" />
 
     <meta property="og:title" content="3S Verse — Software, Systems & Operations" />
     <meta property="og:description" content="3S Verse builds apps, websites, AI agents, dashboards & process automation — software, systems & operations backed by 12+ years of real operations experience." />
@@ -81,7 +69,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   </head>
   <body>
     <noscript>
