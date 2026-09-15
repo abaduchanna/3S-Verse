@@ -73,7 +73,9 @@ function getInitialTheme(): Theme {
     const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (saved === 'dark' || saved === 'light') return saved;
   } catch { /* storage unavailable (private mode etc.) — fall through */ }
-  return 'light';
+  // Brand default is DARK — the 3S Verse identity (near-black bg, cyan/magenta
+  // glow) is designed for the dark surface. New visitors get the dark theme.
+  return 'dark';
 }
 
 function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
@@ -417,6 +419,72 @@ function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; 
   );
 }
 
+/* Abstract glowing torus — 3S Verse cyan -> periwinkle -> magenta */
+function AbstractOrb({ size = 460, tilt = -24, spin = 60, className = '', opacity = 1 }: { size?: number; tilt?: number; spin?: number; className?: string; opacity?: number }) {
+  const id = useRef(`orb-${Math.random().toString(36).slice(2, 8)}`).current;
+  return (
+    <div aria-hidden="true" className={`pointer-events-none ${className}`} style={{ width: size, height: size, opacity }}>
+      <motion.svg
+        viewBox="0 0 400 400"
+        className="h-full w-full"
+        animate={{ rotate: [tilt, tilt + 360] }}
+        transition={{ duration: spin, repeat: Infinity, ease: 'linear' }}
+        style={{ overflow: 'visible' }}
+      >
+        <defs>
+          <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#6ee7ef" />
+            <stop offset="48%" stopColor="#78a6ff" />
+            <stop offset="100%" stopColor="#e44bd7" />
+          </linearGradient>
+          <filter id={`${id}-blur`} x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="16" />
+          </filter>
+          <radialGradient id={`${id}-core`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#6ee7ef" stopOpacity="0.34" />
+            <stop offset="55%" stopColor="#78a6ff" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="#0a0912" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx="200" cy="200" r="150" fill={`url(#${id}-core)`} />
+        <g filter={`url(#${id}-blur)`} opacity="0.65">
+          <ellipse cx="200" cy="200" rx="148" ry="92" fill="none" stroke={`url(#${id})`} strokeWidth="30" transform="rotate(-18 200 200)" />
+        </g>
+        <ellipse cx="200" cy="200" rx="148" ry="92" fill="none" stroke={`url(#${id})`} strokeWidth="22" transform="rotate(-18 200 200)" opacity="0.95" />
+        <ellipse cx="200" cy="200" rx="132" ry="78" fill="none" stroke={`url(#${id})`} strokeWidth="12" transform="rotate(52 200 200)" opacity="0.5" />
+        <ellipse cx="200" cy="200" rx="118" ry="86" fill="none" stroke={`url(#${id})`} strokeWidth="7" transform="rotate(112 200 200)" opacity="0.32" />
+      </motion.svg>
+    </div>
+  );
+}
+
+const MARQUEE_ITEMS = [
+  'VIDAPAY INCENTIVE EXTRACTOR',
+  'VIDAPAY DEVICE ORDERING',
+  'WORKFLOW AUTOMATION',
+  'AI AGENTS',
+  'LIVE DASHBOARDS',
+  'WEB & MOBILE APPS',
+];
+
+function Marquee() {
+  const items = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
+  return (
+    <div className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#0c0b14]/80 py-6">
+      <div className="flex w-max animate-marquee items-center gap-10">
+        {items.map((item, i) => (
+          <span key={i} className="flex items-center gap-10 whitespace-nowrap font-display text-[13px] font-semibold uppercase tracking-[0.28em] text-[#d8d5e8]/40">
+            {item}
+            <span className="text-[#6ee7ef]/50">✦</span>
+          </span>
+        ))}
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#11101c] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#11101c] to-transparent" />
+    </div>
+  );
+}
+
 function TechnicalBackdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -619,6 +687,8 @@ function Hero() {
   return (
     <section id="top" className="relative flex min-h-[780px] items-center overflow-hidden border-b border-[#6ee7ef]/10 bg-[#11101c] pt-24">
       <TechnicalBackdrop />
+      <AbstractOrb size={560} tilt={-30} spin={85} className="absolute -right-36 top-[-120px] hidden opacity-70 lg:block" />
+      <AbstractOrb size={330} tilt={120} spin={100} className="absolute bottom-[-100px] left-[-110px] hidden opacity-50 md:block" />
       <div className="relative mx-auto grid w-full max-w-7xl items-center gap-16 px-5 py-24 lg:grid-cols-[1.06fr_.94fr] lg:px-8 lg:py-28">
         <div>
           <Reveal><div className="mb-7 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="h-px w-8 bg-[#6ee7ef]" />Software & operations, delivered end to end</div></Reveal>
@@ -636,7 +706,7 @@ function Hero() {
 
 function Capabilities() {
   return (
-    <section id="capabilities" className="relative overflow-hidden bg-[#18152a] py-28 lg:py-36">
+    <section id="capabilities" className="relative overflow-hidden bg-[#0c0b14] py-28 lg:py-36">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
          <Reveal><div className="flex flex-col justify-between gap-8 border-b border-[#6ee7ef]/15 pb-12 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>01 — What I can build</div><h2 className="max-w-2xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">Everything your business needs to <span className="text-[#6ee7ef]">run and grow.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/65">Not one tool — a full spectrum: from a new website to automated operations, AI to dashboards. Built to cut the manual work that slows you down.</p></div></Reveal>
         <div className="mt-10 grid gap-4 md:grid-cols-2">
@@ -680,7 +750,8 @@ function Approach() {
 
 function Outcomes() {
   return (
-    <section id="outcomes" className="relative overflow-hidden bg-[#241b39] py-28 lg:py-36">
+    <section id="outcomes" className="relative overflow-hidden bg-[#0c0b14] py-28 lg:py-36">
+      <AbstractOrb size={500} tilt={30} spin={95} className="absolute -right-32 top-[-140px] hidden opacity-50 md:block" />
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
          <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#d8d5e8]"><span className="mr-3 text-[#e44bd7]">/</span>03 — Real results</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">Operations and builds that <span className="bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7] bg-clip-text text-transparent">recover real money.</span></h2></div><div className="flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-widest text-[#d8d5e8]/60"><span className="h-2 w-2 bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years delivered</div></div></Reveal>
          <div className="grid gap-px overflow-hidden border border-[#6ee7ef]/15 bg-[#6ee7ef]/15 sm:grid-cols-3">
@@ -866,7 +937,7 @@ function Reviews() {
     },
   ];
   return (
-    <section id="reviews" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#18152a] py-28 lg:py-36">
+    <section id="reviews" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#0c0b14] py-28 lg:py-36">
       <div className="absolute inset-x-0 top-0 h-[420px] grid-tech opacity-25 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
         <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>{REVIEWS_SECTION_NO} — Client reviews</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">People who run on <span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">3S Verse.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/60">Feedback from the operations leaders, finance teams, and managers who trusted us with their day-to-day.</p></div></Reveal>
@@ -1177,7 +1248,7 @@ function Footer() {
 }
 
 function Home() {
-  return <div className="noise min-h-[100dvh] overflow-hidden bg-[#11101c]"><ScrollProgress /><Spotlight /><ScrollTop /><CursorLogo /><Nav /><main><Hero /><Capabilities /><Approach /><Outcomes /><Work /><Reviews /><Contact /></main><Footer /></div>;
+  return <div className="noise min-h-[100dvh] overflow-hidden bg-[#11101c]"><ScrollProgress /><Spotlight /><ScrollTop /><CursorLogo /><Nav /><main><Hero /><Marquee /><Capabilities /><Approach /><Outcomes /><Work /><Reviews /><Contact /></main><Footer /></div>;
 }
 
 function Router() {
