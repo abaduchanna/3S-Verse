@@ -72,19 +72,28 @@ function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; 
 
 /* The template's exact 3D energy shapes — glossy swirl / torus / sphere /
    segmented ring — dropped in as transparent images on the near-black canvas.
-   v1 = hero spiral, v2 = integrate torus, v3 = sphere, v4 = segmented ring. */
-function Shape({ v, className = '', style }: { v: 1 | 2 | 3 | 4; className?: string; style?: CSSProperties }) {
+   v1 = hero spiral, v2 = integrate torus, v3 = sphere, v4 = segmented ring.
+   Each shape drifts on a slow sine float; opt-in slow rotation via `spin`. */
+function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatDur = 9 }: { v: 1 | 2 | 3 | 4; className?: string; style?: CSSProperties; spin?: number; dir?: 1 | -1; floatY?: number; floatDur?: number }) {
   return (
-    <img
-      src={`/shapes/shape-v${v}.webp`}
-      alt=""
+    <motion.div
       aria-hidden="true"
-      draggable={false}
-      loading="lazy"
-      decoding="async"
       className={`pointer-events-none select-none ${className}`}
       style={style}
-    />
+      animate={floatY ? { y: [-floatY, floatY, -floatY] } : undefined}
+      transition={floatY ? { duration: floatDur, repeat: Infinity, ease: 'easeInOut' } : undefined}
+    >
+      <motion.img
+        src={`/shapes/shape-v${v}.webp`}
+        alt=""
+        draggable={false}
+        loading="lazy"
+        decoding="async"
+        className="h-auto w-full will-change-transform"
+        animate={spin ? { rotate: 360 * dir } : undefined}
+        transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
+      />
+    </motion.div>
   );
 }
 
@@ -302,7 +311,7 @@ function Marquee() {
 }
 
 const navItems = [
-  { label: 'What we build', href: '#services' },
+  { label: 'What we offer', href: '#services' },
   { label: 'How it works', href: '#how' },
   { label: 'Dealer tools', href: '#tools' },
   { label: 'Reviews', href: '#reviews' },
@@ -449,24 +458,24 @@ function Hero() {
               </div>
             </Reveal>
             <Reveal delay={0.08}>
-              <h1 className="text-[clamp(2.7rem,5vw,4.6rem)] font-light leading-[1.06] tracking-[-0.03em] text-white">
-                Software, systems
+              <h1 className="text-[clamp(2.4rem,8.5vw,4.6rem)] font-light leading-[1.06] tracking-[-0.03em] text-white">
+                Intelligent
                 <br />
-                &amp; operations for
+                automation solutions
                 <br />
-                your <span className="font-normal text-[#6ee7ef]">business</span>
+                for your <span className="font-normal text-[#6ee7ef]">business</span>
               </h1>
             </Reveal>
             <Reveal delay={0.16}>
               <p className="mt-8 max-w-xl text-[17px] font-light leading-8 text-[#b9b6c9]">
-                3S Verse — apps, websites, AI agents, dashboards, and process automation that cut the manual work and keep your operation moving. Backed by {YEARS_EXPERIENCE}+ years of real operations experience.
+                3S Verse designs and builds the systems a modern business runs on — custom software, web &amp; mobile apps, AI agents, live dashboards, and workflow automation that removes manual work, cuts costs, and keeps your operation moving around the clock. Backed by {YEARS_EXPERIENCE}+ years of real operations experience.
               </p>
             </Reveal>
             <Reveal delay={0.24}>
               <div className="mt-10 flex flex-wrap items-center gap-4">
                 <BtnWhite href="#contact" testId="button-hero-get-started">Let&apos;s build something</BtnWhite>
                 <a href="#services" data-testid="link-hero-explore" className="group inline-flex items-center gap-2 px-2 py-3 text-[15px] font-medium text-[#d8d5e8] transition-colors hover:text-white">
-                  See what we build
+                  See what we offer
                   <ArrowDownRight className="h-4 w-4 text-[#6ee7ef] transition-transform duration-300 group-hover:translate-x-1 group-hover:translate-y-1" />
                 </a>
               </div>
@@ -481,7 +490,7 @@ function Hero() {
           </div>
           {/* template's exact hero swirl — huge, bleeding off the right edge */}
           <div className="relative">
-            <Shape v={1} className="absolute -right-[38vw] -top-40 hidden w-[820px] max-w-none opacity-90 sm:block lg:-right-[24vw] lg:-top-52 lg:w-[900px]" />
+            <Shape v={1} spin={120} floatY={16} floatDur={12} className="absolute -right-[38vw] -top-40 hidden w-[820px] max-w-none opacity-90 sm:block lg:-right-[24vw] lg:-top-52 lg:w-[900px]" />
           </div>
         </div>
         {/* full-width app window, template-style */}
@@ -501,17 +510,17 @@ function IntegrateSection() {
       <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.05fr_1px_1fr] lg:gap-0 lg:px-8">
         {/* template's exact torus — cropped off the left edge */}
         <div className="relative">
-          <Shape v={2} className="w-[340px] opacity-95 sm:w-[440px] lg:-ml-24 lg:w-[560px]" />
+          <Shape v={2} spin={95} dir={-1} floatY={14} floatDur={10} className="w-[340px] opacity-95 sm:w-[440px] lg:-ml-24 lg:w-[560px]" />
         </div>
         <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
         <div className="lg:pl-20">
           <Reveal>
-            <Kicker>Plug &amp; play</Kicker>
+            <Kicker>Power your business</Kicker>
             <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-              Easily plug our systems into your operation
+              Power your business with <span className="text-[#6ee7ef]">generative AI</span> &amp; automation
             </h2>
             <p className="mt-7 max-w-lg text-[16px] font-light leading-8 text-[#b9b6c9]">
-              No rip-and-replace. Every build — dashboard, agent, extractor, or store tool — connects to what you already run: spreadsheets, ERPs, VidaPay portals, WhatsApp groups. It slots into the day-to-day and starts saving hours from week one.
+              From AI agents that draft, reconcile, and answer for you, to pipelines that move data between the tools you already use — we plug intelligent automation straight into your day-to-day. No rip-and-replace, no six-month projects: it slots into VidaPay portals, spreadsheets, ERPs, and WhatsApp, and starts saving hours from week one.
             </p>
             <div className="mt-10">
               <BtnWhite href="#contact" testId="button-integrate-start">Start a project</BtnWhite>
@@ -581,13 +590,13 @@ function Services() {
         <Reveal>
           <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
-              <Kicker>01 — What we build</Kicker>
+              <Kicker>01 — What we offer</Kicker>
               <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                Everything your business needs to <span className="text-[#6ee7ef]">run and grow.</span>
+                The complete scope — every system your business needs to <span className="text-[#6ee7ef]">run and grow.</span>
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              Not one tool — a full spectrum: from a new website to automated operations, AI to dashboards. Built to cut the manual work that slows you down.
+              One partner across the whole spectrum — a website that sells, apps that run your day, AI that handles the busywork, dashboards that keep score, and automation that never sleeps. Scoped in weeks, not quarters, by people who have actually run these operations.
             </p>
           </div>
         </Reveal>
@@ -1373,7 +1382,7 @@ function Contact() {
     <section id="contact" className="relative overflow-hidden py-28 lg:py-40">
       {/* template CTA glow behind the heading */}
       <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-10 h-[380px] w-[680px] -translate-x-1/2 rounded-full bg-[#e44bd7]/[.07] blur-[120px]" />
-      <Shape v={3} className="absolute -right-40 -top-24 hidden w-[460px] opacity-30 lg:block" />
+      <Shape v={3} spin={140} floatY={12} floatDur={13} className="absolute -right-40 -top-24 hidden w-[460px] opacity-30 lg:block" />
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
         <Reveal>
           <div className="mx-auto mb-14 max-w-3xl text-center">
