@@ -8,25 +8,19 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import {
   ArrowDownRight,
   ArrowRight,
+  ArrowUpRight,
   BarChart3,
   Bell,
   Bot,
   Boxes,
   Check,
-  Clock3,
-  Code2,
-  Command,
-  Cpu,
   Database,
   Eye,
   Facebook,
   Globe2,
   Instagram,
-  Layers3,
   Linkedin,
   Menu,
-  Moon,
-  ArrowUpRight,
   Network,
   Package,
   Play,
@@ -37,9 +31,13 @@ import {
   X,
   Zap,
   ArrowUp,
-  Sun,
   Star,
-  Quote,
+  FileSpreadsheet,
+  ShoppingCart,
+  Store,
+  History,
+  TrendingUp,
+  ClipboardCheck,
 } from 'lucide-react';
 
 const queryClient = new QueryClient();
@@ -54,145 +52,67 @@ const FACEBOOK_URL = 'https://www.facebook.com/3sverse/';
 const TURNSTILE_SITE_KEY = '';
 const EXPERIENCE_START_YEAR = 2013;
 const YEARS_EXPERIENCE = new Date().getFullYear() - EXPERIENCE_START_YEAR;
-const refreshPage = () => window.location.reload();
 
-type Theme = 'light' | 'dark';
+/* ─────────────────────────── shared bits ─────────────────────────── */
 
-// Viewport coords (px) + covering radius of the last theme-toggle press —
-// the water-swipe reveal expands from this point.
-let waterOrigin = { x: 0, y: 0, r: 0 };
+const reveal: Variants = {
+  hidden: { opacity: 0, y: 34, filter: 'blur(6px)' },
+  visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } },
+};
 
-// Theme choice: first-time visitors start light; once the toggle is used the
-// choice is saved to localStorage and every reload restores it (see the
-// pre-paint script in index.html, which applies the saved class before React
-// boots so a saved dark theme never flashes light).
-const THEME_STORAGE_KEY = '3s-verse-theme';
-
-function getInitialTheme(): Theme {
-  try {
-    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (saved === 'dark' || saved === 'light') return saved;
-  } catch { /* storage unavailable (private mode etc.) — fall through */ }
-  // Brand default is DARK — the 3S Verse identity (near-black bg, cyan/magenta
-  // glow) is designed for the dark surface. New visitors get the dark theme.
-  return 'dark';
+function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; delay?: number; className?: string }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-70px' });
+  return (
+    <motion.div ref={ref} initial="hidden" animate={inView ? 'visible' : 'hidden'} variants={reveal} transition={{ delay }} className={className}>
+      {children}
+    </motion.div>
+  );
 }
 
-function ThemeToggle({ mobile = false }: { mobile?: boolean }) {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    const isDark = theme === 'dark';
-    // Skip any transition on first mount / when the class already matches
-    // (App() set it before paint).
-    const alreadyApplied = root.classList.contains('dark') === isDark && root.classList.contains('light') !== isDark;
-    const applyTheme = () => {
-      root.classList.toggle('dark', isDark);
-      root.classList.toggle('light', !isDark);
-      root.style.colorScheme = theme;
-    };
-    if (!alreadyApplied) {
-      const doc = document as Document & {
-        startViewTransition?: (cb: () => void) => {
-          ready?: Promise<void>;
-          finished?: Promise<unknown>;
-        };
-      };
-      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-      if (doc.startViewTransition && !reducedMotion) {
-        try {
-          const transition = doc.startViewTransition(applyTheme);
-          // Browsers can intentionally skip a transition when another
-          // navigation or transition is already in progress. That is
-          // expected and should not reach Vite's runtime error overlay.
-          transition.finished?.catch(() => undefined);
-          // Water swipe: the new theme floods out from the toggle as a circle
-          // with a soft feathered front. @property-capable browsers run the
-          // feathered mask wavefront in CSS (index.css); older ones get a
-          // hard-edged clip-path reveal driven here instead.
-          if (transition.ready && !('CSSPropertyRule' in window)) {
-            transition.ready
-              .then(() =>
-                document.documentElement.animate(
-                  {
-                    clipPath: [
-                      `circle(0px at ${waterOrigin.x}px ${waterOrigin.y}px)`,
-                      `circle(${waterOrigin.r}px at ${waterOrigin.x}px ${waterOrigin.y}px)`,
-                    ],
-                  },
-                  {
-                    duration: 2500,
-                    easing: 'cubic-bezier(0.3, 0, 0.15, 1)',
-                    pseudoElement: '::view-transition-new(root)',
-                  },
-                ),
-              )
-              .catch(() => undefined);
-          }
-        } catch {
-          applyTheme();
-        }
-      } else applyTheme();
-    }
-    // Persist the choice — the next load (and the pre-paint script in
-    // index.html) restores it instead of snapping back to light.
-    try { window.localStorage.setItem(THEME_STORAGE_KEY, theme); } catch { /* storage unavailable */ }
-    window.dispatchEvent(new CustomEvent('3s-verse-theme-change', { detail: theme }));
-  }, [theme]);
-
-  useEffect(() => {
-    const syncTheme = (event: Event) => {
-      const next = (event as CustomEvent<Theme>).detail;
-      if (next === 'light' || next === 'dark') setTheme(next);
-    };
-    window.addEventListener('3s-verse-theme-change', syncTheme);
-    return () => window.removeEventListener('3s-verse-theme-change', syncTheme);
-  }, []);
-
+/* Abstract glowing torus — 3S Verse cyan -> periwinkle -> magenta.
+   This is the template's hero "energy object", painted in brand colors. */
+function AbstractOrb({ size = 460, tilt = -24, spin = 60, className = '', opacity = 1 }: { size?: number; tilt?: number; spin?: number; className?: string; opacity?: number }) {
+  const id = useRef(`orb-${Math.random().toString(36).slice(2, 8)}`).current;
   return (
-    <button
-      type="button"
-      aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-      aria-pressed={theme === 'dark'}
-      onClick={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
-        waterOrigin = {
-          x,
-          y,
-          r: Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y)),
-        };
-        const rootStyle = document.documentElement.style;
-        rootStyle.setProperty('--water-x', `${Math.round(x)}px`);
-        rootStyle.setProperty('--water-y', `${Math.round(y)}px`);
-        setTheme((current) => current === 'dark' ? 'light' : 'dark');
-      }}
-      className={`group inline-flex items-center justify-center overflow-hidden border border-[#6ee7ef]/25 bg-[#211d38]/45 text-[#f7f3e8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#e44bd7]/60 hover:text-[#e44bd7] ${mobile ? 'h-10 w-10' : 'h-9 w-9'}`}
-    >
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span
-          key={theme}
-          className="flex items-center justify-center"
-          initial={{ opacity: 0, scale: 0.4, rotate: -180 }}
-          animate={{ opacity: 1, scale: 1, rotate: 0 }}
-          exit={{ opacity: 0, scale: 0.4, rotate: 180 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </motion.span>
-      </AnimatePresence>
-    </button>
+    <div aria-hidden="true" className={`pointer-events-none ${className}`} style={{ width: size, height: size, opacity }}>
+      <motion.svg
+        viewBox="0 0 400 400"
+        className="h-full w-full"
+        animate={{ rotate: [tilt, tilt + 360] }}
+        transition={{ duration: spin, repeat: Infinity, ease: 'linear' }}
+        style={{ overflow: 'visible' }}
+      >
+        <defs>
+          <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#6ee7ef" />
+            <stop offset="48%" stopColor="#78a6ff" />
+            <stop offset="100%" stopColor="#e44bd7" />
+          </linearGradient>
+          <filter id={`${id}-blur`} x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="18" />
+          </filter>
+          <radialGradient id={`${id}-core`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#6ee7ef" stopOpacity="0.30" />
+            <stop offset="55%" stopColor="#78a6ff" stopOpacity="0.10" />
+            <stop offset="100%" stopColor="#060509" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <circle cx="200" cy="200" r="150" fill={`url(#${id}-core)`} />
+        <g filter={`url(#${id}-blur)`} opacity="0.6">
+          <ellipse cx="200" cy="200" rx="148" ry="92" fill="none" stroke={`url(#${id})`} strokeWidth="32" transform="rotate(-18 200 200)" />
+        </g>
+        <ellipse cx="200" cy="200" rx="148" ry="92" fill="none" stroke={`url(#${id})`} strokeWidth="20" transform="rotate(-18 200 200)" opacity="0.95" />
+        <ellipse cx="200" cy="200" rx="132" ry="78" fill="none" stroke={`url(#${id})`} strokeWidth="11" transform="rotate(52 200 200)" opacity="0.5" />
+        <ellipse cx="200" cy="200" rx="118" ry="86" fill="none" stroke={`url(#${id})`} strokeWidth="6" transform="rotate(112 200 200)" opacity="0.3" />
+      </motion.svg>
+    </div>
   );
 }
 
 // Full 3S wordmark that trails the mouse across the page, floating just to
-// the RIGHT of the pointer (no chip/background). Driven by a
-// requestAnimationFrame lerp loop that writes transforms straight to the
-// DOM node — no re-renders per frame. Only rendered for non-touch pointers
-// with motion allowed; hidden until the first pointer move and when the
-// cursor leaves the window.
+// the RIGHT of the pointer. Driven by a requestAnimationFrame lerp loop that
+// writes transforms straight to the DOM node — no re-renders per frame.
 const CURSOR_OFFSET_X = 24;
 
 function CursorLogo() {
@@ -201,9 +121,6 @@ function CursorLogo() {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    // Skip touch-only devices and users who opt out of motion. Checking the
-    // negative (coarse) rather than requiring a fine pointer also keeps the
-    // follower alive in environments that report no pointer at all.
     if (window.matchMedia('(pointer: coarse)').matches) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
@@ -241,9 +158,6 @@ function CursorLogo() {
       pos.y += (target.y - pos.y) * 0.14;
       scale += (targetScale - scale) * 0.1;
       tilt *= 0.88;
-      // Floats to the RIGHT of the pointer: +24px gap, vertically centred on
-      // the cursor line (translateY(-50%)); no -50% on X — the logo's left
-      // edge starts where the offset ends.
       el.style.transform = `translate3d(${(pos.x + CURSOR_OFFSET_X).toFixed(1)}px, ${pos.y.toFixed(1)}px, 0) translateY(-50%) rotate(${tilt.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
       raf = requestAnimationFrame(tick);
     };
@@ -269,95 +183,381 @@ function CursorLogo() {
       className="pointer-events-none fixed left-0 top-0 z-[70] opacity-0 will-change-transform"
       style={{ transform: 'translate3d(-200px, -200px, 0)', transition: 'opacity 0.35s ease' }}
     >
-      <img
-        src="/logo.svg"
-        alt=""
-        draggable={false}
-        className="h-8 w-auto select-none drop-shadow-[0_2px_10px_rgba(4,3,15,.35)]"
-      />
+      <img src="/logo.svg" alt="" draggable={false} className="h-8 w-auto select-none opacity-90" />
     </div>
   );
 }
 
-// PROJECT VIDEOS — to show a project video on the page, add one entry to
-// this list. `url` accepts:
-//   • a YouTube link        'https://www.youtube.com/watch?v=XXXXXXXXXXX'
-//   • a YouTube Shorts link 'https://youtube.com/shorts/XXXXXXXXXXX'
-//   • a Vimeo link          'https://vimeo.com/123456789'
-//   • a direct video file   '/videos/my-demo.mp4' (drop the file into
-//                           public/videos/) or any hosted .mp4/.webm URL
-// `poster` (optional) is the card thumbnail; leave it out and YouTube links
-// automatically use their own thumbnail, everything else gets a styled
-// gradient placeholder until a poster is added.
-// While this list is empty the whole Work section (and its nav item) stays
-// hidden, so nothing unfinished ever shows on the live page.
-const PROJECT_VIDEOS: ProjectVideo[] = [
-  // Copy this shape for each of your own videos:
-  // {
-  //   title: 'Inventory automation demo',
-  //   blurb: 'One-line description shown under the video title.',
-  //   tag: 'Automation',
-  //   url: 'https://www.youtube.com/watch?v=XXXXXXXXXXX',
-  //   poster: '/videos/demo-poster.jpg',
-  // },
+function ScrollProgress() {
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.4 });
+  return (
+    <motion.div
+      className="fixed inset-x-0 top-0 z-[60] h-[2px] origin-left bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7]"
+      style={{ scaleX }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function ScrollTop() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > window.innerHeight * 0.8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.button
+          data-testid="button-scroll-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })}
+          initial={{ opacity: 0, y: 16, scale: 0.8 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 16, scale: 0.8 }}
+          transition={{ duration: 0.2 }}
+          aria-label="Scroll to top"
+          className="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-[#0c0b13]/85 text-[#f2f0fa] shadow-[0_10px_30px_rgba(0,0,0,.5)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </motion.button>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function Spotlight() {
+  const [pos, setPos] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => setPos({ x: e.clientX, y: e.clientY, visible: true });
+    const onLeave = () => setPos((p) => ({ ...p, visible: false }));
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerleave', onLeave);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerleave', onLeave);
+    };
+  }, []);
+  return (
+    <motion.div
+      className="pointer-events-none fixed left-0 top-0 z-[20] h-[640px] w-[640px] rounded-full"
+      animate={{
+        x: pos.x - 320,
+        y: pos.y - 320,
+        opacity: pos.visible ? 1 : 0,
+        scale: pos.visible ? 1 : 0.6,
+      }}
+      transition={{ type: 'spring', stiffness: 80, damping: 24, mass: 1 }}
+      aria-hidden="true"
+      style={{
+        background:
+          'radial-gradient(circle, rgba(110,231,239,.10) 0%, rgba(228,75,215,.06) 42%, transparent 70%)',
+        filter: 'blur(6px)',
+      }}
+    />
+  );
+}
+
+/* GPT-X button language: crisp white rectangle (primary) + quiet outlined
+   twin (secondary). Brand colors live in the glow, not the fill. */
+function BtnWhite({ children, href = '#contact', testId, className = '' }: { children: ReactNode; href?: string; testId: string; className?: string }) {
+  return (
+    <a
+      href={href}
+      data-testid={testId}
+      className={`group inline-flex items-center justify-center gap-2.5 rounded-xl bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] shadow-[0_10px_30px_rgba(255,255,255,.07)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] hover:shadow-[0_16px_40px_rgba(247,243,232,.13)] ${className}`}
+    >
+      {children}
+      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+    </a>
+  );
+}
+
+function BtnGhost({ children, href = '#contact', testId, className = '' }: { children: ReactNode; href?: string; testId: string; className?: string }) {
+  return (
+    <a
+      href={href}
+      data-testid={testId}
+      className={`group inline-flex items-center justify-center gap-2.5 rounded-xl border border-white/20 bg-white/[.03] px-6 py-3.5 text-[15px] font-medium tracking-tight text-[#f2f0fa] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#6ee7ef]/70 hover:text-[#6ee7ef] ${className}`}
+    >
+      {children}
+    </a>
+  );
+}
+
+/* Small uppercase mono kicker used above every section heading. */
+function Kicker({ children, magenta = false }: { children: ReactNode; magenta?: boolean }) {
+  return (
+    <div className={`mb-6 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] ${magenta ? 'text-[#e44bd7]' : 'text-[#6ee7ef]'}`}>
+      <span className="h-px w-8 bg-current opacity-60" />
+      {children}
+    </div>
+  );
+}
+
+const MARQUEE_ITEMS = [
+  'VIDAPAY INCENTIVE EXTRACTOR',
+  'VIDAPAY DEVICE ORDERING',
+  'WORKFLOW AUTOMATION',
+  'AI AGENTS',
+  'LIVE DASHBOARDS',
+  'WEB & MOBILE APPS',
 ];
 
-type ProjectVideo = {
-  title: string;
-  blurb: string;
-  tag: string;
-  // YouTube watch/shorts link, Vimeo link, or a direct .mp4/.webm URL
-  // (local files go in public/videos/ and are referenced as /videos/…).
-  url: string;
-  // Optional card thumbnail; YouTube links fall back to their own thumbnail.
-  poster?: string;
-};
-
-// Accept a YouTube / Vimeo / direct-file URL and return what the card and
-// the lightbox need. Anything that is not YouTube/Vimeo is treated as a
-// direct media file URL.
-function parseVideoSource(url: string): { kind: 'youtube' | 'vimeo' | 'file'; id?: string; src: string } {
-  const trimmed = url.trim();
-  let match = trimmed.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/i);
-  if (match) return { kind: 'youtube', id: match[1], src: trimmed };
-  match = trimmed.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
-  if (match) return { kind: 'vimeo', id: match[1], src: trimmed };
-  return { kind: 'file', src: trimmed };
-}
-
-function videoEmbedUrl(source: ReturnType<typeof parseVideoSource>): string {
-  if (source.kind === 'youtube' && source.id) {
-    return `https://www.youtube-nocookie.com/embed/${source.id}?autoplay=1&rel=0&modestbranding=1`;
-  }
-  if (source.kind === 'vimeo' && source.id) {
-    return `https://player.vimeo.com/video/${source.id}?autoplay=1&title=0&byline=0`;
-  }
-  return source.src;
-}
-
-function videoThumbUrl(video: ProjectVideo): string | undefined {
-  if (video.poster) return video.poster;
-  const source = parseVideoSource(video.url);
-  return source.kind === 'youtube' && source.id ? `https://i.ytimg.com/vi/${source.id}/hqdefault.jpg` : undefined;
+function Marquee() {
+  const items = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
+  return (
+    <div className="relative overflow-hidden border-y border-white/[.06] bg-[#060509] py-7">
+      <div className="flex w-max animate-marquee items-center gap-12">
+        {items.map((item, i) => (
+          <span key={i} className="flex items-center gap-12 whitespace-nowrap text-[13px] font-medium uppercase tracking-[.3em] text-[#8d8a9e]">
+            {item}
+            <span className="text-[#6ee7ef]/40">✦</span>
+          </span>
+        ))}
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-36 bg-gradient-to-r from-[#060509] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-36 bg-gradient-to-l from-[#060509] to-transparent" />
+    </div>
+  );
 }
 
 const navItems = [
-  { label: 'Capabilities', href: '#capabilities' },
-  { label: 'How it works', href: '#approach' },
-  { label: 'Outcomes', href: '#outcomes' },
-  // "Work" only appears once there is at least one project video to show.
-  ...(PROJECT_VIDEOS.length > 0 ? [{ label: 'Work', href: '#work' }] : []),
+  { label: 'What we build', href: '#services' },
+  { label: 'How it works', href: '#how' },
+  { label: 'Dealer tools', href: '#tools' },
+  { label: 'Reviews', href: '#reviews' },
 ];
 
-// Work is section /04 when it renders; Reviews shifts back to /04 while the
-// video list is empty so the visible numbering never skips.
-const REVIEWS_SECTION_NO = PROJECT_VIDEOS.length > 0 ? '05' : '04';
+function Nav() {
+  const [open, setOpen] = useState(false);
+  return (
+    <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/[.06] bg-[#060509]/75 backdrop-blur-xl">
+      <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 lg:px-8">
+        <a href="#top" data-testid="link-brand" className="shrink-0">
+          <img src="/logo.svg" alt="3S Verse" className="h-9 w-auto object-contain" />
+        </a>
+        <nav className="hidden items-center gap-9 md:flex">
+          {navItems.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              data-testid={`link-nav-${item.label.toLowerCase().replace(/ /g, '-')}`}
+              className="text-[14px] font-medium text-[#b9b6c9] transition-colors duration-300 hover:text-white"
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+        <div className="hidden items-center gap-3 md:flex">
+          <BtnGhost href="#contact" testId="button-nav-contact" className="px-5 py-2.5 text-[14px]">Contact</BtnGhost>
+          <BtnWhite href="#contact" testId="button-nav-get-started" className="px-5 py-2.5 text-[14px]">Let&apos;s build</BtnWhite>
+        </div>
+        <button
+          data-testid="button-mobile-menu"
+          onClick={() => setOpen(!open)}
+          className="rounded-lg border border-white/15 p-2 text-[#f2f0fa] md:hidden"
+          aria-label={open ? 'Close menu' : 'Open menu'}
+        >
+          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+      <AnimatePresence>
+        {open && (
+          <motion.nav initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden border-t border-white/[.06] bg-[#0a0910] px-5 py-4 md:hidden">
+            {navItems.map((item) => (
+              <a key={item.href} href={item.href} onClick={() => setOpen(false)} data-testid={`link-mobile-${item.label.toLowerCase().replace(/ /g, '-')}`} className="block border-b border-white/[.06] py-3.5 text-[15px] font-medium text-[#d8d5e8]">
+                {item.label}
+              </a>
+            ))}
+            <a href="#contact" onClick={() => setOpen(false)} data-testid="button-mobile-get-started" className="mt-4 block rounded-xl bg-white px-4 py-3 text-center text-[15px] font-semibold text-[#0b0a10]">Let&apos;s build</a>
+          </motion.nav>
+        )}
+      </AnimatePresence>
+    </header>
+  );
+}
+
+/* The hero app window — the template's "product screenshot" slot, dressed in
+   3S Verse brand panels (cyan/magenta on near-black, DM Mono labels). */
+function OpsPanel() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 44 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 1, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0b0a11]/95 shadow-[0_40px_120px_rgba(0,0,0,.6)]"
+    >
+      <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-3.5">
+        <div className="flex items-center gap-3">
+          <img src="/logo.svg" alt="" className="h-4 w-auto opacity-90" />
+          <span className="font-mono-tech text-[10px] tracking-[.22em] text-[#8d8a9e]">OPERATIONS / LIVE</span>
+        </div>
+        <div className="flex items-center gap-3 font-mono-tech text-[10px] text-[#6ee7ef]">
+          <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70] shadow-[0_0_8px_#c7ef70]" /> SYNCED</span>
+          <span className="hidden rounded-md border border-white/10 bg-white/[.04] px-2 py-0.5 text-[#d8d5e8] sm:inline">42ms</span>
+        </div>
+      </div>
+      <div className="grid gap-4 p-5 sm:grid-cols-[1fr_1.2fr]">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-white/[.07] bg-white/[.02] p-4">
+            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <span>Throughput</span><span className="text-[#c7ef70]">+12.4%</span>
+            </div>
+            <div className="mt-2 flex items-end justify-between">
+              <strong className="text-[26px] font-light tracking-tight text-white">84.7<span className="text-sm text-[#6ee7ef]">%</span></strong>
+            </div>
+            <div className="mt-3 flex h-14 items-end gap-1">
+              {[35, 48, 40, 58, 52, 67, 61, 76, 72, 88, 82, 95].map((height, i) => (
+                <motion.div key={i} initial={{ height: 0 }} animate={{ height: `${height}%` }} transition={{ delay: 0.9 + i * 0.04, duration: 0.45 }} className={`w-full rounded-t-[2px] ${i > 8 ? 'bg-[#6ee7ef]' : 'bg-[#78a6ff]/40'}`} />
+              ))}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/[.07] bg-white/[.02] p-4">
+            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <span>Queue health</span><span className="rounded border border-[#c7ef70]/30 px-1.5 py-0.5 text-[#c7ef70]">NORMAL</span>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
+              <motion.div initial={{ width: 0 }} animate={{ width: '72%' }} transition={{ delay: 1.1, duration: 1 }} className="h-full rounded-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7]" />
+            </div>
+            <div className="mt-3 flex items-center gap-2 font-mono-tech text-[9px] text-[#8d8a9e]">
+              <Bell className="h-3 w-3 text-[#ff9d66]" /> 2 rules executed automatically
+            </div>
+          </div>
+        </div>
+        <div className="relative rounded-xl border border-white/[.07] bg-white/[.02] p-4">
+          <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
+            <span>Flow map</span><Network className="h-3.5 w-3.5 text-[#e44bd7]" />
+          </div>
+          <svg viewBox="0 0 210 150" className="mt-2 h-[150px] w-full">
+            <path d="M19 85 C48 85 41 42 73 42 S100 112 130 105 149 44 189 44" fill="none" stroke="#6ee7ef" strokeWidth="1.5" strokeDasharray="4 4" opacity=".85" />
+            <path d="M30 20 C58 20 57 70 89 70 S124 24 158 24" fill="none" stroke="#e44bd7" strokeWidth="1" opacity=".7" />
+            <path d="M24 128 C60 128 96 118 186 118" fill="none" stroke="#78a6ff" strokeWidth="1" strokeDasharray="2 5" opacity=".5" />
+            {[[19, 85], [73, 42], [130, 105], [189, 44], [30, 20], [89, 70], [158, 24], [24, 128], [186, 118]].map(([cx, cy], i) => (
+              <g key={i}>
+                <circle cx={cx} cy={cy} r="4.5" fill="#0b0a11" stroke={i % 2 ? '#e44bd7' : '#6ee7ef'} strokeWidth="1.4" />
+                <circle cx={cx} cy={cy} r="1.6" fill={i % 2 ? '#e44bd7' : '#6ee7ef'} />
+              </g>
+            ))}
+          </svg>
+          <div className="flex justify-between border-t border-white/[.06] pt-2.5 font-mono-tech text-[9px] text-[#8d8a9e]">
+            <span>7 active paths</span><span className="text-[#6ee7ef]">0 blocked</span>
+          </div>
+        </div>
+      </div>
+      <div className="animate-scan pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-transparent via-[#6ee7ef]/[.05] to-transparent" />
+    </motion.div>
+  );
+}
+
+function Hero() {
+  return (
+    <section id="top" className="relative overflow-hidden pt-[76px]">
+      {/* backdrop: faint brand grid + drifting glow dots */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="grid-tech absolute inset-x-0 top-0 h-[760px] opacity-70 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
+        <div className="absolute left-[6%] top-[18%] h-1.5 w-1.5 rounded-full bg-[#6ee7ef] shadow-[0_0_24px_#6ee7ef] animate-pulse-line" />
+        <div className="absolute right-[22%] top-[12%] h-1 w-1 rounded-full bg-[#e44bd7] shadow-[0_0_20px_#e44bd7]" />
+        <div className="absolute left-[10%] bottom-[30%] h-1 w-1 rounded-full bg-[#ff9d66] shadow-[0_0_18px_#ff9d66]" />
+      </div>
+
+      <div className="relative mx-auto max-w-7xl px-5 pb-10 pt-20 sm:pt-24 lg:px-8">
+        <div className="grid items-center gap-14 lg:grid-cols-[1.12fr_.88fr] lg:gap-10">
+          <div>
+            <Reveal>
+              <div className="mb-7 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] text-[#6ee7ef]">
+                <Sparkles className="h-3.5 w-3.5 text-[#e44bd7]" /> Software · Systems · Operations
+              </div>
+            </Reveal>
+            <Reveal delay={0.08}>
+              <h1 className="text-[clamp(2.7rem,5vw,4.6rem)] font-light leading-[1.06] tracking-[-0.03em] text-white">
+                Software, systems
+                <br />
+                &amp; operations for
+                <br />
+                your <span className="font-normal text-[#6ee7ef]">business</span>
+              </h1>
+            </Reveal>
+            <Reveal delay={0.16}>
+              <p className="mt-8 max-w-xl text-[17px] font-light leading-8 text-[#b9b6c9]">
+                3S Verse — apps, websites, AI agents, dashboards, and process automation that cut the manual work and keep your operation moving. Backed by {YEARS_EXPERIENCE}+ years of real operations experience.
+              </p>
+            </Reveal>
+            <Reveal delay={0.24}>
+              <div className="mt-10 flex flex-wrap items-center gap-4">
+                <BtnWhite href="#contact" testId="button-hero-get-started">Let&apos;s build something</BtnWhite>
+                <a href="#services" data-testid="link-hero-explore" className="group inline-flex items-center gap-2 px-2 py-3 text-[15px] font-medium text-[#d8d5e8] transition-colors hover:text-white">
+                  See what we build
+                  <ArrowDownRight className="h-4 w-4 text-[#6ee7ef] transition-transform duration-300 group-hover:translate-x-1 group-hover:translate-y-1" />
+                </a>
+              </div>
+            </Reveal>
+            <Reveal delay={0.32}>
+              <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/[.07] pt-5 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years operations</span>
+                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> Processes automated</span>
+                <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#e44bd7]" /> Cost recovered</span>
+              </div>
+            </Reveal>
+          </div>
+          <div className="relative">
+            <AbstractOrb size={620} tilt={-24} spin={80} className="absolute -right-56 -top-32 hidden opacity-80 lg:block" />
+            <div className="relative z-10 hidden lg:block">
+              <div className="h-64" />
+            </div>
+          </div>
+        </div>
+        {/* full-width app window, template-style */}
+        <div className="relative z-10 mx-auto mt-4 max-w-5xl">
+          <OpsPanel />
+        </div>
+      </div>
+      <div className="relative flex justify-center pb-10 pt-4">
+        <div className="hidden items-center gap-3 font-mono-tech text-[9px] uppercase tracking-[.3em] text-[#8d8a9e]/60 md:flex">
+          <span className="h-8 w-px bg-gradient-to-b from-transparent to-[#6ee7ef]/60" /> Scroll to inspect system
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* Split section — orb left, thin divider, text right (template's
+   "Easily integrate our services into your product" moment). */
+function IntegrateSection() {
+  return (
+    <section className="relative overflow-hidden py-28 lg:py-40">
+      <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.05fr_1px_1fr] lg:gap-0 lg:px-8">
+        <div className="relative flex justify-center">
+          <AbstractOrb size={520} tilt={30} spin={95} className="opacity-90" />
+          <div className="absolute -left-20 top-1/2 hidden h-72 w-72 rounded-full bg-[#6ee7ef]/10 blur-[100px] lg:block" />
+        </div>
+        <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
+        <div className="lg:pl-20">
+          <Reveal>
+            <Kicker>Plug &amp; play</Kicker>
+            <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+              Easily plug our systems into your operation
+            </h2>
+            <p className="mt-7 max-w-lg text-[16px] font-light leading-8 text-[#b9b6c9]">
+              No rip-and-replace. Every build — dashboard, agent, extractor, or store tool — connects to what you already run: spreadsheets, ERPs, VidaPay portals, WhatsApp groups. It slots into the day-to-day and starts saving hours from week one.
+            </p>
+            <div className="mt-10">
+              <BtnWhite href="#contact" testId="button-integrate-start">Start a project</BtnWhite>
+            </div>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 const features = [
   {
     index: '01',
     title: 'Process automation',
-    description: 'Cut manual work from your operations. I turn repeatable, error-prone workflows into fast, reliable pipelines — often with Python scripts and zero heavy tooling.',
+    description: 'Cut manual work from your operations. We turn repeatable, error-prone workflows into fast, reliable pipelines — often with Python scripts and zero heavy tooling.',
     icon: Zap,
     color: 'cyan',
     detail: ['Workflow automation', 'Python scripts', 'Manual-work reduction'],
@@ -404,323 +604,54 @@ const features = [
   },
 ];
 
-const reveal: Variants = {
-  hidden: { opacity: 0, y: 36, filter: 'blur(6px)' },
-  visible: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } },
-};
-
-function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; delay?: number; className?: string }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-70px' });
+function Services() {
   return (
-    <motion.div ref={ref} initial="hidden" animate={inView ? 'visible' : 'hidden'} variants={reveal} transition={{ delay }} className={className}>
-      {children}
-    </motion.div>
-  );
-}
-
-/* Abstract glowing torus — 3S Verse cyan -> periwinkle -> magenta */
-function AbstractOrb({ size = 460, tilt = -24, spin = 60, className = '', opacity = 1 }: { size?: number; tilt?: number; spin?: number; className?: string; opacity?: number }) {
-  const id = useRef(`orb-${Math.random().toString(36).slice(2, 8)}`).current;
-  return (
-    <div aria-hidden="true" className={`pointer-events-none ${className}`} style={{ width: size, height: size, opacity }}>
-      <motion.svg
-        viewBox="0 0 400 400"
-        className="h-full w-full"
-        animate={{ rotate: [tilt, tilt + 360] }}
-        transition={{ duration: spin, repeat: Infinity, ease: 'linear' }}
-        style={{ overflow: 'visible' }}
-      >
-        <defs>
-          <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6ee7ef" />
-            <stop offset="48%" stopColor="#78a6ff" />
-            <stop offset="100%" stopColor="#e44bd7" />
-          </linearGradient>
-          <filter id={`${id}-blur`} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="16" />
-          </filter>
-          <radialGradient id={`${id}-core`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#6ee7ef" stopOpacity="0.34" />
-            <stop offset="55%" stopColor="#78a6ff" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="#0a0912" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <circle cx="200" cy="200" r="150" fill={`url(#${id}-core)`} />
-        <g filter={`url(#${id}-blur)`} opacity="0.65">
-          <ellipse cx="200" cy="200" rx="148" ry="92" fill="none" stroke={`url(#${id})`} strokeWidth="30" transform="rotate(-18 200 200)" />
-        </g>
-        <ellipse cx="200" cy="200" rx="148" ry="92" fill="none" stroke={`url(#${id})`} strokeWidth="22" transform="rotate(-18 200 200)" opacity="0.95" />
-        <ellipse cx="200" cy="200" rx="132" ry="78" fill="none" stroke={`url(#${id})`} strokeWidth="12" transform="rotate(52 200 200)" opacity="0.5" />
-        <ellipse cx="200" cy="200" rx="118" ry="86" fill="none" stroke={`url(#${id})`} strokeWidth="7" transform="rotate(112 200 200)" opacity="0.32" />
-      </motion.svg>
-    </div>
-  );
-}
-
-const MARQUEE_ITEMS = [
-  'VIDAPAY INCENTIVE EXTRACTOR',
-  'VIDAPAY DEVICE ORDERING',
-  'WORKFLOW AUTOMATION',
-  'AI AGENTS',
-  'LIVE DASHBOARDS',
-  'WEB & MOBILE APPS',
-];
-
-function Marquee() {
-  const items = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
-  return (
-    <div className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#0c0b14]/80 py-6">
-      <div className="flex w-max animate-marquee items-center gap-10">
-        {items.map((item, i) => (
-          <span key={i} className="flex items-center gap-10 whitespace-nowrap font-display text-[13px] font-semibold uppercase tracking-[0.28em] text-[#d8d5e8]/40">
-            {item}
-            <span className="text-[#6ee7ef]/50">✦</span>
-          </span>
-        ))}
-      </div>
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#11101c] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#11101c] to-transparent" />
-    </div>
-  );
-}
-
-function TechnicalBackdrop() {
-  return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="grid-tech absolute inset-x-0 top-0 h-[740px] opacity-55 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
-      <div className="absolute -right-24 top-28 h-80 w-80 rounded-full bg-[#e44bd7]/20 blur-[90px]" />
-      <div className="absolute left-[8%] top-[26%] h-64 w-64 rounded-full bg-[#6ee7ef]/15 blur-[90px]" />
-      <motion.div animate={{ rotate: 360 }} transition={{ duration: 55, repeat: Infinity, ease: 'linear' }} className="absolute right-[5%] top-36 h-[420px] w-[420px] rounded-full border border-[#6ee7ef]/15 border-dashed" />
-      <motion.div animate={{ rotate: -360 }} transition={{ duration: 42, repeat: Infinity, ease: 'linear' }} className="absolute right-[10%] top-52 h-[310px] w-[310px] rounded-full border border-[#e44bd7]/15" />
-      <div className="absolute left-[6%] top-[18%] h-2 w-2 bg-[#6ee7ef] shadow-[0_0_28px_#6ee7ef] animate-pulse-line" />
-      <div className="absolute left-[11%] top-[57%] h-1.5 w-1.5 bg-[#ff9d66] shadow-[0_0_22px_#ff9d66]" />
-      <div className="absolute right-[24%] top-[13%] h-1.5 w-1.5 bg-[#e44bd7] shadow-[0_0_22px_#e44bd7]" />
-      <div className="absolute right-[14%] top-[66%] h-2 w-2 bg-[#c7ef70] shadow-[0_0_28px_#c7ef70]" />
-      <motion.div animate={{ y: [0, 35, 0], opacity: [.2, .65, .2] }} transition={{ duration: 6, repeat: Infinity }} className="absolute right-[30%] top-0 h-[500px] w-px bg-gradient-to-b from-transparent via-[#6ee7ef] to-transparent" />
-    </div>
-  );
-}
-
-function Spotlight() {
-  const [pos, setPos] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
-  useEffect(() => {
-    const onMove = (e: PointerEvent) => setPos({ x: e.clientX, y: e.clientY, visible: true });
-    const onLeave = () => setPos((p) => ({ ...p, visible: false }));
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerleave', onLeave);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerleave', onLeave);
-    };
-  }, []);
-  return (
-    <motion.div
-      className="pointer-events-none fixed left-0 top-0 z-[30] h-[620px] w-[620px] rounded-full"
-      animate={{
-        x: pos.x - 310,
-        y: pos.y - 310,
-        opacity: pos.visible ? 1 : 0,
-        scale: pos.visible ? 1 : .6,
-      }}
-      transition={{ type: 'spring', stiffness: 80, damping: 24, mass: 1 }}
-      aria-hidden="true"
-      style={{
-        background:
-          'radial-gradient(circle, rgba(110,231,239,.17) 0%, rgba(228,75,215,.10) 42%, transparent 70%)',
-        filter: 'blur(5px)',
-      }}
-    />
-  );
-}
-
-function ScrollTop() {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > window.innerHeight * 0.8);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-  return (
-    <AnimatePresence>
-      {visible && (
-        <motion.button
-          data-testid="button-scroll-top"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'instant' })}
-          initial={{ opacity: 0, y: 16, scale: 0.8 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 16, scale: 0.8 }}
-          transition={{ duration: 0.2 }}
-          aria-label="Scroll to top"
-          className="group fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center overflow-hidden border border-[#6ee7ef]/30 bg-[#211d38]/80 text-[#6ee7ef] shadow-[0_10px_30px_rgba(4,3,15,.4)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1.5 hover:border-[#e44bd7]/60 hover:text-[#e44bd7] hover:shadow-[0_18px_44px_rgba(4,3,15,.55),0_0_18px_rgba(110,231,239,.25)]"
-        >
-          <span aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 animate-glass-shine bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-          <ArrowUp className="relative z-20 h-5 w-5 transition-transform duration-300 group-hover:-translate-y-0.5" />
-        </motion.button>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function ScrollProgress() {
-  const { scrollYProgress } = useScroll();
-  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.4 });
-  return (
-    <motion.div
-      className="fixed inset-x-0 top-0 z-[60] h-[3px] origin-left bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] shadow-[0_0_14px_rgba(110,231,239,.5)]"
-      style={{ scaleX }}
-      aria-hidden="true"
-    />
-  );
-}
-
-function Button({ children, href = '#contact', variant = 'red', testId }: { children: ReactNode; href?: string; variant?: 'red' | 'outline'; testId: string }) {
-  return (
-    <a
-      href={href}
-      data-testid={testId}
-      className={`group inline-flex items-center justify-center gap-3 px-5 py-3 text-sm font-semibold tracking-tight transition-transform duration-300 hover:-translate-y-0.5 ${
-        variant === 'red'
-          ? 'bg-[#e44bd7] text-[#17121c] shadow-[0_14px_32px_rgba(228,75,215,.28)] hover:bg-[#f06ae4] hover:shadow-[0_18px_40px_rgba(228,75,215,.38)]'
-          : 'border border-[#6ee7ef]/30 bg-[#211d38]/45 text-[#f7f3e8] hover:border-[#6ee7ef]/70 hover:bg-[#2c2446]'
-      }`}
-    >
-      {children}
-      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-    </a>
-  );
-}
-
-function Nav() {
-  const [open, setOpen] = useState(false);
-  return (
-    <header className="fixed left-0 right-0 top-0 z-40 border-b border-[#6ee7ef]/15 bg-[#11101c]/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-[74px] max-w-7xl items-center justify-between px-5 lg:px-8">
-        <a href="#" data-testid="link-brand" onClick={(e) => { e.preventDefault(); refreshPage(); }} className="shrink-0">
-          <img src="/logo.svg" alt="3S Verse" className="animate-logo-glow h-10 w-auto object-contain" />
-        </a>
-        <nav className="group hidden items-center gap-8 bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text transition-all duration-300 group-hover:drop-shadow-[0_0_10px_rgba(110,231,239,.7)] md:flex">
-            {navItems.map((item) => (
-            <a key={item.href} href={item.href} data-testid={`link-nav-${item.label.toLowerCase().replace(' ', '-')}`} className="font-mono-tech text-[11px] font-medium uppercase tracking-wider text-transparent">
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <div className="hidden items-center gap-3 md:flex">
-          <ThemeToggle />
-          <Button href="#contact" testId="button-nav-get-started">Get started</Button>
-        </div>
-        <div className="flex items-center gap-2 md:hidden">
-          <ThemeToggle mobile />
-          <button data-testid="button-mobile-menu" onClick={() => setOpen(!open)} className="border border-[#6ee7ef]/25 p-2 text-[#f7f3e8]" aria-label={open ? 'Close menu' : 'Open menu'}>
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-      </div>
-      <AnimatePresence>
-        {open && (
-          <motion.nav initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="border-t border-[#6ee7ef]/15 bg-[#171528] px-5 py-4 md:hidden">
-            {navItems.map((item) => (
-              <a key={item.href} href={item.href} onClick={() => setOpen(false)} data-testid={`link-mobile-${item.label.toLowerCase().replace(' ', '-')}`} className="block border-b border-[#6ee7ef]/15 py-3 bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-sm text-transparent">
-                {item.label}
-              </a>
-            ))}
-            <div className="mt-4 flex items-center justify-between border-t border-[#6ee7ef]/15 pt-4">
-              <span className="font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#aaa7be]/60">Appearance</span>
-              <ThemeToggle mobile />
-            </div>
-            <a href="#contact" onClick={() => setOpen(false)} data-testid="button-mobile-get-started" className="mt-4 block bg-[#e44bd7] px-4 py-3 text-center text-sm font-semibold text-[#17121c]">Get started</a>
-          </motion.nav>
-        )}
-      </AnimatePresence>
-    </header>
-  );
-}
-
-function CommandVisual() {
-  return (
-    <div className="relative mx-auto w-full max-w-[520px] [perspective:1200px]">
-      <motion.div initial={{ opacity: 0, y: 40, rotateY: -12, rotateX: 5 }} animate={{ opacity: 1, y: 0, rotateY: -7, rotateX: 2 }} transition={{ duration: 1, delay: .35, ease: [0.22, 1, .36, 1] }} className="relative overflow-hidden border border-cyan-100/25 bg-[#102d91]/90 shadow-[0_32px_90px_rgba(1,17,92,.55)] [transform-style:preserve-3d]">
-        <div className="flex items-center justify-between border-b border-[#6ee7ef]/15 px-4 py-3">
-          <div className="flex items-center gap-2"><Command className="h-3.5 w-3.5 text-[#6ee7ef]" /><span className="font-mono-tech text-[10px] tracking-[.2em] text-[#d8d5e8]/70">OPERATIONS / LIVE</span></div>
-          <div className="flex items-center gap-1.5 font-mono-tech text-[10px] text-[#6ee7ef]"><span className="h-1.5 w-1.5 bg-[#c7ef70]" /> SYNCED</div>
-        </div>
-        <div className="relative grid grid-cols-[1fr_1.15fr] gap-4 p-4">
-          <div className="space-y-3">
-            <div className="border border-[#6ee7ef]/15 bg-[#1a1830] p-3">
-              <div className="font-mono-tech text-[9px] uppercase tracking-wider text-[#aaa7be]/60">Throughput</div>
-              <div className="mt-2 flex items-end justify-between"><strong className="text-2xl tracking-tight text-[#f7f3e8]">84.7<span className="text-sm text-[#6ee7ef]">%</span></strong><span className="font-mono-tech text-[10px] text-[#c7ef70]">+12.4%</span></div>
-              <div className="mt-3 flex h-12 items-end gap-1">
-                {[35, 48, 40, 58, 52, 67, 61, 76, 72, 88, 82, 95].map((height, i) => <motion.div key={i} initial={{ height: 0 }} animate={{ height: `${height}%` }} transition={{ delay: .8 + i * .04, duration: .45 }} className={`w-full ${i > 8 ? 'bg-[#6ee7ef]' : 'bg-[#7162d9]'}`} />)}
-              </div>
-            </div>
-            <div className="border border-[#6ee7ef]/15 bg-[#1a1830] p-3">
-              <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-wider text-[#aaa7be]/60"><span>Queue health</span><span className="text-[#c7ef70]">nominal</span></div>
-              <div className="mt-3 h-1.5 bg-[#0f0e1b]"><motion.div initial={{ width: 0 }} animate={{ width: '72%' }} transition={{ delay: 1, duration: 1 }} className="h-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7]" /></div>
-            </div>
-          </div>
-          <div className="relative border border-[#e44bd7]/25 bg-[#211b3b] p-3">
-            <div className="flex items-center justify-between"><span className="font-mono-tech text-[9px] uppercase tracking-wider text-[#aaa7be]/60">Flow map</span><Network className="h-3.5 w-3.5 text-[#e44bd7]" /></div>
-            <svg viewBox="0 0 210 160" className="mt-3 h-[160px] w-full">
-              <path d="M19 93 C48 93 41 45 73 45 S100 120 130 113 149 47 189 47" fill="none" stroke="#6ee7ef" strokeWidth="1.5" strokeDasharray="4 4" />
-              <path d="M30 21 C58 21 57 75 89 75 S124 24 158 24" fill="none" stroke="#e44bd7" strokeWidth="1" opacity=".8" />
-              {[[19,93],[73,45],[130,113],[189,47],[30,21],[89,75],[158,24]].map(([cx, cy], i) => <g key={i}><circle cx={cx} cy={cy} r="5" fill="#211b3b" stroke={i % 2 ? '#e44bd7' : '#6ee7ef'} strokeWidth="1.5" /><circle cx={cx} cy={cy} r="1.7" fill={i % 2 ? '#e44bd7' : '#6ee7ef'} /></g>)}
-            </svg>
-            <div className="absolute bottom-3 left-3 right-3 flex justify-between border-t border-[#6ee7ef]/10 pt-2 font-mono-tech text-[9px] text-[#aaa7be]/50"><span>7 active paths</span><span className="text-[#6ee7ef]">0 blocked</span></div>
-          </div>
-          <div className="absolute -bottom-5 -left-7 border border-[#ff9d66]/40 bg-[#2a203b] px-3 py-2 shadow-xl">
-            <div className="flex items-center gap-2"><Bell className="h-3.5 w-3.5 text-[#ff9d66]" /><span className="font-mono-tech text-[9px] text-[#ffe0cf]">2 rules executed</span></div>
-          </div>
-        </div>
-        <div className="animate-scan absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-transparent via-cyan-200/10 to-transparent" />
-      </motion.div>
-      <div className="absolute -right-5 -top-7 hidden border border-[#e44bd7]/25 bg-[#211b3b]/85 p-3 backdrop-blur md:block animate-drift-slow">
-        <div className="font-mono-tech text-[9px] uppercase tracking-widest text-[#e9a8e5]/70">latency</div>
-        <div className="mt-1 text-xl text-[#f7f3e8]">42<span className="text-xs text-[#6ee7ef]">ms</span></div>
-      </div>
-    </div>
-  );
-}
-
-function Hero() {
-  return (
-    <section id="top" className="relative flex min-h-[780px] items-center overflow-hidden border-b border-[#6ee7ef]/10 bg-[#11101c] pt-24">
-      <TechnicalBackdrop />
-      <AbstractOrb size={560} tilt={-30} spin={85} className="absolute -right-36 top-[-120px] hidden opacity-70 lg:block" />
-      <AbstractOrb size={330} tilt={120} spin={100} className="absolute bottom-[-100px] left-[-110px] hidden opacity-50 md:block" />
-      <div className="relative mx-auto grid w-full max-w-7xl items-center gap-16 px-5 py-24 lg:grid-cols-[1.06fr_.94fr] lg:px-8 lg:py-28">
-        <div>
-          <Reveal><div className="mb-7 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="h-px w-8 bg-[#6ee7ef]" />Software & operations, delivered end to end</div></Reveal>
-          <Reveal delay={.1}><h1 className="max-w-3xl text-balance text-[clamp(3.4rem,7vw,6.5rem)] font-semibold leading-[.9] tracking-[-.07em] text-[#f7f3e8]">I build the tech<br /><span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">your business runs on.</span></h1></Reveal>
-          <Reveal delay={.2}><p className="mt-8 max-w-xl text-lg leading-8 text-[#d8d5e8]/75">3S Verse — apps, websites, AI agents, dashboards, and process automation that cut the manual work and keep your operation moving. Backed by {YEARS_EXPERIENCE}+ years of real operations experience.</p></Reveal>
-          <Reveal delay={.3}><div className="mt-9 flex flex-wrap items-center gap-4"><Button href="#contact" testId="button-hero-get-started">Let's build something</Button><a href="#capabilities" data-testid="link-hero-explore" className="group inline-flex items-center gap-2 px-2 py-3 text-sm font-medium text-[#d8d5e8]/80 hover:text-[#f7f3e8]"><Play className="h-4 w-4 fill-current text-[#6ee7ef]" /> See what I build <ArrowDownRight className="h-4 w-4 transition-transform group-hover:translate-x-1 group-hover:translate-y-1" /></a></div></Reveal>
-          <Reveal delay={.4}><div className="mt-16 flex flex-wrap gap-x-8 gap-y-4 border-t border-[#6ee7ef]/15 pt-5 font-mono-tech text-[10px] uppercase tracking-[.15em] text-[#aaa7be]/55"><span className="flex items-center gap-2"><span className="h-1.5 w-1.5 bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years operations</span><span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> Processes automated</span><span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#e44bd7]" /> Cost recovered</span></div></Reveal>
-        </div>
-        <CommandVisual />
-      </div>
-      <div className="absolute bottom-5 left-1/2 hidden -translate-x-1/2 items-center gap-3 font-mono-tech text-[9px] uppercase tracking-[.3em] text-[#aaa7be]/45 md:flex"><span className="h-8 w-px bg-gradient-to-b from-transparent to-[#6ee7ef]/60" /> Scroll to inspect system</div>
-    </section>
-  );
-}
-
-function Capabilities() {
-  return (
-    <section id="capabilities" className="relative overflow-hidden bg-[#0c0b14] py-28 lg:py-36">
+    <section id="services" className="relative overflow-hidden py-28 lg:py-36">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
-         <Reveal><div className="flex flex-col justify-between gap-8 border-b border-[#6ee7ef]/15 pb-12 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>01 — What I can build</div><h2 className="max-w-2xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">Everything your business needs to <span className="text-[#6ee7ef]">run and grow.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/65">Not one tool — a full spectrum: from a new website to automated operations, AI to dashboards. Built to cut the manual work that slows you down.</p></div></Reveal>
-        <div className="mt-10 grid gap-4 md:grid-cols-2">
+        <Reveal>
+          <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
+            <div>
+              <Kicker>01 — What we build</Kicker>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+                Everything your business needs to <span className="text-[#6ee7ef]">run and grow.</span>
+              </h2>
+            </div>
+            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+              Not one tool — a full spectrum: from a new website to automated operations, AI to dashboards. Built to cut the manual work that slows you down.
+            </p>
+          </div>
+        </Reveal>
+        <div className="grid gap-4 md:grid-cols-2">
           {features.map((feature, i) => {
             const Icon = feature.icon;
-             const accent = feature.color === 'magenta' ? '#e44bd7' : '#6ee7ef';
-             return <Reveal key={feature.title} delay={i * .08}><motion.article whileHover={{ y: -8, scale: 1.01 }} data-testid={`card-service-${feature.index}`} className="group relative min-h-[330px] overflow-hidden border border-[#6ee7ef]/15 bg-[#211d38]/80 p-7 shadow-[0_16px_45px_rgba(4,3,15,.2)] transition-colors duration-500 hover:border-[#6ee7ef]/45 hover:bg-[#2a2447] lg:p-9">
-              <div className="absolute right-0 top-0 h-36 w-36 opacity-20 transition-all duration-500 group-hover:scale-125 group-hover:opacity-40" style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 67%)` }} />
-               <div className="flex items-start justify-between"><div className="flex h-11 w-11 items-center justify-center border border-[#6ee7ef]/20 bg-[#302953]" style={{ color: accent }}><Icon className="h-5 w-5" /></div><span className="font-mono-tech text-[10px] text-[#d8d5e8]/40">{feature.index}</span></div>
-               <h3 className="mt-14 text-2xl font-semibold tracking-[-.03em] text-[#f7f3e8]">{feature.title}</h3>
-               <p className="mt-3 max-w-md text-sm leading-6 text-[#d8d5e8]/65">{feature.description}</p>
-               <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2">{feature.detail.map((item) => <span key={item} className="flex items-center gap-2 font-mono-tech text-[9px] uppercase tracking-wide text-[#d8d5e8]/50"><Check className="h-3 w-3 text-[#6ee7ef]" /> {item}</span>)}</div>
-                <ArrowUpRight className="absolute bottom-8 right-8 h-5 w-5 -translate-x-2 translate-y-2 text-[#d8d5e8]/20 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:translate-y-0 group-hover:text-[#6ee7ef] group-hover:opacity-100" />
-             </motion.article></Reveal>;
+            const accent = feature.color === 'magenta' ? '#e44bd7' : '#6ee7ef';
+            return (
+              <Reveal key={feature.title} delay={i * 0.07}>
+                <motion.article
+                  whileHover={{ y: -6 }}
+                  data-testid={`card-service-${feature.index}`}
+                  className="group relative h-full overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] p-8 transition-colors duration-500 hover:border-white/[.16] lg:p-10"
+                >
+                  <div className="absolute right-0 top-0 h-40 w-40 opacity-[.13] transition-opacity duration-500 group-hover:opacity-30" style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 68%)` }} />
+                  <div className="flex items-start justify-between">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[.04]" style={{ color: accent }}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="font-mono-tech text-[10px] text-[#8d8a9e]/60">{feature.index}</span>
+                  </div>
+                  <h3 className="mt-12 text-[26px] font-light tracking-[-0.02em] text-white">{feature.title}</h3>
+                  <p className="mt-4 max-w-md text-[14px] font-light leading-7 text-[#b9b6c9]">{feature.description}</p>
+                  <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2.5">
+                    {feature.detail.map((item) => (
+                      <span key={item} className="flex items-center gap-2 font-mono-tech text-[9px] uppercase tracking-[.14em] text-[#8d8a9e]">
+                        <Check className="h-3 w-3" style={{ color: accent }} /> {item}
+                      </span>
+                    ))}
+                  </div>
+                  <ArrowUpRight className="absolute bottom-9 right-9 h-5 w-5 -translate-x-2 translate-y-2 text-white/20 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:translate-y-0 group-hover:text-[#6ee7ef] group-hover:opacity-100" />
+                </motion.article>
+              </Reveal>
+            );
           })}
         </div>
       </div>
@@ -728,19 +659,96 @@ function Capabilities() {
   );
 }
 
-function Approach() {
+/* "Learn how it works" — numbered steps left, automation form visual right
+   (template's "Train a new model AI" moment). */
+function HowVisual() {
   return (
-    <section id="approach" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#11101c] py-28 lg:py-36">
-      <div className="absolute inset-y-0 right-0 w-1/2 grid-tech opacity-25 [mask-image:linear-gradient(to_left,black,transparent)]" />
+    <div className="relative mb-16 lg:mb-20">
+      <div className="relative overflow-hidden rounded-2xl border border-white/[.08] bg-[#0b0a11] p-6 shadow-[0_30px_90px_rgba(0,0,0,.45)] sm:p-8">
+        <div className="flex items-center gap-3 border-b border-white/[.07] pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[.04] text-[#6ee7ef]"><Workflow className="h-4 w-4" /></span>
+          <span className="text-[15px] font-medium text-white">Automate a workflow</span>
+        </div>
+        <div className="mt-5 space-y-4">
+          {[
+            ['Process', 'Rebates & claims intake'],
+            ['Tools', 'VidaPay portal → Sheets'],
+            ['Owner', 'Ops team · runs daily'],
+          ].map(([label, value], i) => (
+            <motion.div key={label} initial={{ opacity: 0, x: -14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 + i * 0.12 }}>
+              <div className="font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">{label}</div>
+              <div className="mt-1.5 rounded-lg border border-white/[.08] bg-white/[.03] px-3.5 py-2.5 text-[13px] text-[#d8d5e8]">{value}</div>
+            </motion.div>
+          ))}
+          <div className="rounded-lg border border-white/[.08] bg-white/[.03] px-3.5 py-2.5">
+            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <span>Status</span>
+              <span className="flex items-center gap-1.5 text-[#c7ef70]"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70] shadow-[0_0_8px_#c7ef70]" /> running</span>
+            </div>
+            <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
+              <motion.div initial={{ width: 0 }} whileInView={{ width: '88%' }} viewport={{ once: true }} transition={{ delay: 0.5, duration: 1.1 }} className="h-full rounded-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7]" />
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* overlapping results card */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: 0.55, duration: 0.7 }}
+        className="absolute -bottom-10 -right-3 w-[240px] rounded-2xl border border-white/[.1] bg-[#0d0c14] p-5 shadow-[0_30px_80px_rgba(0,0,0,.6)] sm:-right-8"
+      >
+        <div className="text-[14px] font-medium text-white">Results</div>
+        <svg viewBox="0 0 200 90" className="mt-3 w-full">
+          <polyline points="0,78 28,66 56,70 84,48 112,52 140,30 168,34 200,14" fill="none" stroke="#6ee7ef" strokeWidth="1.8" strokeLinejoin="round" />
+          <polyline points="0,82 28,76 56,72 84,64 112,60 140,50 168,44 200,38" fill="none" stroke="#e44bd7" strokeWidth="1.2" strokeDasharray="3 3" opacity=".7" />
+          <line x1="0" y1="88" x2="200" y2="88" stroke="rgba(255,255,255,.12)" strokeWidth="1" />
+        </svg>
+        <div className="mt-2 flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.16em] text-[#8d8a9e]">
+          <span>hours saved / wk</span>
+          <span className="text-[#c7ef70]">+38%</span>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function HowItWorks() {
+  const steps = [
+    ['01', 'Understand your work', 'We dig into how your business actually operates — the manual loops, the bottlenecks, the time sinks nobody tracks.'],
+    ['02', 'Build the solution', 'Apps, websites, AI, dashboards, or automation — the right build to remove the friction, shipped cleanly and on time.'],
+    ['03', 'Keep it moving', 'We stay close as your business evolves, tuning and extending the system so it never becomes the next bottleneck.'],
+  ];
+  return (
+    <section id="how" className="relative overflow-hidden py-28 lg:py-36">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
-        <div className="grid gap-16 lg:grid-cols-[.8fr_1.2fr]">
-           <Reveal><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>02 — How I work</div><h2 className="text-4xl font-semibold leading-[.98] tracking-[-.05em] text-[#f7f3e8] sm:text-5xl">From <span className="text-[#e44bd7]">problem</span> to shipped, fast.</h2><p className="mt-7 max-w-sm text-sm leading-7 text-[#d8d5e8]/65">I don't hand you a tool and disappear. I understand your operation, build exactly what removes the friction, and keep it running as you grow.</p><a href="#contact" data-testid="link-approach-talk" className="mt-8 inline-flex items-center gap-3 border-b border-[#6ee7ef]/40 pb-2 text-sm font-semibold text-[#6ee7ef] hover:text-[#f7f3e8]">Tell me what's slowing you down <ArrowRight className="h-4 w-4" /></a></div></Reveal>
-          <div className="space-y-0">
-            {[
-              ['01', 'Understand your work', 'I dig into how your business actually operates — the manual loops, the bottlenecks, the time sinks nobody tracks.'],
-              ['02', 'Build the solution', 'Apps, websites, AI, dashboards, or automation — the right build to remove the friction, shipped cleanly and on time.'],
-              ['03', 'Keep it moving', 'I stay close as your business evolves, tuning and extending the system so it never becomes the next bottleneck.'],
-             ].map(([number, title, copy], i) => <Reveal key={number} delay={i * .12}><div className="group flex gap-6 border-t border-[#6ee7ef]/15 py-8"><span className="font-mono-tech text-[10px] text-[#6ee7ef]">{number}</span><div><h3 className="text-xl font-medium text-[#f7f3e8] transition-colors group-hover:text-[#6ee7ef]">{title}</h3><p className="mt-2 max-w-lg text-sm leading-6 text-[#d8d5e8]/60">{copy}</p></div><ArrowRight className="ml-auto mt-1 h-4 w-4 text-[#d8d5e8]/30 transition-transform group-hover:translate-x-2 group-hover:text-[#6ee7ef]" /></div></Reveal>)}
+        <div className="grid items-start gap-16 lg:grid-cols-[.85fr_1px_1.15fr] lg:gap-0">
+          <div className="lg:pr-16">
+            <Reveal>
+              <Kicker magenta>02 — How it works</Kicker>
+              <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+                Learn how
+                <br />
+                3S Verse works
+              </h2>
+              <div className="mt-12 space-y-10">
+                {steps.map(([number, title, copy], i) => (
+                  <Reveal key={number} delay={i * 0.1}>
+                    <div className="border-l border-white/10 pl-6">
+                      <h3 className="text-[22px] font-light tracking-[-0.01em] text-white transition-colors duration-300 hover:text-[#6ee7ef]">
+                        {number}. {title}
+                      </h3>
+                      <p className="mt-2.5 max-w-md text-[14px] font-light leading-7 text-[#b9b6c9]">{copy}</p>
+                    </div>
+                  </Reveal>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+          <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
+          <div className="lg:pl-16">
+            <HowVisual />
           </div>
         </div>
       </div>
@@ -748,27 +756,348 @@ function Approach() {
   );
 }
 
-function Outcomes() {
+/* Outcomes — template's "35+ Pages / 90+ Sections" cards: a small visual
+   on top, big light number below, all in near-black rounded cards. */
+function StatVisual({ kind }: { kind: 'bars' | 'rings' | 'line' }) {
+  if (kind === 'bars') {
+    return (
+      <div className="flex h-24 items-end justify-center gap-1.5">
+        {[30, 44, 38, 56, 50, 68, 62, 82, 76, 95].map((height, i) => (
+          <motion.span key={i} initial={{ height: 0 }} whileInView={{ height: `${height}%` }} viewport={{ once: true }} transition={{ delay: i * 0.05, duration: 0.5 }} className={`w-3 rounded-t-[3px] ${i > 7 ? 'bg-[#e44bd7]' : 'bg-white/[.16]'}`} />
+        ))}
+      </div>
+    );
+  }
+  if (kind === 'rings') {
+    return (
+      <div className="flex h-24 items-center justify-center gap-5">
+        {[52, 76, 92].map((pct, i) => (
+          <svg key={i} viewBox="0 0 60 60" className="h-16 w-16">
+            <circle cx="30" cy="30" r="24" fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="5" />
+            <motion.circle cx="30" cy="30" r="24" fill="none" stroke={i === 2 ? '#e44bd7' : '#6ee7ef'} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(pct / 100) * 150.8} 150.8`} transform="rotate(-90 30 30)" initial={{ strokeDasharray: '0 150.8' }} whileInView={{ strokeDasharray: `${(pct / 100) * 150.8} 150.8` }} viewport={{ once: true }} transition={{ delay: 0.2 + i * 0.15, duration: 1 }} />
+          </svg>
+        ))}
+      </div>
+    );
+  }
   return (
-    <section id="outcomes" className="relative overflow-hidden bg-[#0c0b14] py-28 lg:py-36">
-      <AbstractOrb size={500} tilt={30} spin={95} className="absolute -right-32 top-[-140px] hidden opacity-50 md:block" />
+    <div className="flex h-24 items-end justify-center">
+      <svg viewBox="0 0 220 80" className="w-full max-w-[260px]">
+        <polyline points="0,68 30,58 60,62 90,42 120,46 150,26 180,30 220,10" fill="none" stroke="#6ee7ef" strokeWidth="2" strokeLinejoin="round" />
+        <polyline points="0,74 30,70 60,66 90,58 120,54 150,46 180,42 220,34" fill="none" stroke="#e44bd7" strokeWidth="1.4" strokeDasharray="3 3" opacity=".7" />
+      </svg>
+    </div>
+  );
+}
+
+function Outcomes() {
+  const stats = [
+    { value: '$265K+', label: 'recovered in claims & losses', kind: 'bars' as const },
+    { value: '$121K', label: 'vendor savings in one year', kind: 'line' as const },
+    { value: '15%', label: 'inventory turnover lift', kind: 'rings' as const },
+  ];
+  return (
+    <section id="outcomes" className="relative overflow-hidden py-28 lg:py-36">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
-         <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#d8d5e8]"><span className="mr-3 text-[#e44bd7]">/</span>03 — Real results</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">Operations and builds that <span className="bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7] bg-clip-text text-transparent">recover real money.</span></h2></div><div className="flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-widest text-[#d8d5e8]/60"><span className="h-2 w-2 bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years delivered</div></div></Reveal>
-         <div className="grid gap-px overflow-hidden border border-[#6ee7ef]/15 bg-[#6ee7ef]/15 sm:grid-cols-3">
-          {[
-            { value: '$265K+', label: 'recovered in claims & losses', icon: BarChart3 },
-            { value: '$121K', label: 'vendor savings in one year', icon: Cpu },
-            { value: '15%', label: 'inventory turnover lift', icon: Database },
-           ].map(({ value, label, icon: Icon }, i) => <Reveal key={label} delay={i * .1}><div data-testid={`stat-outcome-${i}`} className="relative bg-[#302249] p-7 lg:p-10"><Icon className="h-5 w-5 text-[#6ee7ef]/70" /><div className="mt-16 text-5xl font-semibold tracking-[-.07em] text-[#f7f3e8] lg:text-6xl">{value}</div><div className="mt-3 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#d8d5e8]/60">{label}</div></div></Reveal>)}
+        <Reveal>
+          <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
+            <div>
+              <Kicker>03 — Real results</Kicker>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+                Builds that <span className="text-[#e44bd7]">recover real money.</span>
+              </h2>
+            </div>
+            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+              Numbers pulled straight from real deployments — retail operations, distribution, and multi-store programs running on systems we built.
+            </p>
+          </div>
+        </Reveal>
+        <div className="grid gap-4 md:grid-cols-3">
+          {stats.map(({ value, label, kind }, i) => (
+            <Reveal key={label} delay={i * 0.1}>
+              <div data-testid={`stat-outcome-${i}`} className="group overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] transition-colors duration-500 hover:border-white/[.16]">
+                <div className="px-8 pb-2 pt-10">
+                  <StatVisual kind={kind} />
+                </div>
+                <div className="border-t border-white/[.06] px-8 py-8 text-center">
+                  <div className="text-[44px] font-light leading-none tracking-[-0.03em] text-white lg:text-[52px]">{value}</div>
+                  <div className="mt-3 font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#8d8a9e]">{label}</div>
+                </div>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-// Full-screen player for a project video. Esc, backdrop click, or the close
-// button dismiss it; body scroll is locked while open. YouTube/Vimeo play in
-// a privacy-minded iframe, direct files in a native <video> element.
+/* Dealer tools — template's "Use cases" tabbed card, with the two VidaPay
+   portal tools by their FULL names (always, everywhere). */
+const TOOLS = [
+  {
+    id: 'extractor',
+    tab: 'VidaPay Incentive Extractor',
+    title: 'VidaPay Incentive Extractor',
+    blurb: 'Pulls every rebate, spiff, and incentive straight out of the VidaPay portal into one clean sheet — no more screenshot-and-typing, no missed dollars. Built for dealers who live in VidaPay every week.',
+    chips: [
+      { icon: FileSpreadsheet, label: 'Rebate tracking' },
+      { icon: ClipboardCheck, label: 'Claim matching' },
+      { icon: TrendingUp, label: 'Spiff totals' },
+      { icon: Database, label: 'Export ready' },
+    ],
+    tags: ['Rebates', 'Spiffs', 'Claims', 'One clean sheet'],
+    visual: (
+      <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-5">
+        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
+          <span>Incentives · March</span><span className="rounded border border-[#6ee7ef]/30 px-1.5 py-0.5 text-[#6ee7ef]">EXTRACTED</span>
+        </div>
+        <div className="mt-4 space-y-2.5">
+          {[
+            ['Vendor rebate — row 14', '$1,240.00'],
+            ['Activation spiff — row 09', '$615.00'],
+            ['Bundle bonus — row 22', '$890.00'],
+          ].map(([row, amount], i) => (
+            <motion.div key={row} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-white/[.07] bg-white/[.02] px-3.5 py-2.5">
+              <span className="text-[13px] text-[#d8d5e8]">{row}</span>
+              <span className="font-mono-tech text-[12px] text-[#6ee7ef]">{amount}</span>
+            </motion.div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-white/[.07] pt-3.5">
+          <span className="font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">Total recovered</span>
+          <span className="text-[20px] font-light tracking-tight text-white">$2,745.00</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 'ordering',
+    tab: 'VidaPay Device Ordering',
+    title: 'VidaPay Device Ordering',
+    blurb: 'Orders devices across every store from the VidaPay portal in minutes — pick the model, set per-store quantities, submit once. Stops the wrong-SKU, wrong-store chaos for good.',
+    chips: [
+      { icon: ShoppingCart, label: 'Bulk ordering' },
+      { icon: Store, label: 'Per-store quantities' },
+      { icon: History, label: 'Order history' },
+      { icon: Package, label: 'Fewer errors' },
+    ],
+    tags: ['Bulk', 'All stores', 'One submit', 'Fewer mistakes'],
+    visual: (
+      <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-5">
+        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
+          <span>Order · 45 stores</span><span className="rounded border border-[#e44bd7]/40 px-1.5 py-0.5 text-[#e44bd7]">DRAFT</span>
+        </div>
+        <div className="mt-4 space-y-2.5">
+          {[
+            ['Galaxy S23 FE', '12 / store'],
+            ['Moto G Play', '20 / store'],
+            ['iPhone 13', '8 / store'],
+          ].map(([device, qty], i) => (
+            <motion.div key={device} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-white/[.07] bg-white/[.02] px-3.5 py-2.5">
+              <span className="text-[13px] text-[#d8d5e8]">{device}</span>
+              <span className="font-mono-tech text-[12px] text-[#e44bd7]">{qty}</span>
+            </motion.div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-white/[.07] pt-3.5">
+          <span className="font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">1,340 units queued</span>
+          <span className="rounded-lg bg-white px-4 py-1.5 text-[12px] font-semibold text-[#0b0a10]">Submit order</span>
+        </div>
+      </div>
+    ),
+  },
+];
+
+function Tools() {
+  const [active, setActive] = useState(0);
+  const tool = TOOLS[active];
+  return (
+    <section id="tools" className="relative overflow-hidden py-28 lg:py-36">
+      <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-24 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#6ee7ef]/[.05] blur-[130px]" />
+      <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
+        <Reveal>
+          <div className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <Kicker magenta>04 — Dealer tools</Kicker>
+              <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">Tools that run the store floor</h2>
+            </div>
+            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+              Two production systems, born inside a real multi-store operation and battle-tested weekly by dealers who use them every day.
+            </p>
+          </div>
+          <div className="mb-6 flex flex-wrap gap-3" role="tablist" aria-label="VidaPay tools">
+            {TOOLS.map((t, i) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={active === i}
+                data-testid={`tab-tool-${t.id}`}
+                onClick={() => setActive(i)}
+                className={`rounded-xl px-5 py-2.5 text-[14px] font-medium transition-all duration-300 ${
+                  active === i
+                    ? 'bg-white text-[#0b0a10] shadow-[0_10px_30px_rgba(255,255,255,.08)]'
+                    : 'border border-white/20 text-[#d8d5e8] hover:border-white/50 hover:text-white'
+                }`}
+              >
+                {t.tab}
+              </button>
+            ))}
+          </div>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <div data-testid="panel-tool" className="overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11] p-8 sm:p-12 lg:p-14">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={tool.id}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -14 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                className="grid items-center gap-12 lg:grid-cols-2"
+              >
+                <div>
+                  <h3 className="text-[clamp(1.7rem,2.6vw,2.5rem)] font-light leading-[1.08] tracking-[-0.02em] text-white">{tool.title}</h3>
+                  <p className="mt-5 max-w-lg text-[15px] font-light leading-7 text-[#b9b6c9]">{tool.blurb}</p>
+                  <div className="mt-8 grid max-w-md grid-cols-2 gap-x-6 gap-y-4">
+                    {tool.chips.map(({ icon: Icon, label }) => (
+                      <span key={label} className="flex items-center gap-3 text-[13.5px] font-light text-[#d8d5e8]">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[.04] text-[#6ee7ef]"><Icon className="h-4 w-4" /></span>
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  {tool.visual}
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {tool.tags.map((tag) => (
+                      <span key={tag} className="rounded-md border border-white/10 bg-white/[.04] px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[.16em] text-[#8d8a9e]">{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </Reveal>
+        <Reveal delay={0.15}>
+          <div className="mt-8 flex justify-center">
+            <BtnWhite href="#contact" testId="button-tools-demo">Get these tools working for you</BtnWhite>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* Reviews — template's testimonial card with highlighted phrases. */
+function Reviews() {
+  const reviews = [
+    {
+      quote: ['He rebuilt our ordering process end to end — cut the manual inventory busywork ', 'by more than half', '. Our buyers just work smarter now.'],
+      name: 'Operations Director',
+      org: 'Wireless Retail Group',
+      initials: 'RD',
+    },
+    {
+      quote: ['The dashboard he built changed how we run the business. For the first time the whole team sees inventory, sales, and claims ', 'in one live view', '.'],
+      name: 'Finance Lead',
+      org: 'FMCG Distributor',
+      initials: 'FK',
+    },
+    {
+      quote: ['Fast, pragmatic, and genuinely invested. He understood our workflow before we finished explaining it and shipped something ', 'we use every day', '.'],
+      name: 'General Manager',
+      org: 'Multi-location Retail',
+      initials: 'GM',
+    },
+  ];
+  return (
+    <section id="reviews" className="relative overflow-hidden py-28 lg:py-36">
+      <div className="mx-auto max-w-7xl px-5 lg:px-8">
+        <Reveal>
+          <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
+            <div>
+              <Kicker>05 — Client reviews</Kicker>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+                People who run on <span className="text-[#6ee7ef]">3S Verse.</span>
+              </h2>
+            </div>
+            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+              Feedback from the operations leaders, finance teams, and managers who trusted us with their day-to-day.
+            </p>
+          </div>
+        </Reveal>
+        <div className="grid gap-4 md:grid-cols-3">
+          {reviews.map((review, i) => (
+            <Reveal key={review.name} delay={i * 0.1}>
+              <figure data-testid={`review-${i}`} className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] p-8 transition-colors duration-500 hover:border-white/[.16] lg:p-9">
+                <div>
+                  <div className="flex items-center gap-1 text-[#e44bd7]" aria-label="5 out of 5 stars">
+                    {Array.from({ length: 5 }).map((_, s) => <Star key={s} className="h-4 w-4 fill-current" />)}
+                  </div>
+                  <blockquote className="mt-6 text-[15px] font-light leading-8 text-[#c9c6d8]">
+                    “{review.quote[0]}
+                    <span className="rounded-md bg-white/[.1] px-1.5 py-0.5 text-white">{review.quote[1]}</span>
+                    {review.quote[2]}”
+                  </blockquote>
+                </div>
+                <figcaption className="mt-9 flex items-center gap-3.5 border-t border-white/[.07] pt-6">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e44bd7]/40 bg-white/[.04] font-mono-tech text-[11px] text-[#6ee7ef]">{review.initials}</span>
+                  <div>
+                    <div className="text-[14px] font-medium text-white">{review.name}</div>
+                    <div className="mt-0.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">{review.org}</div>
+                  </div>
+                </figcaption>
+              </figure>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── Project videos ────────────────────────────────────────────────────────
+// PROJECT_VIDEOS — to show a project video on the page, add one entry to
+// this list. `url` accepts a YouTube / YouTube Shorts / Vimeo link or a
+// direct .mp4/.webm URL (local files go in public/videos/). While this list
+// is empty the whole Work section (and its nav item) stays hidden. */
+const PROJECT_VIDEOS: ProjectVideo[] = [];
+
+type ProjectVideo = {
+  title: string;
+  blurb: string;
+  tag: string;
+  url: string;
+  poster?: string;
+};
+
+function parseVideoSource(url: string): { kind: 'youtube' | 'vimeo' | 'file'; id?: string; src: string } {
+  const trimmed = url.trim();
+  let match = trimmed.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/i);
+  if (match) return { kind: 'youtube', id: match[1], src: trimmed };
+  match = trimmed.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+  if (match) return { kind: 'vimeo', id: match[1], src: trimmed };
+  return { kind: 'file', src: trimmed };
+}
+
+function videoEmbedUrl(source: ReturnType<typeof parseVideoSource>): string {
+  if (source.kind === 'youtube' && source.id) {
+    return `https://www.youtube-nocookie.com/embed/${source.id}?autoplay=1&rel=0&modestbranding=1`;
+  }
+  if (source.kind === 'vimeo' && source.id) {
+    return `https://player.vimeo.com/video/${source.id}?autoplay=1&title=0&byline=0`;
+  }
+  return source.src;
+}
+
+function videoThumbUrl(video: ProjectVideo): string | undefined {
+  if (video.poster) return video.poster;
+  const source = parseVideoSource(video.url);
+  return source.kind === 'youtube' && source.id ? `https://i.ytimg.com/vi/${source.id}/hqdefault.jpg` : undefined;
+}
+
 function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -801,7 +1130,7 @@ function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
           onClick={onClose}
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0c0b14]/92 p-4 backdrop-blur-md sm:p-8"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#060509]/95 p-4 backdrop-blur-md sm:p-8"
         >
           <motion.div
             initial={{ opacity: 0, y: 28, scale: 0.96 }}
@@ -814,7 +1143,7 @@ function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose
             <div className="mb-3 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="font-mono-tech text-[9px] uppercase tracking-[.25em] text-[#6ee7ef]">{video.tag}</div>
-                <h3 className="mt-1 truncate text-lg font-semibold tracking-[-.02em] text-[#f7f3e8]">{video.title}</h3>
+                <h3 className="mt-1 truncate text-lg font-medium text-white">{video.title}</h3>
               </div>
               <button
                 ref={closeRef}
@@ -822,12 +1151,12 @@ function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose
                 onClick={onClose}
                 data-testid="button-video-close"
                 aria-label="Close video"
-                className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#6ee7ef]/30 bg-[#211d38]/80 text-[#f7f3e8] transition-all duration-300 hover:border-[#e44bd7]/60 hover:text-[#e44bd7]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[.04] text-white transition-all duration-300 hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="aspect-video w-full overflow-hidden border border-[#6ee7ef]/25 bg-[#11101c] shadow-[0_36px_100px_rgba(4,3,15,.56)]">
+            <div className="aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0b0a11] shadow-[0_36px_100px_rgba(0,0,0,.6)]">
               {source.kind === 'file' ? (
                 <video key={video.url} src={source.src} controls autoPlay playsInline className="h-full w-full" />
               ) : (
@@ -851,57 +1180,54 @@ function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose
 
 function Work() {
   const [active, setActive] = useState<ProjectVideo | null>(null);
-  // Nothing to show yet — the section (and its nav item) stays hidden until
-  // at least one video is added to PROJECT_VIDEOS. The condition is a module
-  // constant, so this branch never flips between renders.
   if (PROJECT_VIDEOS.length === 0) return null;
   return (
-    <section id="work" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#11101c] py-28 lg:py-36">
-      <div className="absolute inset-x-0 bottom-0 h-[420px] grid-tech opacity-20 [mask-image:linear-gradient(to_top,black,transparent)]" />
+    <section id="work" className="relative overflow-hidden py-28 lg:py-36">
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
-        <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>04 — See the work</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">Watch the systems <span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">in action.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/60">Short walk-throughs of real builds — automation pipelines, dashboards, and tools doing their job. Click any card to play.</p></div></Reveal>
+        <Reveal>
+          <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
+            <div>
+              <Kicker>See the work</Kicker>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+                Watch the systems <span className="text-[#6ee7ef]">in action.</span>
+              </h2>
+            </div>
+            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+              Short walk-throughs of real builds — automation pipelines, dashboards, and tools doing their job. Click any card to play.
+            </p>
+          </div>
+        </Reveal>
         <div className="grid gap-4 md:grid-cols-3">
           {PROJECT_VIDEOS.map((video, i) => {
             const thumb = videoThumbUrl(video);
             return (
               <Reveal key={video.title} delay={i * 0.1}>
                 <motion.article
-                  whileHover={{ y: -8, scale: 1.01 }}
+                  whileHover={{ y: -6 }}
                   data-testid={`video-card-${i}`}
-                  className="group relative overflow-hidden border border-[#6ee7ef]/15 bg-[#211d38]/80 shadow-[0_16px_45px_rgba(4,3,15,.2)] transition-colors duration-500 hover:border-[#6ee7ef]/45 hover:bg-[#2a2447]"
+                  className="group relative overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] transition-colors duration-500 hover:border-white/[.16]"
                 >
                   <button type="button" onClick={() => setActive(video)} data-testid={`video-play-${i}`} aria-label={`Play video: ${video.title}`} className="block w-full cursor-pointer text-left">
-                    <span className="relative block aspect-video overflow-hidden bg-[#1a1830]">
+                    <span className="relative block aspect-video overflow-hidden bg-[#0d0c14]">
                       {thumb ? (
-                        <img
-                          src={thumb}
-                          alt=""
-                          loading="lazy"
-                          draggable={false}
-                          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                          onError={(event) => { event.currentTarget.style.display = 'none'; }}
-                        />
+                        <img src={thumb} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
                       ) : (
-                        <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#211d38] via-[#302953] to-[#211b3b]">
+                        <span className="flex h-full w-full items-center justify-center">
                           <Play className="h-8 w-8 text-[#6ee7ef]/50" />
                         </span>
                       )}
-                      <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#11101c]/85 via-[#11101c]/10 to-transparent" />
-                      <span className="absolute left-4 top-4 border border-[#6ee7ef]/30 bg-[#11101c]/70 px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#6ee7ef] backdrop-blur-sm">{video.tag}</span>
+                      <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#060509]/85 via-transparent to-transparent" />
+                      <span className="absolute left-4 top-4 rounded-lg border border-white/15 bg-[#060509]/70 px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#6ee7ef] backdrop-blur-sm">{video.tag}</span>
                       <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
-                        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-[#6ee7ef]/40 bg-[#211d38]/70 text-[#6ee7ef] backdrop-blur-md transition-all duration-300 group-hover:scale-110 group-hover:border-[#e44bd7]/70 group-hover:text-[#e44bd7] group-hover:shadow-[0_0_28px_rgba(228,75,215,.35)]">
+                        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-white/25 bg-[#060509]/70 text-white backdrop-blur-md transition-all duration-300 group-hover:scale-110 group-hover:border-[#6ee7ef]/70 group-hover:text-[#6ee7ef]">
                           <Play className="ml-0.5 h-5 w-5 fill-current" />
                         </span>
                       </span>
-                      <span className="absolute bottom-3 right-4 font-mono-tech text-[9px] uppercase tracking-[.2em] text-[#d8d5e8]/60">▶ Watch</span>
                     </span>
                   </button>
                   <div className="p-6 lg:p-7">
-                    <h3 className="text-lg font-semibold tracking-[-.02em] text-[#f7f3e8] transition-colors duration-300 group-hover:text-[#6ee7ef]">{video.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#d8d5e8]/65">{video.blurb}</p>
-                    <button type="button" onClick={() => setActive(video)} data-testid={`video-open-${i}`} className="mt-4 inline-flex cursor-pointer items-center gap-2 font-mono-tech text-[10px] uppercase tracking-wider text-[#6ee7ef] transition-colors duration-300 hover:text-[#e44bd7]">
-                      Watch it in action <Play className="h-3 w-3 fill-current" />
-                    </button>
+                    <h3 className="text-lg font-medium text-white">{video.title}</h3>
+                    <p className="mt-2 text-[14px] font-light leading-6 text-[#b9b6c9]">{video.blurb}</p>
                   </div>
                 </motion.article>
               </Reveal>
@@ -914,63 +1240,7 @@ function Work() {
   );
 }
 
-function Reviews() {
-  const reviews = [
-    {
-      quote: 'He rebuilt our ordering process end to end — cut the manual inventory busywork by more than half. Our buyers just work smarter now.',
-      name: 'Operations Director',
-      org: 'Wireless Retail Group',
-      initials: 'RD',
-      highlight: true,
-    },
-    {
-      quote: 'The dashboard he built changed how we run the business. For the first time the whole team sees inventory, sales, and claims in one live view.',
-      name: 'Finance Lead',
-      org: 'FMCG Distributor',
-      initials: 'FK',
-    },
-    {
-      quote: 'Fast, pragmatic, and genuinely invested. He understood our workflow before we finished explaining it and shipped something we use every day.',
-      name: 'General Manager',
-      org: 'Multi-location Retail',
-      initials: 'GM',
-    },
-  ];
-  return (
-    <section id="reviews" className="relative overflow-hidden border-y border-[#6ee7ef]/10 bg-[#0c0b14] py-28 lg:py-36">
-      <div className="absolute inset-x-0 top-0 h-[420px] grid-tech opacity-25 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
-      <div className="mx-auto max-w-7xl px-5 lg:px-8">
-        <Reveal><div className="mb-14 flex flex-col justify-between gap-7 md:flex-row md:items-end"><div><div className="mb-5 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]"><span className="mr-3 text-[#e44bd7]">/</span>{REVIEWS_SECTION_NO} — Client reviews</div><h2 className="max-w-3xl text-4xl font-semibold tracking-[-.05em] text-[#f7f3e8] sm:text-5xl lg:text-6xl">People who run on <span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">3S Verse.</span></h2></div><p className="max-w-sm text-sm leading-7 text-[#d8d5e8]/60">Feedback from the operations leaders, finance teams, and managers who trusted us with their day-to-day.</p></div></Reveal>
-        <div className="grid gap-4 md:grid-cols-3">
-          {reviews.map((review, i) => (
-            <Reveal key={review.name} delay={i * .1}>
-              <figure className="group relative flex h-full flex-col justify-between overflow-hidden border border-[#6ee7ef]/15 bg-[#211d38]/75 p-7 shadow-[0_16px_45px_rgba(4,3,15,.2)] transition-colors duration-500 hover:border-[#6ee7ef]/40 hover:bg-[#2a2447] lg:p-8">
-                <span aria-hidden="true" className="pointer-events-none absolute right-0 top-0 h-36 w-36 opacity-15 transition-opacity duration-500 group-hover:opacity-30 bg-[radial-gradient(circle_at_top_right,rgba(228,75,215,.6),transparent_67%)]" />
-                <div>
-                  <div className="flex items-center gap-1 text-[#e44bd7]" aria-label="5 out of 5 stars">
-                    {Array.from({ length: 5 }).map((_, s) => <Star key={s} className="h-4 w-4 fill-current" />)}
-                  </div>
-                  <Quote className="mt-6 h-7 w-7 text-[#6ee7ef]/45" />
-                  <blockquote className="mt-4 text-[15px] leading-7 text-[#d8d5e8]/85">“{review.quote}”</blockquote>
-                </div>
-                <figcaption className="mt-8 flex items-center gap-3 border-t border-[#6ee7ef]/12 pt-5">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e44bd7]/40 bg-[#302953] font-mono-tech text-[11px] font-medium text-[#6ee7ef]">{review.initials}</span>
-                  <div><div className="text-sm font-medium text-[#f7f3e8]">{review.name}</div><div className="mt-0.5 font-mono-tech text-[10px] uppercase tracking-[.15em] text-[#aaa7be]/70">{review.org}</div></div>
-                </figcaption>
-              </figure>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── Cloudflare Turnstile (contact-form bot protection) ────────────────────
-// The widget renders only when TURNSTILE_SITE_KEY is configured. The script
-// loads once per page; the parent remounts the widget (key prop) after every
-// submission so the next inquiry needs a fresh token. A Turnstile token is
-// included as a form field so the relayed email carries the proof.
+/* ── Cloudflare Turnstile (contact-form bot protection) ──────────────────── */
 type TurnstileRenderParams = {
   sitekey: string;
   theme?: 'light' | 'dark' | 'auto';
@@ -1050,8 +1320,6 @@ function Contact() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Turnstile gate: with a site key configured, a solved widget is required
-    // before anything is sent — script-only spam bots never hold a token.
     if (TURNSTILE_SITE_KEY && !cfToken) {
       setSubmitStatus('error');
       setServerNote('complete the verification box first');
@@ -1068,11 +1336,6 @@ function Contact() {
     // edge blocks the cross-origin call for a visitor, we fall back to a
     // classic full-page POST (no CORS involved) that redirects back with
     // ?sent=1 so the UI can still show the success message.
-    //
-    // Input hygiene (no SQL anywhere — the stack is static files + an email
-    // relay, so injection is structurally impossible; this keeps the email
-    // pipeline sane): strip control characters from anything that becomes
-    // the subject line (header-injection hygiene) and cap field lengths.
     const oneline = (value: string) => value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
     const cleanName = oneline(form.name).slice(0, 120);
     const cleanOrganization = oneline(form.organization).slice(0, 160);
@@ -1092,8 +1355,6 @@ function Contact() {
     };
 
     try {
-      // Challenged visitors would otherwise hang at "Sending..." forever —
-      // cap the relay call at 8s and let the mailto handoff take over.
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
       let response: Response;
@@ -1111,8 +1372,6 @@ function Contact() {
       }
 
       if (!response.ok || payload?.success !== 'true') {
-        // Surface the relay's specific reason so a misconfiguration is
-        // visible in the UI, not swallowed by a generic message.
         setServerNote(payload?.message ?? '');
         throw new Error('Contact submission failed');
       }
@@ -1122,9 +1381,8 @@ function Contact() {
       setCfResetCount((count) => count + 1);
       setSubmitStatus('success');
     } catch {
-      // Relay unreachable (edge/CORS block or network error) — never lose
-      // the inquiry: hand it to the visitor's own email client with the
-      // message pre-filled. No third-party interstitial, works everywhere.
+      // Relay unreachable — never lose the inquiry: hand it to the visitor's
+      // own email client with the message pre-filled.
       try {
         const subject = encodeURIComponent(fields._subject);
         const body = encodeURIComponent(
@@ -1142,61 +1400,60 @@ function Contact() {
   };
 
   return (
-    <section id="contact" className="relative overflow-hidden bg-[#11101c] py-24 lg:py-32">
-      <div className="absolute inset-0 grid-tech opacity-20" />
-      <motion.div animate={{ x: [0, 30, 0], y: [0, -20, 0] }} transition={{ duration: 10, repeat: Infinity }} className="absolute -right-20 top-10 h-64 w-64 rotate-45 border border-[#e44bd7]/25" />
+    <section id="contact" className="relative overflow-hidden py-28 lg:py-40">
+      {/* template CTA glow behind the heading */}
+      <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-10 h-[380px] w-[680px] -translate-x-1/2 rounded-full bg-[#e44bd7]/[.07] blur-[120px]" />
+      <AbstractOrb size={420} tilt={-40} spin={110} className="absolute -right-32 -top-16 hidden opacity-40 lg:block" />
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
-        <div className="border border-[#e44bd7]/25 bg-gradient-to-br from-[#3b1d63] via-[#4a2a7a] to-[#8a2a9e] p-8 shadow-[0_24px_80px_rgba(138,42,158,.28)] sm:p-12 lg:p-20">
-          <div className="grid gap-12 lg:grid-cols-[.9fr_1.1fr] lg:gap-20">
-            <div>
-              <div className="mb-6 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#d8d5e8]"><Sparkles className="h-4 w-4 text-[#6ee7ef]" /> Ready when you are</div>
-              <h2 className="max-w-3xl text-4xl font-semibold leading-[.95] tracking-[-.06em] text-[#f7f3e8] sm:text-6xl">Tell me what's slowing your business down.</h2>
-              <p className="mt-6 max-w-xl text-base leading-7 text-[#d8d5e8]/70">A website, an app, an AI agent, or a workflow that should be automated — bring me the bottleneck and I'll bring you the solution.</p>
-              <div className="mt-8 flex flex-col items-start gap-4">
-                <Button href={`mailto:${CONTACT_EMAIL}`} testId="button-contact-start">Start a project</Button>
-                <a href={`mailto:${CONTACT_EMAIL}`} className="font-mono-tech text-[10px] uppercase tracking-widest text-[#d8d5e8]/55 transition-colors hover:text-[#6ee7ef]">{CONTACT_EMAIL}</a>
-              </div>
+        <Reveal>
+          <div className="mx-auto mb-14 max-w-3xl text-center">
+            <div className="mb-6 flex items-center justify-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] text-[#6ee7ef]">
+              <Sparkles className="h-3.5 w-3.5 text-[#e44bd7]" /> Ready when you are
             </div>
-            <form onSubmit={handleSubmit} data-testid="form-contact" className="border border-[#6ee7ef]/20 bg-[#211d38]/50 p-5 backdrop-blur-sm sm:p-7">
-              <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] h-px w-px overflow-hidden">
-                <label htmlFor="contact-website">Leave this field empty</label>
-                <input id="contact-website" name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} />
-              </div>
-              <div className="mb-6">
-                <div className="font-mono-tech text-[10px] uppercase tracking-[.25em] text-[#6ee7ef]">Contact us</div>
-                <p className="mt-2 text-sm leading-6 text-[#d8d5e8]/65">Tell us a little about what you want to build.</p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/75">
-                  Name
-                  <input required maxLength={120} name="name" value={form.name} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-name" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="Your name" />
-                </label>
-                <label className="font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/75">
-                  Email
-                  <input required maxLength={254} type="email" name="email" value={form.email} onChange={(event) => { setForm((current) => ({ ...current, email: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-email" autoComplete="email" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="you@company.com" />
-                </label>
-                <label className="font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/75 sm:col-span-2">
-                  Organization
-                  <input required maxLength={160} name="organization" value={form.organization} onChange={(event) => { setForm((current) => ({ ...current, organization: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-organization" className="mt-2 w-full border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="Company or organization" />
-                </label>
-              </div>
-              <label className="mt-4 block font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/75">
-                Message
-                <textarea required maxLength={5000} name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y border border-[#6ee7ef]/20 bg-[#11101c]/55 px-3 py-3 font-sans text-sm normal-case tracking-normal text-[#f7f3e8] outline-none transition-colors placeholder:text-[#d8d5e8]/35 focus:border-[#6ee7ef]/70" placeholder="What would you like to solve?" />
-              </label>
-              {TURNSTILE_SITE_KEY && <TurnstileWidget key={cfResetCount} onToken={setCfToken} />}
-              <div className="mt-5 flex flex-wrap items-center gap-4">
-                <button type="submit" disabled={submitStatus === 'sending'} data-testid="button-contact-submit" className="group inline-flex items-center justify-center gap-3 bg-[#e44bd7] px-5 py-3 text-sm font-semibold tracking-tight text-[#17121c] shadow-[0_14px_32px_rgba(228,75,215,.28)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f06ae4] hover:shadow-[0_18px_40px_rgba(228,75,215,.38)] disabled:cursor-wait disabled:opacity-70">
-                  {submitStatus === 'sending' ? 'Sending...' : 'Send message'}
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </button>
-                <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-wider text-[#d8d5e8]/60">
-                  {submitStatus === 'success' ? 'Message sent — we’ll be in touch.' : submitStatus === 'error' ? `${serverNote || 'Couldn’t send'}. Email ${CONTACT_EMAIL} directly.` : 'We reply to every message.'}
-                </span>
-              </div>
-            </form>
+            <h2 className="text-[clamp(2.4rem,4.6vw,4rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+              Let&apos;s build the system your business runs on.
+            </h2>
+            <p className="mx-auto mt-6 max-w-xl text-[16px] font-light leading-8 text-[#b9b6c9]">
+              A website, an app, an AI agent, or a workflow that should be automated — bring us the bottleneck and we&apos;ll bring the solution.
+            </p>
           </div>
-        </div>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <form onSubmit={handleSubmit} data-testid="form-contact" className="relative mx-auto max-w-2xl rounded-3xl border border-white/[.08] bg-[#0b0a11] p-7 shadow-[0_30px_100px_rgba(0,0,0,.5)] sm:p-10">
+            <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] h-px w-px overflow-hidden">
+              <label htmlFor="contact-website">Leave this field empty</label>
+              <input id="contact-website" name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} />
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                Name
+                <input required maxLength={120} name="name" value={form.name} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-name" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="Your name" />
+              </label>
+              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                Email
+                <input required maxLength={254} type="email" name="email" value={form.email} onChange={(event) => { setForm((current) => ({ ...current, email: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-email" autoComplete="email" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="you@company.com" />
+              </label>
+              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e] sm:col-span-2">
+                Organization
+                <input required maxLength={160} name="organization" value={form.organization} onChange={(event) => { setForm((current) => ({ ...current, organization: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-organization" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="Company or organization" />
+              </label>
+            </div>
+            <label className="mt-5 block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              Message
+              <textarea required maxLength={5000} name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="What would you like to solve?" />
+            </label>
+            {TURNSTILE_SITE_KEY && <TurnstileWidget key={cfResetCount} onToken={setCfToken} />}
+            <div className="mt-7 flex flex-wrap items-center gap-4">
+              <button type="submit" disabled={submitStatus === 'sending'} data-testid="button-contact-submit" className="group inline-flex items-center justify-center gap-2.5 rounded-xl bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] disabled:cursor-wait disabled:opacity-70">
+                {submitStatus === 'sending' ? 'Sending...' : 'Send message'}
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </button>
+              <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
+                {submitStatus === 'success' ? 'Message sent — we’ll be in touch.' : submitStatus === 'error' ? `${serverNote || 'Couldn’t send'}. Email ${CONTACT_EMAIL} directly.` : 'We reply to every message.'}
+              </span>
+            </div>
+          </form>
+        </Reveal>
       </div>
     </section>
   );
@@ -1204,11 +1461,10 @@ function Contact() {
 
 function Footer() {
   // Footer visit counter — static hosting has no server, so the count lives
-  // on the free Abacus counter API (CountAPI-compatible). One POST /hit per
+  // on the free Abacus counter API (CountAPI-compatible). One GET /hit per
   // browser session (sessionStorage guard), read-only GET /get on revisits
-  // so refreshes never inflate the count. The endpoint degrades gracefully,
-  // so any failure simply leaves the counter hidden instead of breaking
-  // the footer.
+  // so refreshes never inflate the count. Degrades gracefully — any failure
+  // simply leaves the counter hidden.
   const [visits, setVisits] = useState<number | null>(null);
 
   useEffect(() => {
@@ -1218,10 +1474,6 @@ function Footer() {
     })();
     (async () => {
       try {
-        // Cosmetic call — cap it at 6s so a hanging edge never blocks anything.
-        // Both endpoints are GET (Abacus dropped plain POST /hit — it now
-        // 308-redirects to the docs page); GET /hit increments, GET /get
-        // is read-only.
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 6000);
         let response: Response;
@@ -1244,11 +1496,75 @@ function Footer() {
     return () => { cancelled = true; };
   }, []);
 
-  return <footer className="border-t border-[#6ee7ef]/10 bg-[#0c0b14]"><div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-10 lg:flex-row lg:items-center lg:justify-between lg:px-8"><div className="flex items-center gap-5"><span data-testid="link-brand-footer" className="shrink-0"><span className="relative inline-block overflow-hidden"><img src="/logo.svg" alt="3S Verse" className="h-8 w-auto" /><span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="animate-logo-glass block h-[300px] w-[120px] bg-gradient-to-br from-transparent via-white/40 to-transparent" /></span></span></span><span className="h-5 w-px bg-[#6ee7ef]/20" /><span className="bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent">Software, systems & operations</span></div><div className="group flex flex-wrap items-center gap-6 bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[10px] uppercase tracking-wider text-transparent transition-all duration-300 group-hover:drop-shadow-[0_0_10px_rgba(110,231,239,.7)]"><a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-linkedin" aria-label="3S Verse on LinkedIn" className="inline-flex items-center text-[#d8d5e8]/70 transition-colors hover:text-[#6ee7ef]"><Linkedin aria-hidden="true" className="h-3.5 w-3.5" /></a><a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-instagram" aria-label="3S Verse on Instagram" className="inline-flex items-center text-[#d8d5e8]/70 transition-colors hover:text-[#e44bd7]"><Instagram aria-hidden="true" className="h-3.5 w-3.5" /></a><a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-facebook" aria-label="3S Verse on Facebook" className="inline-flex items-center text-[#d8d5e8]/70 transition-colors hover:text-[#78a6ff]"><Facebook aria-hidden="true" className="h-3.5 w-3.5" /></a><a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle inline-block bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text text-transparent">{CONTACT_EMAIL}</a>{visits !== null && <span data-testid="footer-visits" className="inline-flex items-center gap-1.5 text-[#d8d5e8]/70"><Eye aria-hidden="true" className="h-3.5 w-3.5 text-[#6ee7ef]" />{visits.toLocaleString('en-US')} visitors</span>}<a href="#top" data-testid="link-footer-top">Back to top ↑</a><span>3S Verse {new Date().getFullYear()} ©</span></div></div></footer>;
+  return (
+    <footer className="border-t border-white/[.06] bg-[#060509]">
+      <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-sm">
+            <img src="/logo.svg" alt="3S Verse" className="h-9 w-auto" />
+            <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
+              Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation for businesses that want to move faster.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-x-14 gap-y-8">
+            <div>
+              <div className="font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#8d8a9e]">Explore</div>
+              <div className="mt-4 flex flex-col gap-2.5">
+                {navItems.map((item) => (
+                  <a key={item.href} href={item.href} className="text-[14px] font-light text-[#c9c6d8] transition-colors hover:text-[#6ee7ef]">{item.label}</a>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#8d8a9e]">Follow</div>
+              <div className="mt-4 flex items-center gap-4">
+                <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-linkedin" aria-label="3S Verse on LinkedIn" className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#c9c6d8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"><Linkedin className="h-4 w-4" /></a>
+                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-instagram" aria-label="3S Verse on Instagram" className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#c9c6d8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#e44bd7]/60 hover:text-[#e44bd7]"><Instagram className="h-4 w-4" /></a>
+                <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-facebook" aria-label="3S Verse on Facebook" className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#c9c6d8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#78a6ff]/60 hover:text-[#78a6ff]"><Facebook className="h-4 w-4" /></a>
+              </div>
+              <a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle mt-5 inline-block bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[11px] tracking-wider text-transparent">{CONTACT_EMAIL}</a>
+            </div>
+          </div>
+        </div>
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-white/[.06] pt-7 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+          <span>3S Verse {new Date().getFullYear()} © — All rights reserved</span>
+          <div className="flex items-center gap-6">
+            {visits !== null && (
+              <span data-testid="footer-visits" className="inline-flex items-center gap-1.5">
+                <Eye className="h-3.5 w-3.5 text-[#6ee7ef]" />{visits.toLocaleString('en-US')} visitors
+              </span>
+            )}
+            <a href="#top" data-testid="link-footer-top" className="transition-colors hover:text-white">Back to top ↑</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
 }
 
 function Home() {
-  return <div className="noise min-h-[100dvh] overflow-hidden bg-[#11101c]"><ScrollProgress /><Spotlight /><ScrollTop /><CursorLogo /><Nav /><main><Hero /><Marquee /><Capabilities /><Approach /><Outcomes /><Work /><Reviews /><Contact /></main><Footer /></div>;
+  return (
+    <div className="noise min-h-[100dvh] overflow-x-clip bg-[#060509]">
+      <ScrollProgress />
+      <Spotlight />
+      <ScrollTop />
+      <CursorLogo />
+      <Nav />
+      <main>
+        <Hero />
+        <Marquee />
+        <IntegrateSection />
+        <Services />
+        <HowItWorks />
+        <Outcomes />
+        <Tools />
+        <Work />
+        <Reviews />
+        <Contact />
+      </main>
+      <Footer />
+    </div>
+  );
 }
 
 function Router() {
@@ -1256,16 +1572,6 @@ function Router() {
 }
 
 function App() {
-  // Apply the starting theme (saved choice, else light) before the first
-  // React effect runs so the very first paint is already correctly themed.
-  // index.html's inline script normally covers this; it is repeated here so
-  // React-driven navigations (client reload paths) stay consistent too.
-  if (typeof document !== 'undefined') {
-    const initialTheme = getInitialTheme();
-    document.documentElement.classList.toggle('dark', initialTheme === 'dark');
-    document.documentElement.classList.toggle('light', initialTheme === 'light');
-    document.documentElement.style.colorScheme = initialTheme;
-  }
   return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
 }
 
