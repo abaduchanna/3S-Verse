@@ -51,3 +51,26 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Long-lived caching for hashed build assets (they never change content).
+# Netlify's default max-age=600 made every repeat visitor re-download the
+# whole JS bundle after 10 minutes — the main repeat-load slowdown.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/shapes/*"
+  [headers.values]
+    Cache-Control = "public, max-age=1209600"
+
+[[headers]]
+  for = "/logo*"
+  [headers.values]
+    Cache-Control = "public, max-age=1209600"
+
+[[headers]]
+  for = "/favicon*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
