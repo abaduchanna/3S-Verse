@@ -527,190 +527,213 @@ function Hero() {
   );
 }
 
-/* J.A.R.V.I.S — animated generative-AI core. A canvas recreates the golden
-   holographic sphere: a hot pulsing ring with a dark eye at the centre, nine
-   breathing spokes, seven rotating HUD arcs, ~110 orbiting particles with
-   twinkle, flickering circuit fragments in the outer field, and a shock ring
-   expanding from the core every few seconds. 'lighter' compositing gives the
-   additive gold glow. Pauses offscreen; one static frame under reduced motion. */
+/* J.A.R.V.I.S — the golden 3D hologram render the user supplied is the base
+   layer, kept pixel exact, and brought to life with additive canvas layers:
+   drifting embers and bokeh sparks, twinkling glints, light streaks firing
+   out of the core, expanding flare rings and a breathing core glow. A subtle
+   mouse tilt adds real depth on fine-pointer devices. Pauses offscreen; one
+   static frame under reduced motion. */
 function JarvisCore() {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const tiltRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    const wrap = wrapRef.current;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!wrap || !canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const finePtr = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
     const TAU = Math.PI * 2;
+    /* core position inside the object-cover crop of the 1280x960 render */
+    const CXF = 0.516;
+    const CYF = 0.49;
     let w = 0;
     let h = 0;
     let raf = 0;
-    let t = 140;
+    let t = 60;
     let visible = true;
+    let nextStreak = 90;
+    let nextFlare = 260;
+    const flares: number[] = [];
+    type Ember = { x: number; y: number; vx: number; vy: number; size: number; age: number; max: number; sp: number; ph: number; base: number; soft: boolean; col: string; glow: boolean };
+    type Streak = { x: number; y: number; ux: number; uy: number; sp: number; len: number; age: number; max: number; wdt: number };
+    type Glint = { x: number; y: number; size: number; sp: number; ph: number; base: number };
+    let embers: Ember[] = [];
+    let glints: Glint[] = [];
+    const streaks: Streak[] = [];
+    const COLS = ['rgba(255,190,92,', 'rgba(255,158,52,', 'rgba(255,222,150,', 'rgba(255,140,44,'];
 
-    const gold = (alpha: number) => `rgba(255,176,72,${alpha})`;
-
-    const particles = Array.from({ length: 110 }, () => {
-      const band = Math.random();
+    const spawnEmber = (): Ember => {
+      const a = Math.random() * TAU;
+      const rr = Math.pow(Math.random(), 0.7);
+      const maxR = Math.min(w, h) * 0.55;
+      const speed = 0.03 + Math.random() * 0.11;
+      const spread = 0.6 + Math.random() * 0.55;
       return {
-        r: band < .5 ? .14 + Math.random() * .2 : band < .85 ? .38 + Math.random() * .24 : .66 + Math.random() * .3,
-        a: Math.random() * TAU,
-        sp: (.0012 + Math.random() * .0028) * (Math.random() < .5 ? -1 : 1),
-        size: .6 + Math.random() * 2,
-        tw: .35 + Math.random() * .65,
+        x: w * CXF + Math.cos(a) * rr * maxR * spread,
+        y: h * CYF + Math.sin(a) * rr * maxR * 0.9 * spread,
+        vx: Math.cos(a) * speed + (Math.random() - 0.5) * 0.05,
+        vy: Math.sin(a) * speed * 0.5 - (0.02 + Math.random() * 0.09),
+        size: 0.6 + Math.random() * (Math.random() < 0.18 ? 3.4 : 1.6),
+        age: 0,
+        max: 320 + Math.random() * 560,
+        sp: 0.012 + Math.random() * 0.03,
         ph: Math.random() * TAU,
-        glow: Math.random() < .2,
+        base: 0.25 + Math.random() * 0.6,
+        soft: Math.random() < 0.3,
+        col: COLS[Math.floor(Math.random() * COLS.length)],
+        glow: Math.random() < 0.22,
       };
-    });
+    };
 
-    const fragments = Array.from({ length: 24 }, () => {
-      const pts: Array<[number, number]> = [[0, 0]];
-      let x = 0;
-      let y = 0;
-      let dir = Math.floor(Math.random() * 4) * (Math.PI / 2);
-      const steps = 3 + Math.floor(Math.random() * 4);
-      for (let s = 0; s < steps; s++) {
-        dir += (Math.random() < .5 ? -1 : 1) * (Math.PI / 2) * (Math.random() < .75 ? 1 : 0);
-        const len = 5 + Math.random() * 15;
-        x += Math.cos(dir) * len;
-        y += Math.sin(dir) * len;
-        pts.push([x, y]);
-      }
-      return { r: .66 + Math.random() * .32, a: Math.random() * TAU, pts, life: .25 + Math.random() * .5, ph: Math.random() * TAU };
-    });
-
-    const arcs = [
-      { r: .3, s: .0034, from: .3, len: 1.15, wd: 1.4, blur: 9 },
-      { r: .385, s: -.0021, from: 2.5, len: 2.1, wd: 1, blur: 0 },
-      { r: .47, s: .0015, from: 4.1, len: 1.7, wd: 2.2, blur: 11 },
-      { r: .56, s: -.001, from: .9, len: 2.7, wd: 1, blur: 0 },
-      { r: .67, s: .0008, from: 3.3, len: 1.9, wd: 1.6, blur: 7 },
-      { r: .79, s: -.0006, from: 5.3, len: 2.5, wd: 1, blur: 0 },
-      { r: .92, s: .0005, from: 1.7, len: 3.2, wd: 1.1, blur: 5 },
-    ];
+    const makeGlints = () => {
+      glints = Array.from({ length: 46 }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        size: 0.5 + Math.random() * 1.4,
+        sp: 0.014 + Math.random() * 0.04,
+        ph: Math.random() * TAU,
+        base: 0.2 + Math.random() * 0.55,
+      }));
+    };
 
     const draw = () => {
       if (!w || !h) return;
-      const cx = w / 2;
-      const cy = h / 2;
-      const R = Math.min(w, h) * .48;
+      const cx = w * CXF;
+      const cy = h * CYF;
+      const R = Math.min(w, h);
       ctx.clearRect(0, 0, w, h);
       ctx.globalCompositeOperation = 'lighter';
 
-      const amb = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-      amb.addColorStop(0, 'rgba(255,158,44,.12)');
-      amb.addColorStop(.5, 'rgba(255,140,30,.05)');
-      amb.addColorStop(1, 'rgba(255,120,20,0)');
-      ctx.fillStyle = amb;
+      /* breathing core glow */
+      const breathe = 0.5 + 0.5 * Math.sin(t * 0.021);
+      const gr = R * (0.3 + 0.028 * breathe);
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, gr);
+      g.addColorStop(0, `rgba(255,178,74,${(0.13 + 0.06 * breathe).toFixed(3)})`);
+      g.addColorStop(0.42, `rgba(255,150,48,${(0.05 + 0.03 * breathe).toFixed(3)})`);
+      g.addColorStop(1, 'rgba(255,120,30,0)');
+      ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
 
-      for (const A of arcs) {
-        const start = A.from + t * A.s;
+      /* flare rings + flash expanding from the core */
+      for (let i = flares.length - 1; i >= 0; i--) {
+        const p = (t - flares[i]) / 85;
+        if (p >= 1) { flares.splice(i, 1); continue; }
+        if (p < 0) continue;
         ctx.beginPath();
-        ctx.arc(cx, cy, R * A.r, start, start + A.len);
-        ctx.strokeStyle = gold(.42);
-        ctx.lineWidth = A.wd;
-        if (A.blur) {
-          ctx.shadowColor = gold(.85);
-          ctx.shadowBlur = A.blur;
+        ctx.arc(cx, cy, 10 + p * R * 0.42, 0, TAU);
+        ctx.strokeStyle = `rgba(255,192,102,${(0.36 * Math.pow(1 - p, 2)).toFixed(3)})`;
+        ctx.lineWidth = 1.8 * (1 - p) + 0.4;
+        ctx.stroke();
+        if (p < 0.35) {
+          const fa = 0.28 * (1 - p / 0.35);
+          const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.22);
+          fg.addColorStop(0, `rgba(255,214,140,${fa.toFixed(3)})`);
+          fg.addColorStop(1, 'rgba(255,170,60,0)');
+          ctx.fillStyle = fg;
+          ctx.fillRect(0, 0, w, h);
         }
-        ctx.stroke();
-        ctx.shadowBlur = 0;
       }
 
-      for (let i = 0; i < 9; i++) {
-        const ang = (i / 9) * TAU + t * .0008;
-        const len = R * (.5 + .45 * Math.abs(Math.sin(t * .0015 + i * 2.3)));
-        const x2 = cx + Math.cos(ang) * len;
-        const y2 = cy + Math.sin(ang) * len;
-        const g = ctx.createLinearGradient(cx, cy, x2, y2);
-        g.addColorStop(0, gold(.8));
-        g.addColorStop(1, 'rgba(255,130,30,0)');
-        ctx.strokeStyle = g;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
+      /* light streaks firing out of the core */
+      if (t >= nextStreak) {
+        nextStreak = t + 70 + Math.random() * 180;
+        const a = Math.random() * TAU;
+        const sp = 4.5 + Math.random() * 5;
+        streaks.push({ x: cx + Math.cos(a) * 10, y: cy + Math.sin(a) * 10, ux: Math.cos(a), uy: Math.sin(a), sp, len: 40 + Math.random() * 95, age: 0, max: 32 + Math.random() * 30, wdt: 0.8 + Math.random() * 1.2 });
       }
-
-      const burst = (t % 240) / 240;
-      if (burst < .9) {
+      for (let i = streaks.length - 1; i >= 0; i--) {
+        const S = streaks[i];
+        S.x += S.ux * S.sp;
+        S.y += S.uy * S.sp;
+        S.age += 1;
+        if (S.age >= S.max) { streaks.splice(i, 1); continue; }
+        const fade = 1 - S.age / S.max;
+        const tl = S.len * (0.35 + 0.65 * fade);
+        const tx = S.x - S.ux * tl;
+        const ty = S.y - S.uy * tl;
+        const lg = ctx.createLinearGradient(S.x, S.y, tx, ty);
+        lg.addColorStop(0, `rgba(255,226,164,${(0.75 * fade).toFixed(3)})`);
+        lg.addColorStop(1, 'rgba(255,160,60,0)');
+        ctx.strokeStyle = lg;
+        ctx.lineWidth = S.wdt;
         ctx.beginPath();
-        ctx.arc(cx, cy, R * (.08 + burst * .55), 0, TAU);
-        ctx.strokeStyle = gold(.35 * (1 - burst));
-        ctx.lineWidth = 1.4;
+        ctx.moveTo(S.x, S.y);
+        ctx.lineTo(tx, ty);
         ctx.stroke();
-      }
-
-      const pulse = 1 + Math.sin(t * .05) * .06;
-      const cr = R * .085 * pulse;
-      ctx.beginPath();
-      ctx.arc(cx, cy, cr, 0, TAU);
-      ctx.strokeStyle = 'rgba(255,222,160,.95)';
-      ctx.lineWidth = 3;
-      ctx.shadowColor = 'rgba(255,190,90,.95)';
-      ctx.shadowBlur = 22;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.arc(cx, cy, cr * .62, 0, TAU);
-      ctx.fillStyle = 'rgba(20,10,2,.9)';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(cx, cy, cr * 1.55, t * .004, t * .004 + 4.2);
-      ctx.strokeStyle = gold(.6);
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-      const ga = t * .01;
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(ga) * cr * 1.28, cy + Math.sin(ga) * cr * 1.28, 2.2, 0, TAU);
-      ctx.fillStyle = 'rgba(255,236,190,.95)';
-      ctx.shadowColor = gold(1);
-      ctx.shadowBlur = 10;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      for (const P of particles) {
-        P.a += P.sp;
-        const x = cx + Math.cos(P.a) * P.r * R;
-        const y = cy + Math.sin(P.a) * P.r * R;
-        const al = P.tw * (.3 + .7 * Math.abs(Math.sin(t * .02 + P.ph)));
         ctx.beginPath();
-        ctx.arc(x, y, P.size, 0, TAU);
-        ctx.fillStyle = gold(al);
-        if (P.glow) {
-          ctx.shadowColor = gold(.9);
-          ctx.shadowBlur = 6;
-        }
+        ctx.arc(S.x, S.y, 1.3, 0, TAU);
+        ctx.fillStyle = `rgba(255,240,200,${(0.8 * fade).toFixed(3)})`;
         ctx.fill();
-        ctx.shadowBlur = 0;
       }
 
-      for (const F of fragments) {
-        const al = F.life * (.25 + .75 * Math.abs(Math.sin(t * .009 + F.ph)));
-        if (al < .04) continue;
-        ctx.save();
-        ctx.translate(cx + Math.cos(F.a) * F.r * R, cy + Math.sin(F.a) * F.r * R);
-        ctx.rotate(F.a + Math.PI / 2);
+      /* twinkling glints */
+      for (const G of glints) {
+        const al = G.base * (0.25 + 0.75 * Math.abs(Math.sin(t * G.sp + G.ph)));
+        if (al < 0.03) continue;
         ctx.beginPath();
-        ctx.moveTo(F.pts[0][0], F.pts[0][1]);
-        for (const [px, py] of F.pts.slice(1)) ctx.lineTo(px, py);
-        ctx.strokeStyle = gold(al);
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        for (const [px, py] of F.pts) {
+        ctx.arc(G.x, G.y, G.size, 0, TAU);
+        ctx.fillStyle = `rgba(255,206,120,${al.toFixed(3)})`;
+        ctx.fill();
+      }
+
+      /* drifting embers + soft bokeh sparks */
+      for (const E of embers) {
+        E.x += E.vx;
+        E.y += E.vy;
+        E.age += 1;
+        if (E.age >= E.max || E.x < -40 || E.x > w + 40 || E.y < -40 || E.y > h + 40) Object.assign(E, spawnEmber());
+        const env = Math.min(1, E.age / 36, (E.max - E.age) / 46);
+        const al = Math.max(0, env) * E.base * (0.55 + 0.45 * Math.sin(t * E.sp + E.ph));
+        if (al < 0.02) continue;
+        if (E.soft) {
+          const br = E.size * 3.2;
+          const bg = ctx.createRadialGradient(E.x, E.y, 0, E.x, E.y, br);
+          bg.addColorStop(0, `${E.col}${(al * 0.55).toFixed(3)})`);
+          bg.addColorStop(1, `${E.col}0)`);
+          ctx.fillStyle = bg;
           ctx.beginPath();
-          ctx.arc(px, py, 1.1, 0, TAU);
-          ctx.fillStyle = gold(al * .9);
+          ctx.arc(E.x, E.y, br, 0, TAU);
           ctx.fill();
+        } else {
+          if (E.glow) { ctx.shadowColor = `${E.col}0.9)`; ctx.shadowBlur = 7; }
+          ctx.beginPath();
+          ctx.arc(E.x, E.y, E.size, 0, TAU);
+          ctx.fillStyle = `${E.col}${al.toFixed(3)})`;
+          ctx.fill();
+          ctx.shadowBlur = 0;
         }
-        ctx.restore();
       }
 
       ctx.globalCompositeOperation = 'source-over';
+    };
+
+    /* subtle 3D tilt following the pointer */
+    let tiltOn = false;
+    let tRX = 0;
+    let tRY = 0;
+    let cRX = 0;
+    let cRY = 0;
+    const onMove = (e: PointerEvent) => {
+      const r = wrap.getBoundingClientRect();
+      tRY = ((e.clientX - r.left) / r.width - 0.5) * 5;
+      tRX = (0.5 - (e.clientY - r.top) / r.height) * 5;
+    };
+    const onLeave = () => { tRX = 0; tRY = 0; };
+    if (finePtr && !reduced) {
+      tiltOn = true;
+      wrap.addEventListener('pointermove', onMove);
+      wrap.addEventListener('pointerleave', onLeave);
+    }
+    const applyTilt = () => {
+      if (!tiltOn || !tiltRef.current) return;
+      cRX += (tRX - cRX) * 0.08;
+      cRY += (tRY - cRY) * 0.08;
+      tiltRef.current.style.transform = `scale(1.035) rotateX(${cRX.toFixed(3)}deg) rotateY(${cRY.toFixed(3)}deg)`;
     };
 
     const resize = () => {
@@ -721,7 +744,9 @@ function JarvisCore() {
       canvas.width = Math.max(1, Math.round(w * dpr));
       canvas.height = Math.max(1, Math.round(h * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (reduced) draw();
+      makeGlints();
+      while (embers.length < 95) embers.push(spawnEmber());
+      if (reduced) { t = 160; draw(); }
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -731,8 +756,10 @@ function JarvisCore() {
 
     const loop = () => {
       raf = requestAnimationFrame(loop);
+      applyTilt();
       if (!visible) return;
       t += 1;
+      if (t >= nextFlare) { nextFlare = t + 330 + Math.random() * 220; flares.push(t); }
       draw();
     };
     if (!reduced) raf = requestAnimationFrame(loop);
@@ -741,10 +768,22 @@ function JarvisCore() {
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();
+      if (tiltOn) {
+        wrap.removeEventListener('pointermove', onMove);
+        wrap.removeEventListener('pointerleave', onLeave);
+      }
     };
   }, []);
 
-  return <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />;
+  return (
+    <div ref={wrapRef} aria-hidden="true" className="absolute inset-0 [perspective:900px]">
+      <div ref={tiltRef} className="absolute inset-0 will-change-transform">
+        <img src="/shapes/jarvis-core.webp" alt="" draggable={false} className="jarvis-breathe absolute inset-0 h-full w-full select-none object-cover" />
+        <div className="jarvis-glow pointer-events-none absolute inset-0 mix-blend-screen" />
+        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      </div>
+    </div>
+  );
 }
 
 /* Split section — orb left, thin divider, text right (template's
@@ -753,7 +792,7 @@ function IntegrateSection() {
   return (
     <section className="relative overflow-hidden py-28 lg:py-40">
       <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.05fr_1px_1fr] lg:gap-0 lg:px-8">
-        {/* J.A.R.V.I.S — animated generative-AI core (golden holographic HUD) */}
+        {/* J.A.R.V.I.S — the golden 3D hologram render, animated live */}
         <div className="relative">
           <div className="relative mx-auto aspect-square w-full max-w-[560px] overflow-hidden rounded-2xl border border-[#ffb040]/20 bg-[#080503] shadow-[0_30px_90px_rgba(255,140,30,.14),inset_0_0_80px_rgba(255,140,30,.06)]">
             <JarvisCore />

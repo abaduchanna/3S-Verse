@@ -304,3 +304,27 @@ html.bc-active, html.bc-active * { cursor: none !important; }
 html.bc-active input, html.bc-active textarea { cursor: text !important; }
 
 ::selection { background: #e44bd7; color: #0b0a10; }
+
+/* ── J.A.R.V.I.S golden hologram (generative-AI section) ─────────────────────────
+   The user's 3D render is the base layer; it breathes slowly while a glow
+   overlay pulses over the core and a canvas layer adds live sparks. */
+@keyframes jarvisBreathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+.jarvis-breathe {
+  animation: jarvisBreathe 11s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes jarvisGlow {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+.jarvis-glow {
+  background:
+    radial-gradient(circle at 51.6% 49%, rgba(255,186,86,.42) 0%, rgba(255,150,50,.16) 26%, rgba(255,120,30,.05) 46%, transparent 64%);
+  animation: jarvisGlow 5.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-breathe, .jarvis-glow { animation: none; }
+}
