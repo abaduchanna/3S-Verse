@@ -667,10 +667,24 @@ function JarvisCore() {
       return { x: sc * Math.cos(a), y: ca, z: sc * Math.sin(a), ph: rand(0, TAU), sp: rand(0.004, 0.012), base: rand(0.07, 0.18), wd: rand(0.5, 1.1) };
     });
 
+    /* gyroscopic HUD rings — Iron-Man gimbal, precessing tilted circles */
+    const gyros = [
+      { tilt: 1.05, ph0: 0.4, r: 1.08, prec: 0.00075, amp: 0.28, spin: 0.0021, wd: 1.6, base: 0.68 },
+      { tilt: 0.45, ph0: 2.2, r: 1.17, prec: -0.00058, amp: 0.22, spin: -0.0016, wd: 1.3, base: 0.56 },
+      { tilt: 1.5, ph0: 4.1, r: 1.26, prec: 0.00046, amp: 0.2, spin: 0.0012, wd: 1.1, base: 0.48 },
+    ];
+    const ringPoint = (G: { r: number }, ang: number, tiltEff: number) => {
+      const x = Math.cos(ang) * G.r;
+      const z = Math.sin(ang) * G.r;
+      const y1 = -z * Math.sin(tiltEff);
+      const z1 = z * Math.cos(tiltEff);
+      return [x, y1, z1] as const;
+    };
+
     const draw = () => {
       if (!w || !h) return;
       const cx = w / 2;
-      const cy = h / 2;
+      const cy = h / 2 + Math.sin(t * 0.0011) * Math.min(w, h) * 0.013; /* hologram bob */
       const R = Math.min(w, h) * 0.44;
       ctx.clearRect(0, 0, w, h);
       ctx.globalCompositeOperation = 'lighter';
@@ -683,8 +697,8 @@ function JarvisCore() {
       const waveR = (t % 560) / 560 * 1.3;
       const bump = (r: number) => Math.exp(-Math.pow((r - waveR) * 9, 2)) * 0.5;
 
-      /* ambient warm fog */
-      const amb = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.35);
+      /* ambient warm fog — must reach zero INSIDE the canvas so no rect edge shows */
+      const amb = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.1);
       amb.addColorStop(0, `rgba(255,150,50,${(0.12 + 0.05 * breathe).toFixed(3)})`);
       amb.addColorStop(0.55, 'rgba(255,130,30,.05)');
       amb.addColorStop(1, 'rgba(255,120,20,0)');
@@ -772,11 +786,44 @@ function JarvisCore() {
       }
       ctx.globalAlpha = 1;
 
-      /* edge fog — melts the structure into the dark */
-      ctx.globalCompositeOperation = 'source-over';
-      const fog = ctx.createRadialGradient(cx, cy, R * 0.6, cx, cy, Math.min(w, h) * 0.74);
-      fog.addColorStop(0, 'rgba(8,5,3,0)');
-      fog.addColorStop(1, 'rgba(8,5,3,.5)');
+      /* gyroscopic HUD rings — per-segment depth alpha + travelling beads */
+      ctx.lineCap = 'round';
+      for (const G of gyros) {
+        const tiltEff = G.tilt + Math.sin(t * G.prec * 8 + G.ph0) * G.amp;
+        const phi = t * G.spin;
+        const SEG = 84;
+        let px2 = 0; let py2 = 0; let pd = 0;
+        for (let i = 0; i <= SEG; i++) {
+          const ang = (i / SEG) * TAU;
+          const [x, y, z] = ringPoint(G, ang, tiltEff);
+          const [sx, sy, s, d] = project(x, y, z);
+          if (i > 0) {
+            const a = G.base * (0.5 - 0.34 * d) * (0.75 + 0.25 * Math.sin(t * 0.004 + G.ph0));
+            ctx.strokeStyle = `rgba(255,198,116,${a.toFixed(3)})`;
+            ctx.lineWidth = G.wd;
+            ctx.beginPath();
+            ctx.moveTo(px2, py2);
+            ctx.lineTo(sx, sy);
+            ctx.stroke();
+          }
+          px2 = sx; py2 = sy; pd = d;
+        }
+        for (let k = 0; k < 4; k++) {
+          const ang = phi + k * (TAU / 4);
+          const [x, y, z] = ringPoint(G, ang, tiltEff);
+          const [sx, sy, s, d] = project(x, y, z);
+          const box = R * 0.03 * s;
+          ctx.globalAlpha = Math.max(0, 0.9 * (0.62 - 0.3 * d));
+          ctx.drawImage(SPR[3], sx - box, sy - box, box * 2, box * 2);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      /* melt the hologram's own edges out (bg-agnostic — no visible canvas box) */
+      ctx.globalCompositeOperation = 'destination-out';
+      const fog = ctx.createRadialGradient(cx, cy, R * 0.78, cx, cy, Math.min(w, h) * 0.52);
+      fog.addColorStop(0, 'rgba(0,0,0,0)');
+      fog.addColorStop(1, 'rgba(0,0,0,.75)');
       ctx.fillStyle = fog;
       ctx.fillRect(0, 0, w, h);
     };
@@ -820,18 +867,10 @@ function IntegrateSection() {
   return (
     <section className="relative overflow-hidden py-28 lg:py-40">
       <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.05fr_1px_1fr] lg:gap-0 lg:px-8">
-        {/* J.A.R.V.I.S — living golden hologram core, rebuilt in true 3D */}
+        {/* J.A.R.V.I.S — free-floating golden hologram (no container), Iron-Man style */}
         <div className="relative">
-          <div className="relative mx-auto aspect-square w-full max-w-[560px] overflow-hidden rounded-2xl border border-[#ffb040]/20 bg-[#080503] shadow-[0_30px_90px_rgba(255,140,30,.14),inset_0_0_80px_rgba(255,140,30,.06)]">
+          <div className="relative mx-auto aspect-square w-full max-w-[640px]">
             <JarvisCore />
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 font-mono-tech text-[9px] uppercase tracking-[.2em]">
-              <div className="absolute left-3.5 top-3.5 flex items-center gap-2 text-[#ffb040]/85"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ffb040]" /> J.A.R.V.I.S // core online</div>
-              <div className="absolute right-3.5 top-3.5 text-[#ffb040]/55">gen-ai · v3.7</div>
-              <span className="absolute left-0 top-0 h-5 w-5 rounded-tl-2xl border-l-2 border-t-2 border-[#ffb040]/70" />
-              <span className="absolute right-0 top-0 h-5 w-5 rounded-tr-2xl border-r-2 border-t-2 border-[#ffb040]/70" />
-              <span className="absolute bottom-0 left-0 h-5 w-5 rounded-bl-2xl border-b-2 border-l-2 border-[#ffb040]/70" />
-              <span className="absolute bottom-0 right-0 h-5 w-5 rounded-br-2xl border-b-2 border-r-2 border-[#ffb040]/70" />
-            </div>
           </div>
         </div>
         <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
