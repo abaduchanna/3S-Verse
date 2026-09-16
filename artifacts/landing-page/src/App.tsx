@@ -97,40 +97,60 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   );
 }
 
-/* Brand cursor — "3S Side Loop". The native pointer stays untouched; a
-   smooth follower floats just right of it, hosting an infinite 27s loop
-   with three equal 8s phases: the official logo chip fades in, holds,
-   fades out → a mini copy of the hero's spiral ring fades in, spins,
-   holds, fades out → a mini copy of the footer's glossy orb fades in,
-   holds, fades out → the chip returns, and the loop repeats forever. */
+/* Brand cursor — custom pointer + side loop. The native arrow is hidden
+   (html.bc-active) and replaced by a glowing brand point that tracks the
+   pointer 1:1, swells over interactive elements, dips on press, and yields
+   to the native I-beam over text fields. Just right of it, a smooth
+   follower hosts the infinite 27s loop with three equal 8s phases: the
+   official logo chip, a mini copy of the hero's spiral ring, and a mini
+   copy of the footer's glossy orb. */
 
 function BrandCursor() {
   const rootRef = useRef<HTMLDivElement>(null);
+  const pointerRef = useRef<HTMLDivElement>(null);
   const chipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
+    const pointerEl = pointerRef.current;
     const chipEl = chipRef.current;
-    if (!root || !chipEl) return;
+    if (!root || !pointerEl || !chipEl) return;
     if (window.matchMedia('(pointer: coarse)').matches) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    document.documentElement.classList.add('bc-active');
 
     const target = { x: -200, y: -200 };
     const follow = { x: -200, y: -200 };
     let shown = false;
+    let hover = false;
     let raf = 0;
+    const HOVER_SEL = 'a, button, [role="button"], label, summary, [data-cursor="hover"]';
+    const TEXT_SEL = 'input, textarea';
 
     const onMove = (event: PointerEvent) => {
       if (event.pointerType === 'touch') return;
       target.x = event.clientX;
       target.y = event.clientY;
+      pointerEl.style.transform = `translate3d(${target.x}px, ${target.y}px, 0)`;
       if (!shown) {
         shown = true;
         follow.x = target.x;
         follow.y = target.y;
         root.style.opacity = '1';
       }
+      const over = event.target instanceof Element ? event.target : null;
+      const overText = !!over?.closest(TEXT_SEL);
+      const overHover = !overText && !!over?.closest(HOVER_SEL);
+      pointerEl.classList.toggle('is-text', overText);
+      if (overHover !== hover) {
+        hover = overHover;
+        pointerEl.classList.toggle('is-hover', hover);
+      }
     };
+
+    const onDown = () => pointerEl.classList.add('is-press');
+    const onUp = () => pointerEl.classList.remove('is-press');
 
     const onLeave = () => { root.style.opacity = '0'; };
     const onEnter = () => { if (shown) root.style.opacity = '1'; };
@@ -143,13 +163,18 @@ function BrandCursor() {
     };
 
     window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerdown', onDown, { passive: true });
+    window.addEventListener('pointerup', onUp, { passive: true });
     document.documentElement.addEventListener('mouseleave', onLeave);
     document.documentElement.addEventListener('mouseenter', onEnter);
     raf = requestAnimationFrame(tick);
 
     return () => {
       cancelAnimationFrame(raf);
+      document.documentElement.classList.remove('bc-active');
       window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointerup', onUp);
       document.documentElement.removeEventListener('mouseleave', onLeave);
       document.documentElement.removeEventListener('mouseenter', onEnter);
     };
@@ -157,6 +182,8 @@ function BrandCursor() {
 
   return (
     <div ref={rootRef} aria-hidden="true" className="brand-cursor-root">
+      {/* custom pointer — brand-glow point that replaces the native arrow */}
+      <div ref={pointerRef} className="brand-cursor-pointer will-change-transform" />
       {/* the 27s loop, right of the pointer: logo chip → mini hero ring → mini footer orb */}
       <div ref={chipRef} className="brand-cursor-chip-anchor will-change-transform">
         <div className="brand-cursor-fade f-chip">

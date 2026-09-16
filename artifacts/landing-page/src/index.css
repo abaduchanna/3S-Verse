@@ -150,9 +150,11 @@
   .animate-jiggle { animation: none; }
 }
 
-/* ── Brand cursor "3S Orbit" ─────────────────────────────────────────────
-   The native pointer stays untouched; the chip anchor's transform is
-   written by JS each frame, while the fade layers animate in place. */
+/* ── Brand cursor "3S Point + Side Loop" ─────────────────────────────────────────────
+   The native arrow is hidden via html.bc-active and replaced by a glowing
+   brand point (JS writes its transform 1:1; scale/opacity morphs live in
+   CSS); the chip anchor's transform is written by JS each frame too, while
+   the fade layers animate in place. */
 @keyframes bcSpin { to { transform: rotate(360deg); } }
 
 /* one shared 27s cycle at the pointer's side — three equal phases, each
@@ -187,6 +189,37 @@
   transition: opacity .4s ease;
   will-change: opacity;
 }
+/* custom pointer — replaces the native arrow with a brand-glow point.
+   JS writes transform 1:1 with the pointer; the morphs use the standalone
+   `scale` property so the two never fight. */
+.brand-cursor-pointer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 10px;
+  width: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f7f3e8, #6ee7ef 62%);
+  box-shadow: 0 0 10px rgba(110,231,239,.9), 0 0 26px rgba(110,231,239,.4);
+  scale: 1;
+  transition: scale .22s ease-out, opacity .25s ease;
+  will-change: transform;
+}
+.brand-cursor-pointer::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(228,75,215,.55), transparent 72%);
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.brand-cursor-pointer.is-hover { scale: 1.9; }
+.brand-cursor-pointer.is-hover::after { opacity: 1; }
+.brand-cursor-pointer.is-press { scale: .72; }
+.brand-cursor-pointer.is-text { opacity: 0; }
+
 /* fade layers — one shared 27s cycle drives opacity/transform in place;
    the JS-driven chip anchor handles position, so the two never fight */
 .brand-cursor-fade {
@@ -264,5 +297,10 @@
   animation: bcSpin 16s linear infinite;
   filter: drop-shadow(0 0 10px rgba(228,75,215,.32)) drop-shadow(0 0 8px rgba(110,231,239,.28));
 }
+
+/* native arrow hidden only when the custom pointer is active (fine pointer,
+   motion OK, JS ran); text fields keep the native I-beam */
+html.bc-active, html.bc-active * { cursor: none !important; }
+html.bc-active input, html.bc-active textarea { cursor: text !important; }
 
 ::selection { background: #e44bd7; color: #0b0a10; }
