@@ -151,9 +151,8 @@
 }
 
 /* ── Brand cursor "3S Orbit" ─────────────────────────────────────────────
-   Glowing core dot at the pointer with two satellite sparks circling it.
-   The wrapper transforms (position/scale) are written by JS each frame;
-   only the satellite spins live here, so the two never fight. */
+   The native pointer stays untouched; the chip anchor's transform is
+   written by JS each frame, while the fade layers animate in place. */
 @keyframes bcSpin { to { transform: rotate(360deg); } }
 
 /* one shared 27s cycle at the pointer's side — three equal phases, each
@@ -187,52 +186,6 @@
   opacity: 0;
   transition: opacity .4s ease;
   will-change: opacity;
-}
-.brand-cursor-ring-wrap {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 40px;
-  width: 40px;
-  margin: -20px 0 0 -20px;
-  will-change: transform;
-}
-.brand-cursor-sat {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  animation: bcSpin 4.4s linear infinite;
-}
-.brand-cursor-sat.sb { animation-duration: 6.8s; animation-direction: reverse; }
-.brand-cursor-sat::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: -2px;
-  width: 4px;
-  height: 4px;
-  margin-left: -2px;
-  border-radius: 50%;
-  background: #6ee7ef;
-  box-shadow: 0 0 10px rgba(110,231,239,.9);
-}
-.brand-cursor-sat.sb::after {
-  top: auto;
-  bottom: -2px;
-  background: #e44bd7;
-  box-shadow: 0 0 10px rgba(228,75,215,.9);
-}
-.brand-cursor-dot {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 7px;
-  width: 7px;
-  margin: -3.5px 0 0 -3.5px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #f7f3e8, #6ee7ef 62%);
-  box-shadow: 0 0 10px rgba(110,231,239,.9), 0 0 26px rgba(110,231,239,.4);
-  will-change: transform;
 }
 /* fade layers — one shared 27s cycle drives opacity/transform in place;
    the JS-driven chip anchor handles position, so the two never fight */

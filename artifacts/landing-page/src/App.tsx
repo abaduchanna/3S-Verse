@@ -97,39 +97,26 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   );
 }
 
-/* Brand cursor — "3S Orbit". Glowing core dot rides the pointer with two
-   satellite sparks circling it — always visible. At a fixed spot to the
-   right of the pointer, an infinite 27s loop cycles the brand's three
-   signatures in place, each with an equal 8s hold: the official logo chip
-   fades in, holds, fades out → a mini copy of the hero's spiral ring fades
-   in, spins, holds, fades out → a mini copy of the footer's glossy orb
-   fades in, holds, fades out → the chip returns, and the loop repeats
-   forever. Over interactive elements the satellites still expand outward. */
-const CURSOR_HOVER_SELECTOR = 'a, button, [role="button"], input, textarea, select, label, summary, [data-cursor="hover"]';
+/* Brand cursor — "3S Side Loop". The native pointer stays untouched; a
+   smooth follower floats just right of it, hosting an infinite 27s loop
+   with three equal 8s phases: the official logo chip fades in, holds,
+   fades out → a mini copy of the hero's spiral ring fades in, spins,
+   holds, fades out → a mini copy of the footer's glossy orb fades in,
+   holds, fades out → the chip returns, and the loop repeats forever. */
 
 function BrandCursor() {
   const rootRef = useRef<HTMLDivElement>(null);
-  const dotRef = useRef<HTMLDivElement>(null);
-  const ringRef = useRef<HTMLDivElement>(null);
   const chipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
-    const dotEl = dotRef.current;
-    const ringEl = ringRef.current;
     const chipEl = chipRef.current;
-    if (!root || !dotEl || !ringEl || !chipEl) return;
+    if (!root || !chipEl) return;
     if (window.matchMedia('(pointer: coarse)').matches) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const target = { x: -200, y: -200 };
-    const dot = { x: -200, y: -200 };
-    const ring = { x: -200, y: -200 };
-    let ringScale = 0.4;
-    let targetRingScale = 1;
-    let dotScale = 1;
-    let targetDotScale = 1;
-    let hover = false;
+    const follow = { x: -200, y: -200 };
     let shown = false;
     let raf = 0;
 
@@ -139,20 +126,9 @@ function BrandCursor() {
       target.y = event.clientY;
       if (!shown) {
         shown = true;
-        dot.x = ring.x = target.x;
-        dot.y = ring.y = target.y;
+        follow.x = target.x;
+        follow.y = target.y;
         root.style.opacity = '1';
-      }
-      const speed = Math.min(1, Math.hypot(event.movementX || 0, event.movementY || 0) / 24);
-
-      const hit = event.target instanceof Element && event.target.closest(CURSOR_HOVER_SELECTOR);
-      if (!!hit !== hover) {
-        hover = !!hit;
-        ringEl.classList.toggle('is-hover', hover);
-        targetRingScale = hover ? 1.7 : 1 + speed * 0.3;
-        targetDotScale = hover ? 0.45 : 1;
-      } else if (!hover) {
-        targetRingScale = 1 + speed * 0.3;
       }
     };
 
@@ -160,15 +136,9 @@ function BrandCursor() {
     const onEnter = () => { if (shown) root.style.opacity = '1'; };
 
     const tick = () => {
-      dot.x += (target.x - dot.x) * 0.42;
-      dot.y += (target.y - dot.y) * 0.42;
-      ring.x += (target.x - ring.x) * 0.16;
-      ring.y += (target.y - ring.y) * 0.16;
-      ringScale += (targetRingScale - ringScale) * 0.12;
-      dotScale += (targetDotScale - dotScale) * 0.18;
-      dotEl.style.transform = `translate3d(${dot.x.toFixed(1)}px, ${dot.y.toFixed(1)}px, 0) scale(${dotScale.toFixed(3)})`;
-      ringEl.style.transform = `translate3d(${ring.x.toFixed(1)}px, ${ring.y.toFixed(1)}px, 0) scale(${ringScale.toFixed(3)})`;
-      chipEl.style.transform = `translate3d(${(ring.x + 14).toFixed(1)}px, ${ring.y.toFixed(1)}px, 0)`;
+      follow.x += (target.x - follow.x) * 0.16;
+      follow.y += (target.y - follow.y) * 0.16;
+      chipEl.style.transform = `translate3d(${(follow.x + 14).toFixed(1)}px, ${follow.y.toFixed(1)}px, 0)`;
       raf = requestAnimationFrame(tick);
     };
 
@@ -187,13 +157,6 @@ function BrandCursor() {
 
   return (
     <div ref={rootRef} aria-hidden="true" className="brand-cursor-root">
-      {/* satellite sparks circling the pointer — JS positions/scales, CSS orbits */}
-      <div ref={ringRef} className="brand-cursor-ring-wrap will-change-transform">
-        <span className="brand-cursor-sat sa" />
-        <span className="brand-cursor-sat sb" />
-      </div>
-      {/* pointer core — always visible */}
-      <div ref={dotRef} className="brand-cursor-dot will-change-transform" />
       {/* the 27s loop, right of the pointer: logo chip → mini hero ring → mini footer orb */}
       <div ref={chipRef} className="brand-cursor-chip-anchor will-change-transform">
         <div className="brand-cursor-fade f-chip">
