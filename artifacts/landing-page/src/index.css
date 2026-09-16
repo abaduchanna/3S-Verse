@@ -157,6 +157,27 @@
    the ring/satellite spins live here, so the two never fight. */
 @keyframes bcSpin { to { transform: rotate(360deg); } }
 
+/* one shared 14s cycle — 0–5s logo chip, 6–11s orbit ring, 11–14s orb */
+@keyframes bcCycleChip {
+  0%       { opacity: 0; transform: scale(.5); }
+  4%       { opacity: 1; transform: scale(1); }
+  36%      { opacity: 1; transform: scale(1); }
+  41%      { opacity: 0; transform: scale(.6); }
+  100%     { opacity: 0; transform: scale(.6); }
+}
+@keyframes bcCycleRing {
+  0%, 44%  { opacity: 0; }
+  49%      { opacity: 1; }
+  74%      { opacity: 1; }
+  79%, 100% { opacity: 0; }
+}
+@keyframes bcCycleOrb {
+  0%, 81%  { opacity: 0; transform: scale(.55); }
+  86%      { opacity: 1; transform: scale(1); }
+  96%      { opacity: 1; transform: scale(1.06); }
+  100%     { opacity: 0; transform: scale(.7); }
+}
+
 .brand-cursor-root {
   position: fixed;
   left: 0;
@@ -223,14 +244,68 @@
   box-shadow: 0 0 10px rgba(110,231,239,.9), 0 0 26px rgba(110,231,239,.4);
   will-change: transform;
 }
-.brand-cursor-chip {
+/* fade layers — the 14s cycle drives opacity/transform; anchors handle position */
+.brand-cursor-fade {
+  position: absolute;
+  inset: 0;
+  animation-duration: 14s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+.brand-cursor-fade.f-chip { animation-name: bcCycleChip; }
+.brand-cursor-fade.f-ring { animation-name: bcCycleRing; }
+.brand-cursor-fade.f-orb  { animation-name: bcCycleOrb; }
+
+/* orb phase — glossy mini brand sphere where the ring was */
+.brand-cursor-orb-anchor {
   position: absolute;
   left: 0;
   top: 0;
+  height: 36px;
+  width: 36px;
+  margin: -18px 0 0 -18px;
+  will-change: transform;
+}
+.brand-cursor-orb {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.brand-cursor-orb::before {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  background: conic-gradient(from 220deg, rgba(110,231,239,.4), rgba(120,166,255,.2), rgba(228,75,215,.4), rgba(110,231,239,.4));
+  filter: blur(8px);
+}
+.brand-cursor-orb::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, rgba(247,243,232,.92), rgba(110,231,239,.6) 28%, rgba(96,120,220,.35) 52%, rgba(10,9,18,.95) 78%);
+  box-shadow:
+    inset 0 0 12px rgba(110,231,239,.4),
+    inset -5px -7px 14px rgba(228,75,215,.45),
+    0 0 22px rgba(110,231,239,.4);
+}
+
+/* logo chip phase — glass pill right of the pointer */
+.brand-cursor-chip-anchor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: -12px 0 0 26px;
+  will-change: transform;
+}
+.brand-cursor-fade.f-chip {
+  position: relative;
+  inset: auto;
   display: flex;
   align-items: center;
   height: 24px;
-  margin: -12px 0 0 26px;
   padding: 0 9px 0 7px;
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,.14);
@@ -238,47 +313,7 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 6px 24px rgba(0,0,0,.45);
-  opacity: 0;
-  transition: opacity .55s ease;
-  will-change: transform, opacity;
 }
-.brand-cursor-chip img { height: 13px; width: auto; opacity: .95; }
-
-/* ── Hero orb — the ring's loop partner ──────────────────────────────────
-   Glossy brand sphere: cream specular highlight, cyan body, magenta rim
-   glow, conic halo behind. Opacity/scale are driven by framer-motion. */
-.hero-orb {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-}
-.hero-orb::before {
-  content: '';
-  position: absolute;
-  inset: -22%;
-  border-radius: 50%;
-  background: conic-gradient(from 220deg, rgba(110,231,239,.30), rgba(120,166,255,.16), rgba(228,75,215,.30), rgba(110,231,239,.30));
-  filter: blur(48px);
-}
-.hero-orb::after {
-  content: '';
-  position: absolute;
-  inset: 6%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 26%, rgba(247,243,232,.85), rgba(110,231,239,.55) 24%, rgba(96,120,220,.30) 48%, rgba(10,9,18,.96) 74%);
-  border: 1px solid rgba(255,255,255,.10);
-  box-shadow:
-    inset 0 0 70px rgba(110,231,239,.28),
-    inset -26px -34px 90px rgba(228,75,215,.30),
-    0 0 110px rgba(110,231,239,.18);
-}
-.hero-orb-glint {
-  position: absolute;
-  inset: 10%;
-  border-radius: 50%;
-  border: 1px solid rgba(255,255,255,.16);
-  -webkit-mask-image: linear-gradient(140deg, #000 18%, transparent 62%);
-  mask-image: linear-gradient(140deg, #000 18%, transparent 62%);
-}
+.brand-cursor-fade.f-chip img { height: 13px; width: auto; max-width: none; flex-shrink: 0; opacity: .95; }
 
 ::selection { background: #e44bd7; color: #0b0a10; }

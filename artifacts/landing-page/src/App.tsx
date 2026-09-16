@@ -97,27 +97,29 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   );
 }
 
-/* Brand cursor — "3S Orbit". Not a plain floating logo anymore: a glowing
-   core dot rides the pointer while a thin conic-gradient ring (cyan →
-   periwinkle → magenta) trails behind it, spinning, with two satellite
-   sparks orbiting the ring. A small glass chip carrying the official logo
-   floats beside the orbit — it fades away after 5s of idle and returns on
-   the next move. Over interactive elements the orbit expands. */
+/* Brand cursor — "3S Orbit". Glowing core dot rides the pointer; around it
+   a 14s infinite visibility loop runs: the official logo chip (right of the
+   pointer) fades in and holds ~5s, then fades out → the conic-gradient orbit
+   ring with its two satellite sparks fades in, holds, fades out → a small
+   glowing brand orb fades in where the ring was, holds, fades out → the
+   chip returns, and the cycle repeats forever. Over interactive elements
+   the orbit still expands. */
 const CURSOR_HOVER_SELECTOR = 'a, button, [role="button"], input, textarea, select, label, summary, [data-cursor="hover"]';
-const CURSOR_IDLE_MS = 5000;
 
 function BrandCursor() {
   const rootRef = useRef<HTMLDivElement>(null);
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const chipRef = useRef<HTMLDivElement>(null);
+  const orbRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
     const dotEl = dotRef.current;
     const ringEl = ringRef.current;
     const chipEl = chipRef.current;
-    if (!root || !dotEl || !ringEl || !chipEl) return;
+    const orbEl = orbRef.current;
+    if (!root || !dotEl || !ringEl || !chipEl || !orbEl) return;
     if (window.matchMedia('(pointer: coarse)').matches) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
@@ -128,19 +130,9 @@ function BrandCursor() {
     let targetRingScale = 1;
     let dotScale = 1;
     let targetDotScale = 1;
-    let chipScale = 0.45;
-    let targetChipScale = 1;
     let hover = false;
     let shown = false;
-    let chipOn = false;
-    let idleTimer = 0;
     let raf = 0;
-
-    const setChip = (on: boolean) => {
-      chipOn = on;
-      targetChipScale = on ? 1 : 0.45;
-      chipEl.style.opacity = on ? '1' : '0';
-    };
 
     const onMove = (event: PointerEvent) => {
       if (event.pointerType === 'touch') return;
@@ -163,10 +155,6 @@ function BrandCursor() {
       } else if (!hover) {
         targetRingScale = 1 + speed * 0.3;
       }
-
-      if (!chipOn) setChip(true);
-      window.clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(() => setChip(false), CURSOR_IDLE_MS);
     };
 
     const onLeave = () => { root.style.opacity = '0'; };
@@ -179,10 +167,10 @@ function BrandCursor() {
       ring.y += (target.y - ring.y) * 0.16;
       ringScale += (targetRingScale - ringScale) * 0.12;
       dotScale += (targetDotScale - dotScale) * 0.18;
-      chipScale += (targetChipScale - chipScale) * 0.14;
       dotEl.style.transform = `translate3d(${dot.x.toFixed(1)}px, ${dot.y.toFixed(1)}px, 0) scale(${dotScale.toFixed(3)})`;
       ringEl.style.transform = `translate3d(${ring.x.toFixed(1)}px, ${ring.y.toFixed(1)}px, 0) scale(${ringScale.toFixed(3)})`;
-      chipEl.style.transform = `translate3d(${(ring.x + 14).toFixed(1)}px, ${ring.y.toFixed(1)}px, 0) scale(${chipScale.toFixed(3)})`;
+      chipEl.style.transform = `translate3d(${(ring.x + 14).toFixed(1)}px, ${ring.y.toFixed(1)}px, 0)`;
+      orbEl.style.transform = `translate3d(${ring.x.toFixed(1)}px, ${ring.y.toFixed(1)}px, 0)`;
       raf = requestAnimationFrame(tick);
     };
 
@@ -193,7 +181,6 @@ function BrandCursor() {
 
     return () => {
       cancelAnimationFrame(raf);
-      window.clearTimeout(idleTimer);
       window.removeEventListener('pointermove', onMove);
       document.documentElement.removeEventListener('mouseleave', onLeave);
       document.documentElement.removeEventListener('mouseenter', onEnter);
@@ -202,17 +189,27 @@ function BrandCursor() {
 
   return (
     <div ref={rootRef} aria-hidden="true" className="brand-cursor-root">
-      {/* trailing orbit — JS moves the wrapper, CSS spins the ring + satellites */}
+      {/* trailing orbit — JS positions/scales, the 14s loop fades it, CSS spins it */}
       <div ref={ringRef} className="brand-cursor-ring-wrap will-change-transform">
-        <div className="brand-cursor-ring" />
-        <span className="brand-cursor-sat sa" />
-        <span className="brand-cursor-sat sb" />
+        <div className="brand-cursor-fade f-ring">
+          <div className="brand-cursor-ring" />
+          <span className="brand-cursor-sat sa" />
+          <span className="brand-cursor-sat sb" />
+        </div>
       </div>
-      {/* pointer core */}
+      {/* pointer core — always visible */}
       <div ref={dotRef} className="brand-cursor-dot will-change-transform" />
-      {/* official logo chip — fades out after 5s idle */}
-      <div ref={chipRef} className="brand-cursor-chip will-change-transform">
-        <img src="/logo.png" alt="" draggable={false} className="select-none" />
+      {/* orb phase — fades in where the ring was */}
+      <div ref={orbRef} className="brand-cursor-orb-anchor will-change-transform">
+        <div className="brand-cursor-fade f-orb">
+          <div className="brand-cursor-orb" />
+        </div>
+      </div>
+      {/* official logo chip — visible ~5s, then the loop moves on */}
+      <div ref={chipRef} className="brand-cursor-chip-anchor will-change-transform">
+        <div className="brand-cursor-fade f-chip">
+          <img src="/logo.png" alt="" draggable={false} className="select-none" />
+        </div>
       </div>
     </div>
   );
@@ -481,26 +478,6 @@ function OpsPanel() {
   );
 }
 
-/* Hero orb — the ring's loop partner. A glossy brand sphere (cream core
-   highlight, cyan body, magenta rim glow) that fades in while the hero ring
-   is faded out, then hands visibility back. Timeline lives on an 11s loop:
-   ring in (0–1.5s) → ring out (4.4–6.1s) → orb in (6.1–7.7s) → orb out
-   (10.1–11s) → repeat. */
-function HeroOrb() {
-  return (
-    <motion.div
-      aria-hidden="true"
-      className="pointer-events-none absolute -right-[20vw] -top-6 hidden aspect-square w-[460px] sm:block lg:-right-[9vw] lg:-top-20 lg:w-[600px]"
-      animate={{ opacity: [0, 0, 1, 1, 0], scale: [0.92, 0.92, 1, 1.045, 0.97] }}
-      transition={{ duration: 11, times: [0, 0.55, 0.7, 0.92, 1], repeat: Infinity, ease: 'easeInOut' }}
-    >
-      <div className="hero-orb">
-        <span className="hero-orb-glint" />
-      </div>
-    </motion.div>
-  );
-}
-
 function Hero() {
   return (
     <section id="top" className="relative overflow-hidden pt-[76px]">
@@ -551,19 +528,9 @@ function Hero() {
               </div>
             </Reveal>
           </div>
-          {/* template's exact hero swirl — huge, bleeding off the right edge.
-              Loop: fades in, holds, fades out; the orb takes over, then the
-              ring returns. Both run on the same 11s infinite timeline. */}
+          {/* template's exact hero swirl — huge, bleeding off the right edge */}
           <div className="relative">
-            <motion.div
-              aria-hidden="true"
-              className="absolute inset-0 hidden sm:block"
-              animate={{ opacity: [0, 1, 1, 0, 0] }}
-              transition={{ duration: 11, times: [0, 0.14, 0.4, 0.55, 1], repeat: Infinity, ease: 'linear' }}
-            >
-              <Shape v={1} spin={120} floatY={16} floatDur={12} className="absolute -right-[38vw] -top-40 w-[820px] max-w-none opacity-90 lg:-right-[24vw] lg:-top-52 lg:w-[900px]" />
-            </motion.div>
-            <HeroOrb />
+            <Shape v={1} spin={120} floatY={16} floatDur={12} className="absolute -right-[38vw] -top-40 hidden w-[820px] max-w-none opacity-90 sm:block lg:-right-[24vw] lg:-top-52 lg:w-[900px]" />
           </div>
         </div>
         {/* full-width app window, template-style */}
