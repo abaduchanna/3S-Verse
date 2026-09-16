@@ -157,7 +157,7 @@
    the ring/satellite spins live here, so the two never fight. */
 @keyframes bcSpin { to { transform: rotate(360deg); } }
 
-/* one shared 14s cycle — 0–5s logo chip, 6–11s orbit ring, 11–14s orb */
+/* one shared 14s cycle at the pointer's side — 0–5.7s logo chip, 6.2–11.1s hero ring, 11.3–14s footer orb */
 @keyframes bcCycleChip {
   0%       { opacity: 0; transform: scale(.5); }
   4%       { opacity: 1; transform: scale(1); }
@@ -244,10 +244,10 @@
   box-shadow: 0 0 10px rgba(110,231,239,.9), 0 0 26px rgba(110,231,239,.4);
   will-change: transform;
 }
-/* fade layers — the 14s cycle drives opacity/transform; anchors handle position */
+/* fade layers — one shared 14s cycle drives opacity/transform in place;
+   the JS-driven chip anchor handles position, so the two never fight */
 .brand-cursor-fade {
   position: absolute;
-  inset: 0;
   animation-duration: 14s;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
@@ -257,52 +257,23 @@
 .brand-cursor-fade.f-ring { animation-name: bcCycleRing; }
 .brand-cursor-fade.f-orb  { animation-name: bcCycleOrb; }
 
-/* orb phase — glossy mini brand sphere where the ring was */
-.brand-cursor-orb-anchor {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 36px;
-  width: 36px;
-  margin: -18px 0 0 -18px;
-  will-change: transform;
-}
-.brand-cursor-orb {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-}
-.brand-cursor-orb::before {
-  content: '';
-  position: absolute;
-  inset: -9px;
-  border-radius: 50%;
-  background: conic-gradient(from 220deg, rgba(110,231,239,.4), rgba(120,166,255,.2), rgba(228,75,215,.4), rgba(110,231,239,.4));
-  filter: blur(8px);
-}
-.brand-cursor-orb::after {
-  content: '';
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 32% 28%, rgba(247,243,232,.92), rgba(110,231,239,.6) 28%, rgba(96,120,220,.35) 52%, rgba(10,9,18,.95) 78%);
-  box-shadow:
-    inset 0 0 12px rgba(110,231,239,.4),
-    inset -5px -7px 14px rgba(228,75,215,.45),
-    0 0 22px rgba(110,231,239,.4);
-}
-
-/* logo chip phase — glass pill right of the pointer */
+/* the loop spot — a fixed point right of the pointer; all three phases
+   stack on it: logo chip → mini hero ring → mini footer orb */
 .brand-cursor-chip-anchor {
   position: absolute;
   left: 0;
   top: 0;
+  width: 0;
+  height: 0;
   margin: -12px 0 0 26px;
   will-change: transform;
 }
+
+/* phase 1 — official logo glass pill, vertical centre on the spot */
 .brand-cursor-fade.f-chip {
-  position: relative;
-  inset: auto;
+  left: 0;
+  top: 0;
+  margin-top: -12px;
   display: flex;
   align-items: center;
   height: 24px;
@@ -313,7 +284,42 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 6px 24px rgba(0,0,0,.45);
+  white-space: nowrap;
 }
 .brand-cursor-fade.f-chip img { height: 13px; width: auto; max-width: none; flex-shrink: 0; opacity: .95; }
+
+/* phase 2 — mini copy of the hero's spiral ring (same shape-v1 asset) */
+.brand-cursor-fade.f-ring {
+  left: 0;
+  top: 0;
+  height: 46px;
+  width: 46px;
+  margin: -23px 0 0 -10px;
+}
+.brand-cursor-fade.f-ring img,
+.brand-cursor-fade.f-orb img {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  max-width: none;
+}
+.brand-cursor-fade.f-ring img {
+  animation: bcSpin 10s linear infinite;
+  filter: drop-shadow(0 0 10px rgba(110,231,239,.35));
+}
+
+/* phase 3 — mini copy of the footer's glossy orb (same shape-v3 asset) */
+.brand-cursor-fade.f-orb {
+  left: 0;
+  top: 0;
+  height: 42px;
+  width: 42px;
+  margin: -21px 0 0 -9px;
+}
+.brand-cursor-fade.f-orb img {
+  animation: bcSpin 16s linear infinite;
+  filter: drop-shadow(0 0 10px rgba(228,75,215,.32)) drop-shadow(0 0 8px rgba(110,231,239,.28));
+}
 
 ::selection { background: #e44bd7; color: #0b0a10; }

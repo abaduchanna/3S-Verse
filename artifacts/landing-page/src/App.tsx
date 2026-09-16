@@ -97,13 +97,14 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   );
 }
 
-/* Brand cursor — "3S Orbit". Glowing core dot rides the pointer; around it
-   a 14s infinite visibility loop runs: the official logo chip (right of the
-   pointer) fades in and holds ~5s, then fades out → the conic-gradient orbit
-   ring with its two satellite sparks fades in, holds, fades out → a small
-   glowing brand orb fades in where the ring was, holds, fades out → the
-   chip returns, and the cycle repeats forever. Over interactive elements
-   the orbit still expands. */
+/* Brand cursor — "3S Orbit". Glowing core dot rides the pointer with the
+   spinning conic orbit ring and its two satellite sparks — always visible.
+   At a fixed spot to the right of the pointer, an infinite 14s loop cycles
+   the brand's three signatures in place: the official logo chip fades in
+   and holds ~5s → fades out → a mini copy of the hero's spiral ring fades
+   in, spins, fades out → a mini copy of the footer's glossy orb fades in,
+   fades out → the chip returns, and the loop repeats forever. Over
+   interactive elements the orbit still expands. */
 const CURSOR_HOVER_SELECTOR = 'a, button, [role="button"], input, textarea, select, label, summary, [data-cursor="hover"]';
 
 function BrandCursor() {
@@ -111,15 +112,13 @@ function BrandCursor() {
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const chipRef = useRef<HTMLDivElement>(null);
-  const orbRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
     const dotEl = dotRef.current;
     const ringEl = ringRef.current;
     const chipEl = chipRef.current;
-    const orbEl = orbRef.current;
-    if (!root || !dotEl || !ringEl || !chipEl || !orbEl) return;
+    if (!root || !dotEl || !ringEl || !chipEl) return;
     if (window.matchMedia('(pointer: coarse)').matches) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
@@ -170,7 +169,6 @@ function BrandCursor() {
       dotEl.style.transform = `translate3d(${dot.x.toFixed(1)}px, ${dot.y.toFixed(1)}px, 0) scale(${dotScale.toFixed(3)})`;
       ringEl.style.transform = `translate3d(${ring.x.toFixed(1)}px, ${ring.y.toFixed(1)}px, 0) scale(${ringScale.toFixed(3)})`;
       chipEl.style.transform = `translate3d(${(ring.x + 14).toFixed(1)}px, ${ring.y.toFixed(1)}px, 0)`;
-      orbEl.style.transform = `translate3d(${ring.x.toFixed(1)}px, ${ring.y.toFixed(1)}px, 0)`;
       raf = requestAnimationFrame(tick);
     };
 
@@ -189,26 +187,24 @@ function BrandCursor() {
 
   return (
     <div ref={rootRef} aria-hidden="true" className="brand-cursor-root">
-      {/* trailing orbit — JS positions/scales, the 14s loop fades it, CSS spins it */}
+      {/* trailing orbit — JS positions/scales it, CSS spins it; always visible */}
       <div ref={ringRef} className="brand-cursor-ring-wrap will-change-transform">
-        <div className="brand-cursor-fade f-ring">
-          <div className="brand-cursor-ring" />
-          <span className="brand-cursor-sat sa" />
-          <span className="brand-cursor-sat sb" />
-        </div>
+        <div className="brand-cursor-ring" />
+        <span className="brand-cursor-sat sa" />
+        <span className="brand-cursor-sat sb" />
       </div>
       {/* pointer core — always visible */}
       <div ref={dotRef} className="brand-cursor-dot will-change-transform" />
-      {/* orb phase — fades in where the ring was */}
-      <div ref={orbRef} className="brand-cursor-orb-anchor will-change-transform">
-        <div className="brand-cursor-fade f-orb">
-          <div className="brand-cursor-orb" />
-        </div>
-      </div>
-      {/* official logo chip — visible ~5s, then the loop moves on */}
+      {/* the 14s loop, right of the pointer: logo chip → mini hero ring → mini footer orb */}
       <div ref={chipRef} className="brand-cursor-chip-anchor will-change-transform">
         <div className="brand-cursor-fade f-chip">
           <img src="/logo.png" alt="" draggable={false} className="select-none" />
+        </div>
+        <div className="brand-cursor-fade f-ring">
+          <img src="/shapes/shape-v1.webp" alt="" draggable={false} />
+        </div>
+        <div className="brand-cursor-fade f-orb">
+          <img src="/shapes/shape-v3.webp" alt="" draggable={false} />
         </div>
       </div>
     </div>
