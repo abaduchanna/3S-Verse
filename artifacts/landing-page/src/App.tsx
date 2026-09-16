@@ -527,15 +527,247 @@ function Hero() {
   );
 }
 
+/* J.A.R.V.I.S — animated generative-AI core. A canvas recreates the golden
+   holographic sphere: a hot pulsing ring with a dark eye at the centre, nine
+   breathing spokes, seven rotating HUD arcs, ~110 orbiting particles with
+   twinkle, flickering circuit fragments in the outer field, and a shock ring
+   expanding from the core every few seconds. 'lighter' compositing gives the
+   additive gold glow. Pauses offscreen; one static frame under reduced motion. */
+function JarvisCore() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const TAU = Math.PI * 2;
+    let w = 0;
+    let h = 0;
+    let raf = 0;
+    let t = 140;
+    let visible = true;
+
+    const gold = (alpha: number) => `rgba(255,176,72,${alpha})`;
+
+    const particles = Array.from({ length: 110 }, () => {
+      const band = Math.random();
+      return {
+        r: band < .5 ? .14 + Math.random() * .2 : band < .85 ? .38 + Math.random() * .24 : .66 + Math.random() * .3,
+        a: Math.random() * TAU,
+        sp: (.0012 + Math.random() * .0028) * (Math.random() < .5 ? -1 : 1),
+        size: .6 + Math.random() * 2,
+        tw: .35 + Math.random() * .65,
+        ph: Math.random() * TAU,
+        glow: Math.random() < .2,
+      };
+    });
+
+    const fragments = Array.from({ length: 24 }, () => {
+      const pts: Array<[number, number]> = [[0, 0]];
+      let x = 0;
+      let y = 0;
+      let dir = Math.floor(Math.random() * 4) * (Math.PI / 2);
+      const steps = 3 + Math.floor(Math.random() * 4);
+      for (let s = 0; s < steps; s++) {
+        dir += (Math.random() < .5 ? -1 : 1) * (Math.PI / 2) * (Math.random() < .75 ? 1 : 0);
+        const len = 5 + Math.random() * 15;
+        x += Math.cos(dir) * len;
+        y += Math.sin(dir) * len;
+        pts.push([x, y]);
+      }
+      return { r: .66 + Math.random() * .32, a: Math.random() * TAU, pts, life: .25 + Math.random() * .5, ph: Math.random() * TAU };
+    });
+
+    const arcs = [
+      { r: .3, s: .0034, from: .3, len: 1.15, wd: 1.4, blur: 9 },
+      { r: .385, s: -.0021, from: 2.5, len: 2.1, wd: 1, blur: 0 },
+      { r: .47, s: .0015, from: 4.1, len: 1.7, wd: 2.2, blur: 11 },
+      { r: .56, s: -.001, from: .9, len: 2.7, wd: 1, blur: 0 },
+      { r: .67, s: .0008, from: 3.3, len: 1.9, wd: 1.6, blur: 7 },
+      { r: .79, s: -.0006, from: 5.3, len: 2.5, wd: 1, blur: 0 },
+      { r: .92, s: .0005, from: 1.7, len: 3.2, wd: 1.1, blur: 5 },
+    ];
+
+    const draw = () => {
+      if (!w || !h) return;
+      const cx = w / 2;
+      const cy = h / 2;
+      const R = Math.min(w, h) * .48;
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'lighter';
+
+      const amb = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+      amb.addColorStop(0, 'rgba(255,158,44,.12)');
+      amb.addColorStop(.5, 'rgba(255,140,30,.05)');
+      amb.addColorStop(1, 'rgba(255,120,20,0)');
+      ctx.fillStyle = amb;
+      ctx.fillRect(0, 0, w, h);
+
+      for (const A of arcs) {
+        const start = A.from + t * A.s;
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * A.r, start, start + A.len);
+        ctx.strokeStyle = gold(.42);
+        ctx.lineWidth = A.wd;
+        if (A.blur) {
+          ctx.shadowColor = gold(.85);
+          ctx.shadowBlur = A.blur;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      for (let i = 0; i < 9; i++) {
+        const ang = (i / 9) * TAU + t * .0008;
+        const len = R * (.5 + .45 * Math.abs(Math.sin(t * .0015 + i * 2.3)));
+        const x2 = cx + Math.cos(ang) * len;
+        const y2 = cy + Math.sin(ang) * len;
+        const g = ctx.createLinearGradient(cx, cy, x2, y2);
+        g.addColorStop(0, gold(.8));
+        g.addColorStop(1, 'rgba(255,130,30,0)');
+        ctx.strokeStyle = g;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      const burst = (t % 240) / 240;
+      if (burst < .9) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * (.08 + burst * .55), 0, TAU);
+        ctx.strokeStyle = gold(.35 * (1 - burst));
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+      }
+
+      const pulse = 1 + Math.sin(t * .05) * .06;
+      const cr = R * .085 * pulse;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cr, 0, TAU);
+      ctx.strokeStyle = 'rgba(255,222,160,.95)';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = 'rgba(255,190,90,.95)';
+      ctx.shadowBlur = 22;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cr * .62, 0, TAU);
+      ctx.fillStyle = 'rgba(20,10,2,.9)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, cr * 1.55, t * .004, t * .004 + 4.2);
+      ctx.strokeStyle = gold(.6);
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      const ga = t * .01;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(ga) * cr * 1.28, cy + Math.sin(ga) * cr * 1.28, 2.2, 0, TAU);
+      ctx.fillStyle = 'rgba(255,236,190,.95)';
+      ctx.shadowColor = gold(1);
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      for (const P of particles) {
+        P.a += P.sp;
+        const x = cx + Math.cos(P.a) * P.r * R;
+        const y = cy + Math.sin(P.a) * P.r * R;
+        const al = P.tw * (.3 + .7 * Math.abs(Math.sin(t * .02 + P.ph)));
+        ctx.beginPath();
+        ctx.arc(x, y, P.size, 0, TAU);
+        ctx.fillStyle = gold(al);
+        if (P.glow) {
+          ctx.shadowColor = gold(.9);
+          ctx.shadowBlur = 6;
+        }
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      for (const F of fragments) {
+        const al = F.life * (.25 + .75 * Math.abs(Math.sin(t * .009 + F.ph)));
+        if (al < .04) continue;
+        ctx.save();
+        ctx.translate(cx + Math.cos(F.a) * F.r * R, cy + Math.sin(F.a) * F.r * R);
+        ctx.rotate(F.a + Math.PI / 2);
+        ctx.beginPath();
+        ctx.moveTo(F.pts[0][0], F.pts[0][1]);
+        for (const [px, py] of F.pts.slice(1)) ctx.lineTo(px, py);
+        ctx.strokeStyle = gold(al);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        for (const [px, py] of F.pts) {
+          ctx.beginPath();
+          ctx.arc(px, py, 1.1, 0, TAU);
+          ctx.fillStyle = gold(al * .9);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
+    };
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = rect.width;
+      h = rect.height;
+      canvas.width = Math.max(1, Math.round(w * dpr));
+      canvas.height = Math.max(1, Math.round(h * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (reduced) draw();
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+    const io = new IntersectionObserver((entries) => { visible = entries[0]?.isIntersecting ?? true; });
+    io.observe(canvas);
+
+    const loop = () => {
+      raf = requestAnimationFrame(loop);
+      if (!visible) return;
+      t += 1;
+      draw();
+    };
+    if (!reduced) raf = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      io.disconnect();
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />;
+}
+
 /* Split section — orb left, thin divider, text right (template's
    "Easily integrate our services into your product" moment). */
 function IntegrateSection() {
   return (
     <section className="relative overflow-hidden py-28 lg:py-40">
       <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.05fr_1px_1fr] lg:gap-0 lg:px-8">
-        {/* template's exact torus — cropped off the left edge */}
+        {/* J.A.R.V.I.S — animated generative-AI core (golden holographic HUD) */}
         <div className="relative">
-          <Shape v={2} spin={95} dir={-1} floatY={14} floatDur={10} className="w-[340px] opacity-95 sm:w-[440px] lg:-ml-24 lg:w-[560px]" />
+          <div className="relative mx-auto aspect-square w-full max-w-[560px] overflow-hidden rounded-2xl border border-[#ffb040]/20 bg-[#080503] shadow-[0_30px_90px_rgba(255,140,30,.14),inset_0_0_80px_rgba(255,140,30,.06)]">
+            <JarvisCore />
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 font-mono-tech text-[9px] uppercase tracking-[.2em]">
+              <div className="absolute left-3.5 top-3.5 flex items-center gap-2 text-[#ffb040]/85"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#ffb040]" /> J.A.R.V.I.S // core online</div>
+              <div className="absolute right-3.5 top-3.5 text-[#ffb040]/55">gen-ai · v3.7</div>
+              <div className="absolute bottom-3.5 left-3.5 text-[#ffb040]/55">neural load <span className="text-[#ffb040]">stable</span></div>
+              <div className="absolute bottom-3.5 right-3.5 text-[#ffb040]/55">3s verse · ai core</div>
+              <span className="absolute left-0 top-0 h-5 w-5 rounded-tl-2xl border-l-2 border-t-2 border-[#ffb040]/70" />
+              <span className="absolute right-0 top-0 h-5 w-5 rounded-tr-2xl border-r-2 border-t-2 border-[#ffb040]/70" />
+              <span className="absolute bottom-0 left-0 h-5 w-5 rounded-bl-2xl border-b-2 border-l-2 border-[#ffb040]/70" />
+              <span className="absolute bottom-0 right-0 h-5 w-5 rounded-br-2xl border-b-2 border-r-2 border-[#ffb040]/70" />
+            </div>
+          </div>
         </div>
         <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
         <div className="lg:pl-20">
