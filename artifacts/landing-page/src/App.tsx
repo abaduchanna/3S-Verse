@@ -97,28 +97,50 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   );
 }
 
-// Full 3S wordmark that trails the mouse across the page, floating just to
-// the RIGHT of the pointer. Driven by a requestAnimationFrame lerp loop that
-// writes transforms straight to the DOM node — no re-renders per frame.
-const CURSOR_OFFSET_X = 24;
+/* Brand cursor — "3S Orbit". Not a plain floating logo anymore: a glowing
+   core dot rides the pointer while a thin conic-gradient ring (cyan →
+   periwinkle → magenta) trails behind it, spinning, with two satellite
+   sparks orbiting the ring. A small glass chip carrying the official logo
+   floats beside the orbit — it fades away after 5s of idle and returns on
+   the next move. Over interactive elements the orbit expands. */
+const CURSOR_HOVER_SELECTOR = 'a, button, [role="button"], input, textarea, select, label, summary, [data-cursor="hover"]';
+const CURSOR_IDLE_MS = 5000;
 
-function CursorLogo() {
-  const ref = useRef<HTMLDivElement>(null);
+function BrandCursor() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dotRef = useRef<HTMLDivElement>(null);
+  const ringRef = useRef<HTMLDivElement>(null);
+  const chipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const root = rootRef.current;
+    const dotEl = dotRef.current;
+    const ringEl = ringRef.current;
+    const chipEl = chipRef.current;
+    if (!root || !dotEl || !ringEl || !chipEl) return;
     if (window.matchMedia('(pointer: coarse)').matches) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const target = { x: -200, y: -200 };
-    const pos = { x: -200, y: -200 };
-    let scale = 0.5;
-    let targetScale = 0.9;
-    let tilt = 0;
-    let raf = 0;
-    let idleTimer = 0;
+    const dot = { x: -200, y: -200 };
+    const ring = { x: -200, y: -200 };
+    let ringScale = 0.4;
+    let targetRingScale = 1;
+    let dotScale = 1;
+    let targetDotScale = 1;
+    let chipScale = 0.45;
+    let targetChipScale = 1;
+    let hover = false;
     let shown = false;
+    let chipOn = false;
+    let idleTimer = 0;
+    let raf = 0;
+
+    const setChip = (on: boolean) => {
+      chipOn = on;
+      targetChipScale = on ? 1 : 0.45;
+      chipEl.style.opacity = on ? '1' : '0';
+    };
 
     const onMove = (event: PointerEvent) => {
       if (event.pointerType === 'touch') return;
@@ -126,26 +148,41 @@ function CursorLogo() {
       target.y = event.clientY;
       if (!shown) {
         shown = true;
-        pos.x = target.x;
-        pos.y = target.y;
-        el.style.opacity = '1';
+        dot.x = ring.x = target.x;
+        dot.y = ring.y = target.y;
+        root.style.opacity = '1';
       }
-      const speed = Math.min(1, Math.hypot(event.movementX || 0, event.movementY || 0) / 22);
-      targetScale = 0.9 + speed * 0.25;
-      tilt = Math.max(-9, Math.min(9, (event.movementX || 0) * 1.1));
+      const speed = Math.min(1, Math.hypot(event.movementX || 0, event.movementY || 0) / 24);
+
+      const hit = event.target instanceof Element && event.target.closest(CURSOR_HOVER_SELECTOR);
+      if (!!hit !== hover) {
+        hover = !!hit;
+        ringEl.classList.toggle('is-hover', hover);
+        targetRingScale = hover ? 1.7 : 1 + speed * 0.3;
+        targetDotScale = hover ? 0.45 : 1;
+      } else if (!hover) {
+        targetRingScale = 1 + speed * 0.3;
+      }
+
+      if (!chipOn) setChip(true);
       window.clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(() => { targetScale = 0.9; }, 140);
+      idleTimer = window.setTimeout(() => setChip(false), CURSOR_IDLE_MS);
     };
 
-    const onLeave = () => { el.style.opacity = '0'; };
-    const onEnter = () => { if (shown) el.style.opacity = '1'; };
+    const onLeave = () => { root.style.opacity = '0'; };
+    const onEnter = () => { if (shown) root.style.opacity = '1'; };
 
     const tick = () => {
-      pos.x += (target.x - pos.x) * 0.14;
-      pos.y += (target.y - pos.y) * 0.14;
-      scale += (targetScale - scale) * 0.1;
-      tilt *= 0.88;
-      el.style.transform = `translate3d(${(pos.x + CURSOR_OFFSET_X).toFixed(1)}px, ${pos.y.toFixed(1)}px, 0) translateY(-50%) rotate(${tilt.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+      dot.x += (target.x - dot.x) * 0.42;
+      dot.y += (target.y - dot.y) * 0.42;
+      ring.x += (target.x - ring.x) * 0.16;
+      ring.y += (target.y - ring.y) * 0.16;
+      ringScale += (targetRingScale - ringScale) * 0.12;
+      dotScale += (targetDotScale - dotScale) * 0.18;
+      chipScale += (targetChipScale - chipScale) * 0.14;
+      dotEl.style.transform = `translate3d(${dot.x.toFixed(1)}px, ${dot.y.toFixed(1)}px, 0) scale(${dotScale.toFixed(3)})`;
+      ringEl.style.transform = `translate3d(${ring.x.toFixed(1)}px, ${ring.y.toFixed(1)}px, 0) scale(${ringScale.toFixed(3)})`;
+      chipEl.style.transform = `translate3d(${(ring.x + 14).toFixed(1)}px, ${ring.y.toFixed(1)}px, 0) scale(${chipScale.toFixed(3)})`;
       raf = requestAnimationFrame(tick);
     };
 
@@ -164,13 +201,19 @@ function CursorLogo() {
   }, []);
 
   return (
-    <div
-      ref={ref}
-      aria-hidden="true"
-      className="pointer-events-none fixed left-0 top-0 z-[70] opacity-0 will-change-transform"
-      style={{ transform: 'translate3d(-200px, -200px, 0)', transition: 'opacity 0.35s ease' }}
-    >
-      <img src="/logo.png" alt="" draggable={false} className="h-7 w-auto select-none opacity-90" />
+    <div ref={rootRef} aria-hidden="true" className="brand-cursor-root">
+      {/* trailing orbit — JS moves the wrapper, CSS spins the ring + satellites */}
+      <div ref={ringRef} className="brand-cursor-ring-wrap will-change-transform">
+        <div className="brand-cursor-ring" />
+        <span className="brand-cursor-sat sa" />
+        <span className="brand-cursor-sat sb" />
+      </div>
+      {/* pointer core */}
+      <div ref={dotRef} className="brand-cursor-dot will-change-transform" />
+      {/* official logo chip — fades out after 5s idle */}
+      <div ref={chipRef} className="brand-cursor-chip will-change-transform">
+        <img src="/logo.png" alt="" draggable={false} className="select-none" />
+      </div>
     </div>
   );
 }
@@ -323,7 +366,7 @@ function Nav() {
     <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/[.06] bg-[#060509]/75 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <a href="#top" data-testid="link-brand" className="shrink-0">
-          <img src="/logo.png" alt="3S Verse" className="h-7 w-auto object-contain" />
+          <img src="/logo.png" alt="3S Verse" className="h-5 w-auto object-contain" />
         </a>
         <nav className="hidden items-center gap-9 md:flex">
           {navItems.map((item) => (
@@ -378,7 +421,7 @@ function OpsPanel() {
     >
       <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="" className="h-4 w-auto opacity-90" />
+          <img src="/logo.png" alt="" className="h-3 w-auto opacity-90" />
           <span className="font-mono-tech text-[10px] tracking-[.22em] text-[#8d8a9e]">OPERATIONS / LIVE</span>
         </div>
         <div className="flex items-center gap-3 font-mono-tech text-[10px] text-[#6ee7ef]">
@@ -438,6 +481,26 @@ function OpsPanel() {
   );
 }
 
+/* Hero orb — the ring's loop partner. A glossy brand sphere (cream core
+   highlight, cyan body, magenta rim glow) that fades in while the hero ring
+   is faded out, then hands visibility back. Timeline lives on an 11s loop:
+   ring in (0–1.5s) → ring out (4.4–6.1s) → orb in (6.1–7.7s) → orb out
+   (10.1–11s) → repeat. */
+function HeroOrb() {
+  return (
+    <motion.div
+      aria-hidden="true"
+      className="pointer-events-none absolute -right-[20vw] -top-6 hidden aspect-square w-[460px] sm:block lg:-right-[9vw] lg:-top-20 lg:w-[600px]"
+      animate={{ opacity: [0, 0, 1, 1, 0], scale: [0.92, 0.92, 1, 1.045, 0.97] }}
+      transition={{ duration: 11, times: [0, 0.55, 0.7, 0.92, 1], repeat: Infinity, ease: 'easeInOut' }}
+    >
+      <div className="hero-orb">
+        <span className="hero-orb-glint" />
+      </div>
+    </motion.div>
+  );
+}
+
 function Hero() {
   return (
     <section id="top" className="relative overflow-hidden pt-[76px]">
@@ -488,9 +551,19 @@ function Hero() {
               </div>
             </Reveal>
           </div>
-          {/* template's exact hero swirl — huge, bleeding off the right edge */}
+          {/* template's exact hero swirl — huge, bleeding off the right edge.
+              Loop: fades in, holds, fades out; the orb takes over, then the
+              ring returns. Both run on the same 11s infinite timeline. */}
           <div className="relative">
-            <Shape v={1} spin={120} floatY={16} floatDur={12} className="absolute -right-[38vw] -top-40 hidden w-[820px] max-w-none opacity-90 sm:block lg:-right-[24vw] lg:-top-52 lg:w-[900px]" />
+            <motion.div
+              aria-hidden="true"
+              className="absolute inset-0 hidden sm:block"
+              animate={{ opacity: [0, 1, 1, 0, 0] }}
+              transition={{ duration: 11, times: [0, 0.14, 0.4, 0.55, 1], repeat: Infinity, ease: 'linear' }}
+            >
+              <Shape v={1} spin={120} floatY={16} floatDur={12} className="absolute -right-[38vw] -top-40 w-[820px] max-w-none opacity-90 lg:-right-[24vw] lg:-top-52 lg:w-[900px]" />
+            </motion.div>
+            <HeroOrb />
           </div>
         </div>
         {/* full-width app window, template-style */}
@@ -1480,7 +1553,7 @@ function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm">
-            <img src="/logo.png" alt="3S Verse" className="h-8 w-auto" />
+            <img src="/logo.png" alt="3S Verse" className="h-6 w-auto" />
             <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
               Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation for businesses that want to move faster.
             </p>
@@ -1527,7 +1600,7 @@ function Home() {
       <ScrollProgress />
       <Spotlight />
       <ScrollTop />
-      <CursorLogo />
+      <BrandCursor />
       <Nav />
       <main>
         <Hero />
