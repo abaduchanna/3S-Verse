@@ -92,7 +92,16 @@
         Web: <a href="https://3sverse.com/">3sverse.com</a></p>
       </div>
     </noscript>
-    <div id="root"></div>
+    <div id="root">
+      <!-- instant boot splash (pure inline CSS, replaced by React on mount) -->
+      <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#060509;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:18px;font-family:'Montserrat',system-ui,sans-serif;">
+          <span style="width:10px;height:10px;border-radius:9999px;background:#6ee7ef;box-shadow:0 0 24px #6ee7ef;animation:pf-pulse 1.4s ease-in-out infinite;"></span>
+          <span style="font-size:12px;letter-spacing:.42em;text-transform:uppercase;color:rgba(242,240,250,.55);">3S Verse</span>
+        </div>
+        <style>@keyframes pf-pulse{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}</style>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

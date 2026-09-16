@@ -63,6 +63,22 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        /* split heavy vendor libs into parallel-downloadable, independently
+           cacheable chunks — the app chunk stays small and deploys cleanly */
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/]node_modules[\\/](framer-motion|motion-dom|motion-utils|ts-easing)[\\/]/.test(id)) {
+            return 'vendor-motion';
+          }
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
+            return 'vendor-react';
+          }
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port,

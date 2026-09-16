@@ -87,7 +87,8 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
         src={`/shapes/shape-v${v}.webp`}
         alt=""
         draggable={false}
-        loading="lazy"
+        loading={v === 1 ? 'eager' : 'lazy'}
+        fetchPriority={v === 1 ? 'high' : undefined}
         decoding="async"
         className="h-auto w-full will-change-transform"
         animate={spin ? { rotate: 360 * dir } : undefined}
@@ -187,7 +188,7 @@ function BrandCursor() {
       {/* the 27s loop, right of the pointer: logo chip → mini hero ring → mini footer orb */}
       <div ref={chipRef} className="brand-cursor-chip-anchor will-change-transform">
         <div className="brand-cursor-fade f-chip">
-          <img src="/logo.png" alt="" draggable={false} className="select-none" />
+          <img src="/logo-240.png" alt="" draggable={false} className="select-none" />
         </div>
         <div className="brand-cursor-fade f-ring">
           <img src="/shapes/shape-v1.webp" alt="" draggable={false} />
@@ -348,7 +349,7 @@ function Nav() {
     <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/[.06] bg-[#060509]/75 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <a href="#top" data-testid="link-brand" className="shrink-0">
-          <img src="/logo.png" alt="3S Verse" className="h-5 w-auto object-contain" />
+          <img src="/logo-240.png" alt="3S Verse" className="h-5 w-auto object-contain" />
         </a>
         <nav className="hidden items-center gap-9 md:flex">
           {navItems.map((item) => (
@@ -403,7 +404,7 @@ function OpsPanel() {
     >
       <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="" className="h-3 w-auto opacity-90" />
+          <img src="/logo-240.png" alt="" className="h-3 w-auto opacity-90" />
           <span className="font-mono-tech text-[10px] tracking-[.22em] text-[#8d8a9e]">OPERATIONS / LIVE</span>
         </div>
         <div className="flex items-center gap-3 font-mono-tech text-[10px] text-[#6ee7ef]">
@@ -1505,7 +1506,7 @@ function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm">
-            <img src="/logo.png" alt="3S Verse" className="h-5 w-auto" />
+            <img src="/logo-240.png" alt="3S Verse" className="h-5 w-auto" />
             <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
               Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation for businesses that want to move faster.
             </p>

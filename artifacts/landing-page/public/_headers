@@ -1,0 +1,15 @@
+# Netlify cache headers — hashed build assets never change, cache hard.
+# (Netlify's default max-age=600 forces repeat visitors to re-download
+# the whole JS bundle every 10 minutes.)
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/shapes/*
+  Cache-Control: public, max-age=1209600
+
+/logo*
+  Cache-Control: public, max-age=1209600
+
+/favicon*
+  Cache-Control: public, max-age=604800
