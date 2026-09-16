@@ -527,14 +527,14 @@ function Hero() {
   );
 }
 
-/* J.A.R.V.I.S — a living golden hologram rebuilt in true 3D on a 2D canvas.
-   Smooth light filaments swirl around a sphere in one consistent vortex
-   direction (like magnetic field lines), dust and clumpy particle shells hug
-   those flow lines, straight rays shoot from the molten core "eye", and
-   depth bokeh discs float near and far. Everything is projected with real
-   perspective, rotated around Y (~33 s per rev) with a slow X precession and
-   additive-blended over warm fog. A brightness wave rolls outward every ~9 s.
-   Pauses offscreen; one static frame under reduced motion. */
+/* J.A.R.V.I.S — Iron-Man holographic interface, pure geometry (no
+   particles, no fairy lights). Five concentric rings tumble, yaw and
+   precess on independent axes in real perspective — depth-shaded strokes,
+   tick marks, dashed arcs, sweeping data arcs and travelling nodes. At the
+   heart sits an arc-reactor core: counter-rotating segmented rings around
+   a white-hot centre. The whole hologram yaws as one body, bobs, and leans
+   toward the pointer. Every angular speed is incommensurate, so nothing
+   visibly loops. Pauses offscreen; one static frame under reduced motion. */
 function JarvisCore() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -551,159 +551,87 @@ function JarvisCore() {
     let raf = 0;
     let t = 0;
     let visible = true;
+    let tiltX = 0;
+    let tiltY = 0;
+    let tTX = 0;
+    let tTY = 0;
 
-    const rand = (a: number, b: number) => a + Math.random() * (b - a);
-    const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
-
-    /* pre-rendered glow sprites (4 particle tones + 1 soft bokeh) */
-    const mkSprite = (inner: string, mid: string, midStop = 0.25) => {
+    /* soft round glow sprite (nodes / arc heads only) */
+    const mkGlow = (inner: string, mid: string) => {
       const c = document.createElement('canvas');
-      c.width = 64; c.height = 64;
+      c.width = 64;
+      c.height = 64;
       const g = c.getContext('2d')!;
       const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
       gr.addColorStop(0, inner);
-      gr.addColorStop(midStop, mid);
+      gr.addColorStop(0.3, mid);
       gr.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = gr;
       g.fillRect(0, 0, 64, 64);
       return c;
     };
-    const SPR = [
-      mkSprite('rgba(255,224,160,1)', 'rgba(255,152,50,.6)'),
-      mkSprite('rgba(255,192,110,1)', 'rgba(255,120,32,.55)'),
-      mkSprite('rgba(255,238,190,1)', 'rgba(255,196,110,.65)'),
-      mkSprite('rgba(255,250,232,1)', 'rgba(255,232,180,.75)'),
-    ];
-    const SOFT = mkSprite('rgba(255,190,110,.42)', 'rgba(255,160,70,.15)', 0.45);
+    const GLOW = mkGlow('rgba(255,246,220,1)', 'rgba(255,182,96,.55)');
 
-    type P3 = { x: number; y: number; z: number; s: number; ph: number; sp: number; base: number; col: number };
-    const pts: P3[] = [];
-    const norm = (v: number[]) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
-
-    /* ---- smooth swirling filaments (one vortex handedness) ---- */
-    type Fil = { pts: number[][]; ph: number; sp: number; base: number; wd: number; rMid: number };
-    const fils: Fil[] = [];
-    const dustTargets: number[][] = [];
-    for (let f = 0; f < 42; f++) {
-      const a0 = rand(0, TAU);
-      const ca0 = rand(-0.78, 0.78); /* biased off-pole → banded vortex */
-      const sc0 = Math.sqrt(1 - ca0 * ca0);
-      let pos = norm([sc0 * Math.cos(a0), ca0, sc0 * Math.sin(a0)]);
-      /* horizontal tangent around Y axis — same swirl direction for all */
-      let dir = norm([-pos[2], 0, pos[0]]);
-      const curl = (Math.random() < 0.5 ? 1 : -1) * rand(0.10, 0.22);
-      const steps = 60 + Math.floor(Math.random() * 55);
-      const stepLen = 0.020;
-      const rBase = rand(0.5, 0.95);
-      const rAmp = rand(0.05, 0.22);
-      const rSpd = rand(0.05, 0.14);
-      const arr: number[][] = [];
-      for (let s = 0; s <= steps; s++) {
-        const r = Math.hypot(...pos);
-        /* bend the flow around the sphere */
-        const tang = norm([-pos[2], 0, pos[0]]);
-        dir = norm([
-          dir[0] + tang[0] * curl * 0.1 + gauss() * 0.045,
-          dir[1] + Math.sin(s * 0.18 + f) * 0.018 + gauss() * 0.035,
-          dir[2] + tang[2] * curl * 0.1 + gauss() * 0.045,
-        ]);
-        pos = norm([pos[0] + dir[0] * stepLen, pos[1] + dir[1] * stepLen, pos[2] + dir[2] * stepLen]);
-        const targetR = rBase + Math.sin(s * rSpd + f * 1.7) * rAmp;
-        const rr = r + (targetR - r) * 0.12;
-        const p = [pos[0] * rr, pos[1] * rr, pos[2] * rr];
-        arr.push(p);
-        if (Math.random() < 0.22) dustTargets.push(p);
-      }
-      fils.push({ pts: arr, ph: rand(0, TAU), sp: rand(0.005, 0.016), base: rand(0.30, 0.66), wd: rand(0.7, 1.7), rMid: rBase });
-    }
-
-    /* ---- dust hugging the flow lines ---- */
-    for (const d of dustTargets) {
-      pts.push({
-        x: d[0] + gauss() * 0.045, y: d[1] + gauss() * 0.045, z: d[2] + gauss() * 0.045,
-        s: rand(0.5, 1.5), ph: rand(0, TAU), sp: rand(0.008, 0.03), base: rand(0.3, 0.9), col: Math.floor(Math.random() * 4),
-      });
-    }
-
-    /* ---- clumpy shells — the render's organic matter ---- */
-    for (const c of Array.from({ length: 14 }, () => {
-      const a = rand(0, TAU);
-      const ca = rand(-0.85, 0.85);
-      return { x: Math.sqrt(1 - ca * ca) * Math.cos(a), y: ca, z: Math.sqrt(1 - ca * ca) * Math.sin(a), r: rand(0.45, 1.0), spread: rand(0.10, 0.24), n: Math.floor(rand(30, 70)) };
-    })) {
-      for (let i = 0; i < c.n; i++) {
-        let x = c.x + gauss() * c.spread * 2.2;
-        let y = c.y + gauss() * c.spread * 2.2;
-        let z = c.z + gauss() * c.spread * 2.2;
-        const len = Math.hypot(x, y, z) || 1;
-        const rr = c.r + gauss() * 0.09;
-        pts.push({ x: x / len * rr, y: y / len * rr, z: z / len * rr, s: rand(0.6, 2.0), ph: rand(0, TAU), sp: rand(0.008, 0.03), base: rand(0.3, 0.9), col: Math.floor(Math.random() * 4) });
-      }
-    }
-    /* hero sparks */
-    for (let i = 0; i < 30; i++) {
-      const a = rand(0, TAU); const ca = rand(-0.9, 0.9); const rr = rand(0.3, 1.1);
-      const sc = Math.sqrt(1 - ca * ca);
-      pts.push({ x: sc * Math.cos(a) * rr, y: ca * rr, z: sc * Math.sin(a) * rr, s: rand(2.1, 3.2), ph: rand(0, TAU), sp: rand(0.006, 0.02), base: rand(0.55, 0.95), col: 2 + Math.floor(Math.random() * 2) });
-    }
-    /* hot inner dust */
-    for (let i = 0; i < 420; i++) {
-      const a = rand(0, TAU); const ca = rand(-1, 1); const rr = Math.pow(Math.random(), 0.6) * 0.45 + 0.06;
-      const sc = Math.sqrt(1 - ca * ca);
-      pts.push({ x: sc * Math.cos(a) * rr, y: ca * rr, z: sc * Math.sin(a) * rr, s: rand(0.4, 1.4), ph: rand(0, TAU), sp: rand(0.01, 0.035), base: rand(0.3, 0.9), col: 2 + Math.floor(Math.random() * 2) });
-    }
-
-    /* depth bokeh — defocused discs near and far */
-    const bokeh = Array.from({ length: 50 }, () => {
-      const a = rand(0, TAU); const ca = rand(-1, 1); const rr = rand(0.35, 1.32);
-      const sc = Math.sqrt(1 - ca * ca);
-      return { x: sc * Math.cos(a) * rr, y: ca * rr * 0.92, z: sc * Math.sin(a) * rr, size: rand(7, 24), base: rand(0.035, 0.09), ph: rand(0, TAU), sp: rand(0.004, 0.012) };
-    });
-
-    /* straight rays from the core */
-    const beams = Array.from({ length: 9 }, () => {
-      const a = rand(0, TAU); const ca = rand(-0.95, 0.95);
-      const sc = Math.sqrt(1 - ca * ca);
-      return { x: sc * Math.cos(a), y: ca, z: sc * Math.sin(a), ph: rand(0, TAU), sp: rand(0.004, 0.012), base: rand(0.07, 0.18), wd: rand(0.5, 1.1) };
-    });
-
-    /* gyroscopic HUD rings — Iron-Man gimbal, precessing tilted circles */
-    const gyros = [
-      { tilt: 1.05, ph0: 0.4, r: 1.08, prec: 0.00075, amp: 0.28, spin: 0.0021, wd: 1.6, base: 0.68 },
-      { tilt: 0.45, ph0: 2.2, r: 1.17, prec: -0.00058, amp: 0.22, spin: -0.0016, wd: 1.3, base: 0.56 },
-      { tilt: 1.5, ph0: 4.1, r: 1.26, prec: 0.00046, amp: 0.2, spin: 0.0012, wd: 1.1, base: 0.48 },
-    ];
-    const ringPoint = (G: { r: number }, ang: number, tiltEff: number) => {
-      const x = Math.cos(ang) * G.r;
-      const z = Math.sin(ang) * G.r;
-      const y1 = -z * Math.sin(tiltEff);
-      const z1 = z * Math.cos(tiltEff);
-      return [x, y1, z1] as const;
+    const rotX = (v: number[], a: number) => {
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      return [v[0], v[1] * c - v[2] * s, v[1] * s + v[2] * c];
     };
+    const rotY = (v: number[], a: number) => {
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      return [v[0] * c + v[2] * s, v[1], -v[0] * s + v[2] * c];
+    };
+    const rotZ = (v: number[], a: number) => {
+      const c = Math.cos(a);
+      const s = Math.sin(a);
+      return [v[0] * c - v[1] * s, v[0] * s + v[1] * c, v[2]];
+    };
+
+    type Ring = {
+      r: number;
+      tilt0: number;
+      tumble: number;
+      yaw: number;
+      prec0: number;
+      prec: number;
+      wd: number;
+      base: number;
+      dash?: number;
+      duty?: number;
+      ticks?: number;
+      sweep?: { span: number; speed: number; ph: number };
+      beads?: number;
+      beadSpeed?: number;
+    };
+    const RINGS: Ring[] = [
+      { r: 0.96, tilt0: 0.42, tumble: 0.0033, yaw: 0.00115, prec0: 0.0, prec: 0.00052, wd: 2.3, base: 0.88, ticks: 48, beads: 4, beadSpeed: 0.01 },
+      { r: 0.77, tilt0: 1.18, tumble: -0.0023, yaw: -0.00175, prec0: 2.1, prec: -0.00086, wd: 1.5, base: 0.64, dash: 7, duty: 5, sweep: { span: 1.15, speed: 0.009, ph: 0 } },
+      { r: 0.56, tilt0: 0.72, tumble: 0.0041, yaw: 0.0026, prec0: 4.0, prec: -0.00048, wd: 1.2, base: 0.56, ticks: 24, sweep: { span: 0.85, speed: -0.013, ph: 2.4 } },
+      { r: 0.88, tilt0: 1.5, tumble: 0.00085, yaw: 0.003, prec0: 1.2, prec: 0.00064, wd: 1.0, base: 0.44, beads: 2, beadSpeed: -0.0072 },
+      { r: 1.02, tilt0: 0.2, tumble: -0.00105, yaw: -0.00068, prec0: 5.0, prec: 0.0003, wd: 1.1, base: 0.36, ticks: 72, sweep: { span: 1.9, speed: 0.0045, ph: 4.4 } },
+    ];
 
     const draw = () => {
       if (!w || !h) return;
       const cx = w / 2;
-      const cy = h / 2 + Math.sin(t * 0.0011) * Math.min(w, h) * 0.013; /* hologram bob */
-      const R = Math.min(w, h) * 0.44;
+      const cy = h / 2 + Math.sin(t * 0.0011) * Math.min(w, h) * 0.008;
+      const R = Math.min(w, h) * 0.4;
       ctx.clearRect(0, 0, w, h);
       ctx.globalCompositeOperation = 'lighter';
 
-      const ry = t * 0.0032;
-      const rxa = Math.sin(t * 0.0011) * 0.22;
-      const cY = Math.cos(ry), sY = Math.sin(ry), cX = Math.cos(rxa), sX = Math.sin(rxa);
-      const F = 2.1, CAM = 2.8;
-      const breathe = 0.5 + 0.5 * Math.sin(t * 0.018);
-      const waveR = (t % 560) / 560 * 1.3;
-      const bump = (r: number) => Math.exp(-Math.pow((r - waveR) * 9, 2)) * 0.5;
-
-      /* ambient warm fog — must reach zero INSIDE the canvas so no rect edge shows */
-      const amb = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.1);
-      amb.addColorStop(0, `rgba(255,150,50,${(0.12 + 0.05 * breathe).toFixed(3)})`);
-      amb.addColorStop(0.55, 'rgba(255,130,30,.05)');
-      amb.addColorStop(1, 'rgba(255,120,20,0)');
-      ctx.fillStyle = amb;
-      ctx.fillRect(0, 0, w, h);
+      /* pointer lean + slow whole-body yaw — hero-ring confidence */
+      tiltX += (tTX - tiltX) * 0.045;
+      tiltY += (tTY - tiltY) * 0.045;
+      const ry = t * 0.0003 + tiltY;
+      const rxa = 0.1 + tiltX;
+      const cY = Math.cos(ry);
+      const sY = Math.sin(ry);
+      const cX = Math.cos(rxa);
+      const sX = Math.sin(rxa);
+      const F = 2.6;
+      const CAM = 3.2;
+      const breathe = 0.5 + 0.5 * Math.sin(t * 0.016);
 
       const project = (x: number, y: number, z: number) => {
         const X = x * cY + z * sY;
@@ -714,116 +642,185 @@ function JarvisCore() {
         return [cx + X * s * R, cy + Y2 * s * R, s, Z2] as const;
       };
 
-      /* molten core — bloom + tilted eye ring */
-      const pulse = 0.92 + 0.08 * Math.sin(t * 0.045);
-      const bl = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.26 * pulse);
-      bl.addColorStop(0, 'rgba(255,206,130,.42)');
-      bl.addColorStop(0.45, 'rgba(255,150,60,.14)');
-      bl.addColorStop(1, 'rgba(255,140,50,0)');
-      ctx.fillStyle = bl;
+      /* ambient hologram volume — soft glow, zero edges */
+      const amb = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.12);
+      amb.addColorStop(0, `rgba(255,152,55,${(0.07 + 0.03 * breathe).toFixed(3)})`);
+      amb.addColorStop(0.6, 'rgba(255,130,35,.028)');
+      amb.addColorStop(1, 'rgba(255,120,30,0)');
+      ctx.fillStyle = amb;
       ctx.fillRect(0, 0, w, h);
-      const erot = 0.55 + Math.sin(t * 0.002) * 0.1;
-      const erx = R * 0.085 * pulse;
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = 'rgba(255,180,90,.18)';
-      ctx.beginPath(); ctx.ellipse(cx, cy, erx, erx * 0.74, erot, 0, TAU); ctx.stroke();
-      ctx.lineWidth = 2.2;
-      ctx.strokeStyle = 'rgba(255,230,176,.95)';
-      ctx.beginPath(); ctx.ellipse(cx, cy, erx, erx * 0.74, erot, 0, TAU); ctx.stroke();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(255,200,120,.3)';
-      ctx.beginPath(); ctx.ellipse(cx, cy, erx * 1.55, erx * 1.15, erot, 0, TAU); ctx.stroke();
-      ctx.fillStyle = 'rgba(14,7,2,.9)';
-      ctx.beginPath(); ctx.ellipse(cx, cy, erx * 0.55, erx * 0.41, erot, 0, TAU); ctx.fill();
 
-      /* rays */
-      for (const B of beams) {
-        const [x1, y1] = project(B.x * 0.16, B.y * 0.16, B.z * 0.16);
-        const [x2, y2, , d2] = project(B.x * 1.22, B.y * 1.22, B.z * 1.22);
-        const a = B.base * (0.4 + 0.6 * Math.abs(Math.sin(t * B.sp + B.ph))) * (1 + bump(1.05)) * (1 - 0.3 * d2);
-        const g = ctx.createLinearGradient(x1, y1, x2, y2);
-        g.addColorStop(0, `rgba(255,196,110,${a.toFixed(3)})`);
-        g.addColorStop(1, 'rgba(255,150,60,0)');
-        ctx.strokeStyle = g;
-        ctx.lineWidth = B.wd;
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-      }
-
-      /* swirling filaments — double stroke for glow */
-      for (const Fl of fils) {
-        const mod = Fl.base * (0.35 + 0.65 * Math.abs(Math.sin(t * Fl.sp + Fl.ph)));
-        const a1 = Math.min(0.9, mod * (1 + bump(Fl.rMid)));
-        ctx.beginPath();
-        for (let i = 0; i < Fl.pts.length; i++) {
-          const [sx, sy] = project(Fl.pts[i][0], Fl.pts[i][1], Fl.pts[i][2]);
-          if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
-        }
-        ctx.strokeStyle = `rgba(255,170,80,${(a1 * 0.20).toFixed(3)})`;
-        ctx.lineWidth = Fl.wd * 3.4;
-        ctx.stroke();
-        ctx.strokeStyle = `rgba(255,208,128,${a1.toFixed(3)})`;
-        ctx.lineWidth = Fl.wd;
-        ctx.stroke();
-      }
-
-      /* bokeh discs */
-      for (const Bk of bokeh) {
-        const [sx, sy, s, d] = project(Bk.x, Bk.y, Bk.z);
-        const sz = Bk.size * s;
-        ctx.globalAlpha = Math.max(0, Bk.base * (0.6 + 0.4 * Math.sin(t * Bk.sp + Bk.ph)) * (0.75 - 0.35 * d));
-        ctx.drawImage(SOFT, sx - sz, sy - sz, sz * 2, sz * 2);
-      }
-
-      /* particles via sprites */
-      for (const P of pts) {
-        const [sx, sy, s, d] = project(P.x, P.y, P.z);
-        const tw = 0.5 + 0.5 * Math.sin(t * P.sp + P.ph);
-        const al = P.base * tw * (0.78 - 0.38 * d);
-        if (al < 0.02) continue;
-        const box = P.s * R * 0.02 * s * (1.05 - 0.3 * d);
-        ctx.globalAlpha = Math.min(1, al);
-        ctx.drawImage(SPR[P.col], sx - box, sy - box, box * 2, box * 2);
-      }
-      ctx.globalAlpha = 1;
-
-      /* gyroscopic HUD rings — per-segment depth alpha + travelling beads */
       ctx.lineCap = 'round';
-      for (const G of gyros) {
-        const tiltEff = G.tilt + Math.sin(t * G.prec * 8 + G.ph0) * G.amp;
-        const phi = t * G.spin;
-        const SEG = 84;
-        let px2 = 0; let py2 = 0; let pd = 0;
+      ctx.lineJoin = 'round';
+
+      for (const G of RINGS) {
+        const tx = G.tilt0 + t * G.tumble;
+        const ty = t * G.yaw;
+        const tz = G.prec0 + t * G.prec;
+        const B1 = rotX(rotY(rotZ([1, 0, 0], tz), ty), tx);
+        const B2 = rotX(rotY(rotZ([0, 1, 0], tz), ty), tx);
+        const pt = (a: number, rr = G.r) => {
+          const c = Math.cos(a) * rr;
+          const s = Math.sin(a) * rr;
+          return [c * B1[0] + s * B2[0], c * B1[1] + s * B2[1], c * B1[2] + s * B2[2]] as const;
+        };
+        const SEG = 110;
+        const proj: { x: number; y: number; d: number }[] = [];
         for (let i = 0; i <= SEG; i++) {
-          const ang = (i / SEG) * TAU;
-          const [x, y, z] = ringPoint(G, ang, tiltEff);
-          const [sx, sy, s, d] = project(x, y, z);
-          if (i > 0) {
-            const a = G.base * (0.5 - 0.34 * d) * (0.75 + 0.25 * Math.sin(t * 0.004 + G.ph0));
-            ctx.strokeStyle = `rgba(255,198,116,${a.toFixed(3)})`;
-            ctx.lineWidth = G.wd;
+          const [x, y, z] = pt((i / SEG) * TAU);
+          const [sx, sy, , zz] = project(x, y, z);
+          proj.push({ x: sx, y: sy, d: zz / G.r });
+        }
+
+        /* bloom pass */
+        ctx.beginPath();
+        for (let i = 0; i <= SEG; i++) {
+          if (i) ctx.lineTo(proj[i].x, proj[i].y);
+          else ctx.moveTo(proj[i].x, proj[i].y);
+        }
+        ctx.strokeStyle = `rgba(255,166,70,${(0.12 + 0.05 * breathe).toFixed(3)})`;
+        ctx.lineWidth = G.wd * 4.2;
+        ctx.stroke();
+
+        /* crisp depth-shaded pass (dash rings skip segments) */
+        for (let i = 0; i < SEG; i++) {
+          if (G.dash && i % G.dash >= (G.duty ?? 1)) continue;
+          const nf = 0.5 + 0.5 * ((proj[i].d + proj[i + 1].d) / 2);
+          const a = G.base * (0.2 + 0.8 * nf);
+          ctx.strokeStyle = `rgba(255,${Math.round(174 + 54 * nf)},${Math.round(94 + 90 * nf)},${a.toFixed(3)})`;
+          ctx.lineWidth = G.wd * (0.55 + 0.75 * nf);
+          ctx.beginPath();
+          ctx.moveTo(proj[i].x, proj[i].y);
+          ctx.lineTo(proj[i + 1].x, proj[i + 1].y);
+          ctx.stroke();
+        }
+
+        /* tick marks */
+        if (G.ticks) {
+          ctx.lineWidth = 1;
+          for (let k = 0; k < G.ticks; k++) {
+            const a = (k / G.ticks) * TAU;
+            const [x1, y1, z1] = pt(a, G.r * 0.955);
+            const [x2, y2, z2] = pt(a, G.r * 1.045);
+            const [sx1, sy1] = project(x1, y1, z1);
+            const [sx2, sy2] = project(x2, y2, z2);
+            const nf = 0.5 + 0.5 * ((z1 + z2) / 2 / G.r);
+            ctx.strokeStyle = `rgba(255,${Math.round(190 + 40 * nf)},${Math.round(120 + 70 * nf)},${(0.5 * (0.25 + 0.75 * nf)).toFixed(3)})`;
             ctx.beginPath();
-            ctx.moveTo(px2, py2);
-            ctx.lineTo(sx, sy);
+            ctx.moveTo(sx1, sy1);
+            ctx.lineTo(sx2, sy2);
             ctx.stroke();
           }
-          px2 = sx; py2 = sy; pd = d;
         }
-        for (let k = 0; k < 4; k++) {
-          const ang = phi + k * (TAU / 4);
-          const [x, y, z] = ringPoint(G, ang, tiltEff);
-          const [sx, sy, s, d] = project(x, y, z);
-          const box = R * 0.03 * s;
-          ctx.globalAlpha = Math.max(0, 0.9 * (0.62 - 0.3 * d));
-          ctx.drawImage(SPR[3], sx - box, sy - box, box * 2, box * 2);
+
+        /* sweeping data arc with glowing head */
+        if (G.sweep) {
+          const S = G.sweep;
+          const st = t * S.speed + S.ph;
+          const N = 26;
+          for (let i = 0; i < N; i++) {
+            const a0 = st + (i / N) * S.span;
+            const a1 = st + ((i + 1) / N) * S.span;
+            const [x1, y1, z1] = pt(a0);
+            const [x2, y2, z2] = pt(a1);
+            const [sx1, sy1, s1] = project(x1, y1, z1);
+            const [sx2, sy2] = project(x2, y2, z2);
+            const nf = 0.5 + 0.5 * ((z1 + z2) / 2 / G.r);
+            const dir = S.speed >= 0 ? i / N : 1 - i / N;
+            ctx.strokeStyle = `rgba(255,226,160,${(0.5 * dir * (0.3 + 0.7 * nf)).toFixed(3)})`;
+            ctx.lineWidth = G.wd + 0.8;
+            ctx.beginPath();
+            ctx.moveTo(sx1, sy1);
+            ctx.lineTo(sx2, sy2);
+            ctx.stroke();
+            const isHead = S.speed >= 0 ? i === N - 1 : i === 0;
+            if (isHead) {
+              const box = R * 0.018 * s1;
+              ctx.globalAlpha = 0.85 * (0.4 + 0.6 * nf);
+              ctx.drawImage(GLOW, sx2 - box, sy2 - box, box * 2, box * 2);
+              ctx.globalAlpha = 1;
+            }
+          }
         }
-        ctx.globalAlpha = 1;
+
+        /* travelling nodes */
+        if (G.beads) {
+          for (let k = 0; k < G.beads; k++) {
+            const ang = t * (G.beadSpeed ?? 0.01) + (k / G.beads) * TAU;
+            const [x, y, z] = pt(ang);
+            const [sx, sy, s] = project(x, y, z);
+            const nf = 0.5 + 0.5 * (z / G.r);
+            const box = R * 0.02 * s;
+            ctx.globalAlpha = 0.75 * (0.35 + 0.65 * nf);
+            ctx.drawImage(GLOW, sx - box, sy - box, box * 2, box * 2);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = 'rgba(255,248,230,.95)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, 1.4 * s, 0, TAU);
+            ctx.fill();
+          }
+        }
       }
 
-      /* melt the hologram's own edges out (bg-agnostic — no visible canvas box) */
+      /* ---- arc-reactor core ---- */
+      const pulse = 1 + 0.018 * Math.sin(t * 0.045);
+      const coreR = R * 0.3 * pulse;
+
+      const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 1.2);
+      halo.addColorStop(0, 'rgba(255,190,110,.2)');
+      halo.addColorStop(0.5, 'rgba(255,150,60,.07)');
+      halo.addColorStop(1, 'rgba(255,140,50,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(cx, cy, coreR * 1.2, 0, TAU);
+      ctx.fill();
+
+      const hot = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.09 * pulse);
+      hot.addColorStop(0, 'rgba(255,250,236,.95)');
+      hot.addColorStop(0.35, 'rgba(255,214,150,.5)');
+      hot.addColorStop(1, 'rgba(255,190,110,0)');
+      ctx.fillStyle = hot;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 0.09 * pulse, 0, TAU);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,250,.98)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 0.015 * pulse, 0, TAU);
+      ctx.fill();
+
+      const segRing = (rad: number, segs: number, duty: number, lw: number, alpha: number, rot: number, col: string) => {
+        ctx.strokeStyle = `rgba(${col},${alpha})`;
+        ctx.lineWidth = lw;
+        for (let i = 0; i < segs; i++) {
+          const a0 = rot + (i / segs) * TAU;
+          ctx.beginPath();
+          ctx.arc(cx, cy, rad, a0, a0 + (TAU / segs) * duty);
+          ctx.stroke();
+        }
+      };
+      segRing(R * 0.155, 12, 0.46, 2.4, 0.85, t * 0.011, '255,216,152');
+      segRing(R * 0.205, 6, 0.55, 1.2, 0.5, -t * 0.007, '255,200,130');
+      segRing(R * 0.252, 3, 0.14, 1.4, 0.75, t * 0.0045, '255,238,196');
+      ctx.strokeStyle = 'rgba(255,196,120,.26)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 0.252, 0, TAU);
+      ctx.stroke();
+
+      for (let i = 0; i < 3; i++) {
+        const a = t * 0.017 + i * (TAU / 3);
+        ctx.fillStyle = 'rgba(255,234,192,.9)';
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(a) * R * 0.115, cy + Math.sin(a) * R * 0.115, 1.5, 0, TAU);
+        ctx.fill();
+      }
+
+      /* melt the hologram's own edges out (bg-agnostic — no canvas box) */
       ctx.globalCompositeOperation = 'destination-out';
-      const fog = ctx.createRadialGradient(cx, cy, R * 0.78, cx, cy, Math.min(w, h) * 0.52);
+      const fog = ctx.createRadialGradient(cx, cy, R * 0.98, cx, cy, R * 1.22);
       fog.addColorStop(0, 'rgba(0,0,0,0)');
-      fog.addColorStop(1, 'rgba(0,0,0,.75)');
+      fog.addColorStop(1, 'rgba(0,0,0,.8)');
       ctx.fillStyle = fog;
       ctx.fillRect(0, 0, w, h);
     };
@@ -836,13 +833,30 @@ function JarvisCore() {
       canvas.width = Math.max(1, Math.round(w * dpr));
       canvas.height = Math.max(1, Math.round(h * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (reduced) { t = 220; draw(); }
+      if (reduced) {
+        t = 1400;
+        draw();
+      }
     };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
-    const io = new IntersectionObserver((entries) => { visible = entries[0]?.isIntersecting ?? true; });
+    const io = new IntersectionObserver((entries) => {
+      visible = entries[0]?.isIntersecting ?? true;
+    });
     io.observe(canvas);
+
+    const onMove = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      tTY = ((e.clientX - rect.left) / Math.max(1, rect.width) - 0.5) * 0.16;
+      tTX = ((e.clientY - rect.top) / Math.max(1, rect.height) - 0.5) * 0.12;
+    };
+    const onLeave = () => {
+      tTX = 0;
+      tTY = 0;
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('pointerleave', onLeave);
 
     const loop = () => {
       raf = requestAnimationFrame(loop);
@@ -856,11 +870,14 @@ function JarvisCore() {
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();
+      window.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerleave', onLeave);
     };
   }, []);
 
   return <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />;
 }
+
 /* Split section — orb left, thin divider, text right (template's
    "Easily integrate our services into your product" moment). */
 function IntegrateSection() {
