@@ -97,14 +97,14 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   );
 }
 
-/* Brand cursor — "3S Orbit". Glowing core dot rides the pointer with the
-   spinning conic orbit ring and its two satellite sparks — always visible.
-   At a fixed spot to the right of the pointer, an infinite 14s loop cycles
-   the brand's three signatures in place: the official logo chip fades in
-   and holds ~5s → fades out → a mini copy of the hero's spiral ring fades
-   in, spins, fades out → a mini copy of the footer's glossy orb fades in,
-   fades out → the chip returns, and the loop repeats forever. Over
-   interactive elements the orbit still expands. */
+/* Brand cursor — "3S Orbit". Glowing core dot rides the pointer with two
+   satellite sparks circling it — always visible. At a fixed spot to the
+   right of the pointer, an infinite 27s loop cycles the brand's three
+   signatures in place, each with an equal 8s hold: the official logo chip
+   fades in, holds, fades out → a mini copy of the hero's spiral ring fades
+   in, spins, holds, fades out → a mini copy of the footer's glossy orb
+   fades in, holds, fades out → the chip returns, and the loop repeats
+   forever. Over interactive elements the satellites still expand outward. */
 const CURSOR_HOVER_SELECTOR = 'a, button, [role="button"], input, textarea, select, label, summary, [data-cursor="hover"]';
 
 function BrandCursor() {
@@ -187,15 +187,14 @@ function BrandCursor() {
 
   return (
     <div ref={rootRef} aria-hidden="true" className="brand-cursor-root">
-      {/* trailing orbit — JS positions/scales it, CSS spins it; always visible */}
+      {/* satellite sparks circling the pointer — JS positions/scales, CSS orbits */}
       <div ref={ringRef} className="brand-cursor-ring-wrap will-change-transform">
-        <div className="brand-cursor-ring" />
         <span className="brand-cursor-sat sa" />
         <span className="brand-cursor-sat sb" />
       </div>
       {/* pointer core — always visible */}
       <div ref={dotRef} className="brand-cursor-dot will-change-transform" />
-      {/* the 14s loop, right of the pointer: logo chip → mini hero ring → mini footer orb */}
+      {/* the 27s loop, right of the pointer: logo chip → mini hero ring → mini footer orb */}
       <div ref={chipRef} className="brand-cursor-chip-anchor will-change-transform">
         <div className="brand-cursor-fade f-chip">
           <img src="/logo.png" alt="" draggable={false} className="select-none" />
@@ -1516,7 +1515,7 @@ function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm">
-            <img src="/logo.png" alt="3S Verse" className="h-6 w-auto" />
+            <img src="/logo.png" alt="3S Verse" className="h-5 w-auto" />
             <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
               Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation for businesses that want to move faster.
             </p>
