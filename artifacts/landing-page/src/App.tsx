@@ -133,7 +133,12 @@ function BrandCursor() {
       if (event.pointerType === 'touch') return;
       target.x = event.clientX;
       target.y = event.clientY;
-      pointerEl.style.transform = `translate3d(${target.x}px, ${target.y}px, 0)`;
+      // Individual `translate` (NOT `transform`): the standalone `scale` on
+      // .is-hover/.is-press composes OUTSIDE the transform property, so writing
+      // transform here made the dot land at scale*(x,y) — e.g. 1.9x toward the
+      // bottom-right on every button/label hover. `translate` is the outermost
+      // matrix, so `scale` only morphs the dot's local box, never its position.
+      pointerEl.style.translate = `${target.x}px ${target.y}px`;
       if (!shown) {
         shown = true;
         follow.x = target.x;
@@ -184,7 +189,7 @@ function BrandCursor() {
   return (
     <div ref={rootRef} aria-hidden="true" className="brand-cursor-root">
       {/* custom pointer — brand-glow point that replaces the native arrow */}
-      <div ref={pointerRef} className="brand-cursor-pointer will-change-transform" />
+      <div ref={pointerRef} className="brand-cursor-pointer" />
       {/* the 27s loop, right of the pointer: logo chip → mini hero ring → mini footer orb */}
       <div ref={chipRef} className="brand-cursor-chip-anchor will-change-transform">
         <div className="brand-cursor-fade f-chip">

@@ -152,9 +152,9 @@
 
 /* ── Brand cursor "3S Point + Side Loop" ─────────────────────────────────────────────
    The native arrow is hidden via html.bc-active and replaced by a glowing
-   brand point (JS writes its transform 1:1; scale/opacity morphs live in
-   CSS); the chip anchor's transform is written by JS each frame too, while
-   the fade layers animate in place. */
+   brand point (JS writes its individual `translate` 1:1; scale/opacity morphs
+   live in CSS); the chip anchor's transform is written by JS each frame too,
+   while the fade layers animate in place. */
 @keyframes bcSpin { to { transform: rotate(360deg); } }
 
 /* one shared 27s cycle at the pointer's side — three equal phases, each
@@ -190,8 +190,9 @@
   will-change: opacity;
 }
 /* custom pointer — replaces the native arrow with a brand-glow point.
-   JS writes transform 1:1 with the pointer; the morphs use the standalone
-   `scale` property so the two never fight. */
+   JS writes the individual `translate` 1:1 with the pointer; the morphs use
+   the standalone `scale` property, which composes AROUND that translate —
+   scale morphs the dot's local box and can never multiply its coordinates. */
 .brand-cursor-pointer {
   position: absolute;
   left: 0;
@@ -204,7 +205,7 @@
   box-shadow: 0 0 10px rgba(110,231,239,.9), 0 0 26px rgba(110,231,239,.4);
   scale: 1;
   transition: scale .22s ease-out, opacity .25s ease;
-  will-change: transform;
+  will-change: translate, scale;
 }
 .brand-cursor-pointer::after {
   content: '';
