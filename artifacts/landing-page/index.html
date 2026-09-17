@@ -70,6 +70,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+      /* Always land on the hero: on a fresh load or refresh the browser must
+         not restore the previous scroll position (Chrome/Firefox do this on
+         reload) and must not re-anchor to a section hash (#contact, #services,
+         …) left in the URL. In-page hash links keep working after load — this
+         only normalizes the state the page starts in. */
+      (function () {
+        try { history.scrollRestoration = 'manual'; } catch (e) {}
+        if (location.hash) {
+          try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        }
+        scrollTo(0, 0);
+      })();
+    </script>
   </head>
   <body>
     <noscript>

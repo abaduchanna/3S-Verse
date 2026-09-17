@@ -1553,6 +1553,40 @@ function Footer() {
 }
 
 function Home() {
+  // Safety net for "always start on the hero": some engines restore the
+  // scroll position asynchronously after load, and a layout shift can also
+  // move the viewport before the first paint settles. The pre-paint script
+  // in index.html runs first; this re-asserts the same state after mount.
+  //
+  // Chrome additionally completes the initial fragment navigation
+  // asynchronously: opening /#services directly scrolls to the section and
+  // re-writes the hash AFTER mount. We neutralize that for a short window
+  // after load. Real user navigation is untouched — a click/keypress is
+  // required to reach an anchor link, and that interaction disables the
+  // neutralizer before the hashchange event can fire.
+  useEffect(() => {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    const stripToHero = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (window.location.hash) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    };
+    stripToHero();
+    let userInteracted = false;
+    const markInteraction = () => { userInteracted = true; };
+    const onEarlyHashChange = () => { if (!userInteracted) stripToHero(); };
+    window.addEventListener('pointerdown', markInteraction, { capture: true, once: true });
+    window.addEventListener('keydown', markInteraction, { capture: true, once: true });
+    window.addEventListener('hashchange', onEarlyHashChange);
+    const stop = window.setTimeout(() => window.removeEventListener('hashchange', onEarlyHashChange), 2000);
+    return () => {
+      window.clearTimeout(stop);
+      window.removeEventListener('hashchange', onEarlyHashChange);
+      window.removeEventListener('pointerdown', markInteraction, { capture: true });
+      window.removeEventListener('keydown', markInteraction, { capture: true });
+    };
+  }, []);
   return (
     <div className="noise min-h-[100dvh] overflow-x-clip bg-[#060509]">
       <ScrollProgress />
