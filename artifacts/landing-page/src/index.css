@@ -89,7 +89,9 @@
 
 @layer base {
   * { @apply border-border; }
-  html { scroll-behavior: smooth; background: #060509; }
+  html { scroll-behavior: smooth; scroll-padding-top: 96px; background: #060509; }
+  /* Fixed 76px header — native anchor jumps must land below it. */
+  section[id] { scroll-margin-top: 96px; }
   body { @apply font-sans antialiased bg-[#060509] text-[#f2f0fa]; }
   /* GPT-X signature: oversized, light-weight, airy headlines. Montserrat stays
      the brand family — only the weight posture changes to the template's. */

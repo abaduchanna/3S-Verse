@@ -1587,6 +1587,48 @@ function Home() {
       window.removeEventListener('keydown', markInteraction, { capture: true });
     };
   }, []);
+
+  // Mobile fix: native fragment navigation is unreliable on mobile browsers —
+  // the hash updates but scrollY stays 0 (reproduced: Contact from the mobile
+  // menu never reached the form), and where native scroll does work the
+  // section lands beneath the fixed 76px header. All in-page anchor links are
+  // now scrolled from JS with a header offset; CSS scroll-padding-top +
+  // section scroll-margin-top (index.css) covers the remaining native paths.
+  // Load/refresh behavior stays with the neutralizer above (always hero).
+  useEffect(() => {
+    const HEADER_OFFSET = 92;
+    const scrollToHash = (hash: string): boolean => {
+      const id = hash.replace(/^#/, '');
+      if (!id) return false;
+      const el = document.getElementById(id);
+      if (!el) return false;
+      const top = id === 'top' ? 0 : Math.max(0, el.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET);
+      window.scrollTo({ top, behavior: 'smooth' });
+      return true;
+    };
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented) return;
+      const target = e.target as HTMLElement | null;
+      const anchor = target && target.closest ? (target.closest('a[href^="#"]') as HTMLAnchorElement | null) : null;
+      if (!anchor) return;
+      const href = anchor.getAttribute('href');
+      if (!href || href === '#') return;
+      // A smooth scroll started in the same tick as the mobile menu's exit
+      // animation gets canceled before it moves (reproduced: scrollY stayed
+      // 0). Update the URL instantly, then scroll — immediately for normal
+      // links, and only after the menu has closed for header (mobile menu)
+      // links.
+      e.preventDefault();
+      if (window.history && history.replaceState) history.replaceState(null, '', href);
+      if (anchor.closest('header')) {
+        window.setTimeout(() => scrollToHash(href), 320);
+      } else {
+        scrollToHash(href);
+      }
+    };
+    document.addEventListener('click', onClick);
+    return () => { document.removeEventListener('click', onClick); };
+  }, []);
   return (
     <div className="noise min-h-[100dvh] overflow-x-clip bg-[#060509]">
       <ScrollProgress />
