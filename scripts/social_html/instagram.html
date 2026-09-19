@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:1080px; height:1350px; overflow:hidden; background:#060509; font-family:'Montserrat',system-ui,sans-serif; position:relative; color:#f2f0fa; }
+  .grid-bg { position:absolute; inset:0;
+    background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(circle at 50% 30%, black 0%, transparent 75%);
+            mask-image: radial-gradient(circle at 50% 30%, black 0%, transparent 75%); }
+  .glow { position:absolute; width:1200px; height:1200px; left:-60px; top:-200px; border-radius:50%;
+    background: radial-gradient(circle, rgba(110,231,239,.16) 0%, rgba(228,75,215,.10) 45%, transparent 70%); filter: blur(10px); }
+  .torus { position:absolute; right:-230px; top:210px; width:520px; opacity:.4; }
+  .orb { position:absolute; left:-200px; bottom:-140px; width:480px; opacity:.35; }
+  .wrap { position:relative; z-index:5; height:100%; display:flex; flex-direction:column; align-items:center; text-align:center; padding:84px 70px 70px; }
+  .logo { height:44px; width:auto; }
+  .h-line { font-weight:800; letter-spacing:-0.02em; line-height:1.04; font-size:92px; }
+  .l1 { margin-top:86px; color:#f2f0fa; }
+  .l2 { margin-top:6px; color:#6ee7ef; text-shadow:0 0 60px rgba(110,231,239,.35); }
+  .l3 { margin-top:6px; background:linear-gradient(90deg,#78a6ff,#e44bd7); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { margin-top:34px; max-width:640px; font-size:21px; line-height:1.6; font-weight:300; color:#b9b6c9; }
+  .sub b { color:#f2f0fa; font-weight:600; }
+  .chips { margin-top:34px; display:flex; flex-wrap:wrap; justify-content:center; gap:12px; }
+  .chip { border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.03); border-radius:999px; padding:12px 22px; font-family:'DM Mono',monospace; font-size:12.5px; letter-spacing:.16em; text-transform:uppercase; color:#d8d5e8; }
+  .stat { margin-top:auto; padding-top:30px; }
+  .stat .lbl { font-family:'DM Mono',monospace; font-size:12px; letter-spacing:.26em; text-transform:uppercase; color:#8d8a9e; }
+  .stat .val { margin-top:10px; font-size:76px; font-weight:300; letter-spacing:-0.03em; line-height:1; }
+  .stat .cap { margin-top:10px; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:#c7ef70; }
+  .site { margin-top:30px; display:inline-block; background:#ffffff; color:#0b0a10; border-radius:14px; padding:16px 34px; font-size:19px; font-weight:700; letter-spacing:-0.01em; }
+</style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="glow"></div>
+  <img class="torus" src="shapes/shape-v2.webp" alt="">
+  <img class="orb" src="shapes/shape-v3.webp" alt="">
+  <div class="wrap">
+    <img class="logo" src="logo-240.png" alt="3S Verse">
+    <div class="h-line l1">MANUAL WORK OUT.</div>
+    <div class="h-line l2">SOFTWARE IN.</div>
+    <div class="h-line l3">HOURS BACK.</div>
+    <p class="sub">We build the systems your business runs on &mdash; <b>built by operators</b> with 12+ years in the field.</p>
+    <div class="chips">
+      <div class="chip">Automation</div>
+      <div class="chip">AI Agents</div>
+      <div class="chip">Dashboards</div>
+      <div class="chip">Web &amp; Mobile Apps</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Recovered for clients</div>
+      <div class="val">$265K+</div>
+      <div class="cap">Claims &amp; losses &middot; real deployments</div>
+    </div>
+    <div class="site">3sverse.com</div>
+  </div>
+</body>
+</html>
