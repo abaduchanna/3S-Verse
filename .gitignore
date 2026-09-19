@@ -47,3 +47,20 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# ── Local workspace only — NEVER commit (these hold the PAT, agent logs,
+#    task scripts and repo backups; a bot session once committed them and
+#    GitHub Push Protection blocked the push) ──────────────────────────
+/secrets/
+/skills/
+/upload/
+/repos/
+/.a6d-backup/
+/tool-results/
+/worklog.md
+/backup-*.bundle
+/agent-ctx/
+/scripts/*.py
+/scripts/*.log
+/scripts/prot_*.json
+/scripts/rewrite_identities_phase_a.sh
