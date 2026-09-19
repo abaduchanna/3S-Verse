@@ -490,16 +490,16 @@ function Hero() {
             </Reveal>
             <Reveal delay={0.08}>
               <h1 className="text-[clamp(2.4rem,8.5vw,4.6rem)] font-light leading-[1.06] tracking-[-0.03em] text-white">
-                Intelligent
+                The systems your
                 <br />
-                automation solutions
+                business runs on —
                 <br />
-                for your <span className="font-normal text-[#6ee7ef]">business</span>
+                <span className="font-normal text-[#6ee7ef]">built by operators.</span>
               </h1>
             </Reveal>
             <Reveal delay={0.16}>
               <p className="mt-8 max-w-xl text-[17px] font-light leading-8 text-[#b9b6c9]">
-                3S Verse designs and builds the systems a modern business runs on — custom software, web &amp; mobile apps, AI agents, live dashboards, and workflow automation that removes manual work, cuts costs, and keeps your operation moving around the clock. Backed by {YEARS_EXPERIENCE}+ years of real operations experience.
+                Spreadsheets, copy-paste, end-of-month scrambles — that&apos;s the work we take off your hands. 3S Verse builds the custom software, web &amp; mobile apps, AI agents, live dashboards, and workflow automation modern businesses run on — cutting costs, recovering lost money, and keeping your operation moving around the clock. Behind every build: {YEARS_EXPERIENCE}+ years of real operations experience.
               </p>
             </Reveal>
             <Reveal delay={0.24}>
@@ -513,9 +513,9 @@ function Hero() {
             </Reveal>
             <Reveal delay={0.32}>
               <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/[.07] pt-5 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
-                <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years operations</span>
-                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> Processes automated</span>
-                <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#e44bd7]" /> Cost recovered</span>
+                <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years in real operations</span>
+                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> $265K+ recovered for clients</span>
+                <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#e44bd7]" /> Running in dealerships daily</span>
               </div>
             </Reveal>
           </div>
@@ -548,10 +548,10 @@ function IntegrateSection() {
           <Reveal>
             <Kicker>Power your business</Kicker>
             <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-              Power your business with <span className="text-[#6ee7ef]">generative AI</span> &amp; automation
+              Automation that meets the work <span className="text-[#6ee7ef]">where it happens.</span>
             </h2>
             <p className="mt-7 max-w-lg text-[16px] font-light leading-8 text-[#b9b6c9]">
-              From AI agents that draft, reconcile, and answer for you, to pipelines that move data between the tools you already use — we plug intelligent automation straight into your day-to-day. No rip-and-replace, no six-month projects: it slots into VidaPay portals, spreadsheets, ERPs, and WhatsApp, and starts saving hours from week one.
+              AI agents that draft, reconcile, and answer for you. Pipelines that move data between the systems you already run. No rip-and-replace, no six-month projects — we plug automation straight into VidaPay portals, spreadsheets, ERPs, and WhatsApp, and it starts saving hours from week one.
             </p>
             <div className="mt-10">
               <BtnWhite href="#contact" testId="button-integrate-start">Start a project</BtnWhite>
@@ -567,23 +567,23 @@ const features = [
   {
     index: '01',
     title: 'Process automation',
-    description: 'Cut manual work from your operations. We turn repeatable, error-prone workflows into fast, reliable pipelines — often with Python scripts and zero heavy tooling.',
+    description: 'If your team does it twice a week, it should be automated. We turn repeatable, error-prone workflows into fast, reliable pipelines — often with nothing more than a well-built script.',
     icon: Zap,
     color: 'cyan',
-    detail: ['Workflow automation', 'Python scripts', 'Manual-work reduction'],
+    detail: ['Workflow automation', 'Scripts & pipelines', 'Live in days'],
   },
   {
     index: '02',
     title: 'Web & mobile apps',
-    description: 'Full-stack web and Android apps built to run your business — from internal tools to customer-facing products delivered on schedule and on budget.',
+    description: 'Full-stack web and Android apps that carry real operational weight — internal tools, customer-facing products, everything in between — shipped on schedule and on budget.',
     icon: Smartphone,
     color: 'magenta',
-    detail: ['Full-stack web apps', 'Android development', 'Product to rollout'],
+    detail: ['Full-stack web apps', 'Android development', 'On time, on budget'],
   },
   {
     index: '03',
     title: 'Custom websites',
-    description: 'High-performing, conversion-driven websites that make you look every bit as sharp as you operate — fast, responsive, and built to bring in business.',
+    description: 'Fast, responsive, conversion-driven websites that make you look as sharp as you operate — engineered to turn visitors into enquiries.',
     icon: Globe2,
     color: 'cyan',
     detail: ['Conversion-led design', 'Fast & responsive', 'Built to scale'],
@@ -591,15 +591,15 @@ const features = [
   {
     index: '04',
     title: 'AI agents & assistants',
-    description: 'Practical AI applied where it saves real hours — agents that research, draft, reconcile, and handle the busywork so your team can focus on decisions.',
+    description: 'No gimmicks — AI where it saves real hours. Agents that research, draft, reconcile, and clear the busywork, so your team spends its time on decisions, not data entry.',
     icon: Bot,
     color: 'magenta',
-    detail: ['Custom AI agents', 'Workflow copilots', 'Automation with AI'],
+    detail: ['Custom AI agents', 'Workflow copilots', 'Practical, not hype'],
   },
   {
     index: '05',
     title: 'Dashboards & data',
-    description: 'Live KPI dashboards and reporting that turn scattered data into a clear, daily operating picture for inventory, sales, procurement, and finance.',
+    description: 'One live view of inventory, sales, procurement, and finance — KPI dashboards that turn scattered spreadsheets into a daily operating picture your team actually trusts.',
     icon: BarChart3,
     color: 'cyan',
     detail: ['KPI dashboards', 'ERP & spreadsheet reporting', 'Live operational view'],
@@ -607,7 +607,7 @@ const features = [
   {
     index: '06',
     title: 'Supply chain & operations',
-    description: `Deep real-world operations muscle — inventory planning, procurement, rebates and claims — backed by ${YEARS_EXPERIENCE}+ years across telecom, FMCG, and pharma.`,
+    description: `Our home turf — inventory planning, procurement, rebates and claims, designed by people with ${YEARS_EXPERIENCE}+ years across telecom, FMCG, and pharma. Not theorists.`,
     icon: Boxes,
     color: 'magenta',
     detail: ['Inventory & procurement', 'Claims & loss recovery', 'Multi-location operations'],
@@ -623,11 +623,11 @@ function Services() {
             <div>
               <Kicker>01 — What we offer</Kicker>
               <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                The complete scope — every system your business needs to <span className="text-[#6ee7ef]">run and grow.</span>
+                Every system your business needs — <span className="text-[#6ee7ef]">under one roof.</span>
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              One partner across the whole spectrum — a website that sells, apps that run your day, AI that handles the busywork, dashboards that keep score, and automation that never sleeps. Scoped in weeks, not quarters, by people who have actually run these operations.
+              One partner across the whole spectrum: a website that sells, apps that run your day, AI that clears the busywork, dashboards that keep score, and automation that never sleeps. Scoped in weeks, not quarters, by people who have actually run these operations.
             </p>
           </div>
         </Reveal>
@@ -726,9 +726,9 @@ function HowVisual() {
 
 function HowItWorks() {
   const steps = [
-    ['01', 'Understand your work', 'We dig into how your business actually operates — the manual loops, the bottlenecks, the time sinks nobody tracks.'],
-    ['02', 'Build the solution', 'Apps, websites, AI, dashboards, or automation — the right build to remove the friction, shipped cleanly and on time.'],
-    ['03', 'Keep it moving', 'We stay close as your business evolves, tuning and extending the system so it never becomes the next bottleneck.'],
+    ['01', 'Map the real work', 'We start where the work happens — the manual loops, the bottlenecks, the hours nobody tracks. You can’t fix what nobody has measured.'],
+    ['02', 'Build the fix', 'App, website, AI, dashboard, or automation — the right build for the problem, shipped clean, documented, and live on a date we committed to.'],
+    ['03', 'Keep it moving', 'Operations change, and your systems keep up. We stay close — tuning and extending what we built so it never becomes the next bottleneck.'],
   ];
   return (
     <section id="how" className="relative overflow-hidden py-28 lg:py-36">
@@ -738,9 +738,11 @@ function HowItWorks() {
             <Reveal>
               <Kicker magenta>02 — How it works</Kicker>
               <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                Learn how
+                From bottleneck
                 <br />
-                3S Verse works
+                to <span className="text-[#e44bd7]">live system</span>
+                <br />
+                in three moves.
               </h2>
               <div className="mt-12 space-y-10">
                 {steps.map(([number, title, copy], i) => (
@@ -818,7 +820,7 @@ function Outcomes() {
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              Numbers pulled straight from real deployments — retail operations, distribution, and multi-store programs running on systems we built.
+              No vanity metrics — numbers pulled straight from live deployments: retail operations, distribution, and multi-store programs running on systems we built.
             </p>
           </div>
         </Reveal>
@@ -849,7 +851,7 @@ const TOOLS = [
     id: 'extractor',
     tab: 'VidaPay Incentive Extractor',
     title: 'VidaPay Incentive Extractor',
-    blurb: 'Pulls every rebate, spiff, and incentive straight out of the VidaPay portal into one clean sheet — no more screenshot-and-typing, no missed dollars. Built for dealers who live in VidaPay every week.',
+    blurb: 'Every rebate, spiff, and incentive pulled straight out of the VidaPay portal into one clean sheet. No screenshots, no retyping, no missed dollars — built for dealers who live in VidaPay every week.',
     chips: [
       { icon: FileSpreadsheet, label: 'Rebate tracking' },
       { icon: ClipboardCheck, label: 'Claim matching' },
@@ -885,7 +887,7 @@ const TOOLS = [
     id: 'ordering',
     tab: 'VidaPay Device Ordering',
     title: 'VidaPay Device Ordering',
-    blurb: 'Orders devices across every store from the VidaPay portal in minutes — pick the model, set per-store quantities, submit once. Stops the wrong-SKU, wrong-store chaos for good.',
+    blurb: 'Device orders for every store, placed in minutes — pick the model, set per-store quantities, submit once. Wrong-SKU, wrong-store chaos, gone for good.',
     chips: [
       { icon: ShoppingCart, label: 'Bulk ordering' },
       { icon: Store, label: 'Per-store quantities' },
@@ -933,7 +935,7 @@ function Tools() {
               <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">Tools that run the store floor</h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              Two production systems, born inside a real multi-store operation and battle-tested weekly by dealers who use them every day.
+              Two production systems born inside a real multi-store wireless operation — battle-tested every week by dealers who rely on them.
             </p>
           </div>
           <div className="mb-6 flex flex-wrap gap-3" role="tablist" aria-label="VidaPay tools">
@@ -1004,13 +1006,13 @@ function Tools() {
 function Reviews() {
   const reviews = [
     {
-      quote: ['He rebuilt our ordering process end to end — cut the manual inventory busywork ', 'by more than half', '. Our buyers just work smarter now.'],
+      quote: ['He rebuilt our ordering process end to end and cut the manual inventory busywork ', 'by more than half', '. Our buyers just work smarter now.'],
       name: 'Operations Director',
       org: 'Wireless Retail Group',
       initials: 'RD',
     },
     {
-      quote: ['The dashboard he built changed how we run the business. For the first time the whole team sees inventory, sales, and claims ', 'in one live view', '.'],
+      quote: ['The dashboard changed how we run the business — for the first time, the whole team sees inventory, sales, and claims ', 'in one live view', '.'],
       name: 'Finance Lead',
       org: 'FMCG Distributor',
       initials: 'FK',
@@ -1034,7 +1036,7 @@ function Reviews() {
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              Feedback from the operations leaders, finance teams, and managers who trusted us with their day-to-day.
+              From the operations leaders, finance teams, and managers who trusted us with their day-to-day.
             </p>
           </div>
         </Reveal>
@@ -1421,10 +1423,10 @@ function Contact() {
               <Sparkles className="h-3.5 w-3.5 text-[#e44bd7]" /> Ready when you are
             </div>
             <h2 className="text-[clamp(2.4rem,4.6vw,4rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-              Let&apos;s build the system your business runs on.
+              Bring us the <span className="text-[#6ee7ef]">bottleneck.</span>
             </h2>
             <p className="mx-auto mt-6 max-w-xl text-[16px] font-light leading-8 text-[#b9b6c9]">
-              A website, an app, an AI agent, or a workflow that should be automated — bring us the bottleneck and we&apos;ll bring the solution.
+              A website, an app, an AI agent, or a workflow that should have been automated years ago — tell us where the hours go, and we&apos;ll show you how to get them back.
             </p>
           </div>
         </Reveal>
@@ -1450,7 +1452,7 @@ function Contact() {
             </div>
             <label className="mt-5 block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
               Message
-              <textarea required maxLength={5000} name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="What would you like to solve?" />
+              <textarea required maxLength={5000} name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="What should we automate first?" />
             </label>
             {TURNSTILE_SITE_KEY && <TurnstileWidget key={cfResetCount} onToken={setCfToken} />}
             <div className="mt-7 flex flex-wrap items-center gap-4">
@@ -1513,7 +1515,7 @@ function Footer() {
           <div className="max-w-sm">
             <img src="/logo-240.png" alt="3S Verse" className="h-5 w-auto" />
             <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
-              Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation for businesses that want to move faster.
+              Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation, built by people who have run the operations themselves.
             </p>
           </div>
           <div className="flex flex-wrap gap-x-14 gap-y-8">
