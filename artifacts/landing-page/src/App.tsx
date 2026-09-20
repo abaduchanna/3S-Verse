@@ -2,14 +2,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
-import InvoiceStudio from '@/pages/InvoiceStudio';
+/* Invoice Studio is a separate hash-route (#/invoice) used only when a
+   seller opens it — landing visitors should never pay its JS cost, so it
+   is code-split and fetched on demand. */
+const InvoiceStudio = lazy(() => import('@/pages/InvoiceStudio'));
 import DealerStore from '@/components/DealerStore';
 // NOTE: /order/:id + /admin routes were removed — they depended on the
 // Netlify server functions, which are dormant since the GitHub Pages deploy.
 // Orders now flow through FormSubmit inside DealerStore.tsx (static-safe).
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AnimatePresence, motion, useInView, useScroll, useSpring, type Variants } from 'framer-motion';
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, lazy, Suspense, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import {
   ArrowDownRight,
   ArrowRight,
@@ -80,6 +83,15 @@ function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; 
    v1 = hero spiral, v2 = integrate torus, v3 = sphere, v4 = segmented ring.
    Each shape drifts on a slow sine float; opt-in slow rotation via `spin`. */
 function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatDur = 9 }: { v: 1 | 2 | 3 | 4; className?: string; style?: CSSProperties; spin?: number; dir?: 1 | -1; floatY?: number; floatDur?: number }) {
+  /* Intrinsic sizes (kept in sync with public/shapes after recompression)
+     let the browser reserve space pre-load: no unsized-image jank. */
+  const dims: Record<1 | 2 | 3 | 4, [number, number]> = {
+    1: [900, 932],
+    2: [720, 652],
+    3: [640, 640],
+    4: [720, 713],
+  };
+  const [w, h] = dims[v];
   return (
     <motion.div
       aria-hidden="true"
@@ -91,6 +103,8 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
       <motion.img
         src={`/shapes/shape-v${v}.webp`}
         alt=""
+        width={w}
+        height={h}
         draggable={false}
         loading={v === 1 ? 'eager' : 'lazy'}
         fetchPriority={v === 1 ? 'high' : undefined}
@@ -198,13 +212,13 @@ function BrandCursor() {
       {/* the 27s loop, right of the pointer: logo chip → mini hero ring → mini footer orb */}
       <div ref={chipRef} className="brand-cursor-chip-anchor will-change-transform">
         <div className="brand-cursor-fade f-chip">
-          <img src="/logo-240.png" alt="" draggable={false} className="select-none" />
+          <img src="/logo-240.png" alt="" width={240} height={57} draggable={false} className="select-none" />
         </div>
         <div className="brand-cursor-fade f-ring">
-          <img src="/shapes/shape-v1.webp" alt="" draggable={false} />
+          <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} />
         </div>
         <div className="brand-cursor-fade f-orb">
-          <img src="/shapes/shape-v3.webp" alt="" draggable={false} />
+          <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} />
         </div>
       </div>
     </div>
@@ -390,7 +404,7 @@ function Nav() {
     <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/[.06] bg-[#060509]/75 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <a href="#top" data-testid="link-brand" className="shrink-0">
-          <img src="/logo-240.png" alt="3S Verse" className="h-5 w-auto object-contain" />
+          <img src="/logo-240.png" alt="3S Verse" width={240} height={57} className="h-5 w-auto object-contain" />
         </a>
         <nav className="hidden items-center gap-9 md:flex">
           {navItems.map((item) => (
@@ -445,7 +459,7 @@ function OpsPanel() {
     >
       <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <img src="/logo-240.png" alt="" className="h-3 w-auto opacity-90" />
+          <img src="/logo-240.png" alt="" width={240} height={57} className="h-3 w-auto opacity-90" />
           <span className="font-mono-tech text-[10px] tracking-[.22em] text-[#8d8a9e]">OPERATIONS / LIVE</span>
         </div>
         <div className="flex items-center gap-3 font-mono-tech text-[10px] text-[#6ee7ef]">
@@ -1545,7 +1559,7 @@ function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm">
-            <img src="/logo-240.png" alt="3S Verse" className="h-5 w-auto" />
+            <img src="/logo-240.png" alt="3S Verse" width={240} height={57} className="h-5 w-auto" />
             <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
               Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation, built by people who have run the operations themselves.
             </p>
@@ -1709,7 +1723,17 @@ function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
-  if (hash.startsWith('#/invoice')) return <InvoiceStudio />;
+  if (hash.startsWith('#/invoice')) {
+    return (
+      <Suspense fallback={
+        <div className="grid min-h-screen place-items-center bg-[#090D26] text-sm text-white/60" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+          Loading Invoice Studio…
+        </div>
+      }>
+        <InvoiceStudio />
+      </Suspense>
+    );
+  }
   return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
 }
 
