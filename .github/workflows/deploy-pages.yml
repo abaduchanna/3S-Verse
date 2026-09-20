@@ -3,8 +3,10 @@
 # kept only as a dormant fallback config.
 #
 # Publish dir: artifacts/landing-page/dist/public (vite.config.ts hard-requires
-# PORT and BASE_PATH, so both are pinned below). 404.html is a byte-copy of
-# index.html so client-side routes deep-link correctly (SPA fallback).
+# PORT and BASE_PATH, so both are pinned below). The 404.html shipped from
+# public/ routes friendly shortcuts (/invoice -> /#/invoice) and sends every
+# other unknown path back to the landing page — no SPA byte-copy needed since
+# the app only has the / route plus hash-routed views.
 
 name: Deploy landing page to GitHub Pages
 
@@ -47,9 +49,6 @@ jobs:
         env:
           PORT: 3000
           BASE_PATH: /
-
-      - name: SPA fallback (404.html)
-        run: cp artifacts/landing-page/dist/public/index.html artifacts/landing-page/dist/public/404.html
 
       - uses: actions/configure-pages@v5
 

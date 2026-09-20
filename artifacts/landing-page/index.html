@@ -78,6 +78,13 @@
          only normalizes the state the page starts in. */
       (function () {
         try { history.scrollRestoration = 'manual'; } catch (e) {}
+        /* Friendly shortcut: /invoice -> Invoice Studio (#/invoice). Covers
+           the window where an old SPA-fallback 404.html (a copy of this
+           index.html) is still served from a CDN edge for that path. */
+        if (location.pathname.replace(/\/+$/, '').toLowerCase() === '/invoice') {
+          location.replace(location.origin + '/#/invoice');
+          return;
+        }
         if (location.hash && !location.hash.startsWith('#/')) {
           /* "#/…" are app routes (e.g. #/invoice = Invoice Studio) — they
              must survive; only section anchors (#contact, …) are stripped. */
