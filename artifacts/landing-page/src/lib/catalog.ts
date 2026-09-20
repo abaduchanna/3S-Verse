@@ -44,6 +44,19 @@ export const LAUNCH_OFFER = {
   note: 'Introductory launch pricing — limited time.',
 } as const;
 
+/**
+ * Free-trial download pack. Paste a Google Drive FOLDER link here (folder,
+ * not file — folder links never change, so you can swap in a newer build
+ * zip whenever you want without touching the site again). Share the folder
+ * as "Anyone with the link — Viewer". Leave url as '' to hide every
+ * trial-download button on the storefront.
+ */
+export const TRIAL_DOWNLOAD = {
+  url: '',
+  label: 'Download trial pack (.zip)',
+  note: 'Windows 10/11 · all trial tools · activation key arrives by email',
+} as const;
+
 export const MODELS: ModelOption[] = [
   { id: 'trial', label: '7-Day Trial', note: 'Full features, 7 days, 1 PC' },
   { id: '1y', label: '1 Year', note: '12 months of updates included' },

@@ -3,6 +3,7 @@ import {
   BadgePercent,
   Check,
   Copy,
+  Download,
   Loader2,
   Minus,
   Plus,
@@ -15,6 +16,7 @@ import {
   MODELS,
   PRODUCTS,
   SEATS,
+  TRIAL_DOWNLOAD,
   discountPercent,
   formatUSD,
   listPrice,
@@ -301,6 +303,26 @@ export default function DealerStore() {
               {result.savingsLabel} vs list price.
             </p>
           ) : null}
+          {lines.some((l) => l.model === 'trial') && TRIAL_DOWNLOAD.url ? (
+            <div
+              data-testid="trial-download-success"
+              className="mb-6 rounded-xl border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.06] p-4"
+            >
+              <p className="text-[14px] font-medium text-white">Your order includes a free trial.</p>
+              <p className="mb-3 mt-1 text-[13px] font-light leading-5 text-[#b9b6c9]">{TRIAL_DOWNLOAD.note}</p>
+              <a
+                href={TRIAL_DOWNLOAD.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+              >
+                <Download className="h-4 w-4" /> {TRIAL_DOWNLOAD.label}
+              </a>
+              <p className="mt-2 text-[12px] text-[#8d8a9e]">
+                Enter the 7-day key we email you on first run.
+              </p>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={copyOrderSummary}
@@ -363,6 +385,18 @@ export default function DealerStore() {
                       );
                     })}
                   </div>
+                  {sel.model === 'trial' && TRIAL_DOWNLOAD.url ? (
+                    <a
+                      href={TRIAL_DOWNLOAD.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid={`trial-download-${product.id}`}
+                      className="flex items-center gap-2 rounded-xl border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.06] px-4 py-2.5 text-[13px] font-medium text-[#9fe8f2] transition-colors hover:border-[#6ee7ef]/60"
+                    >
+                      <Download className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 flex-1">{TRIAL_DOWNLOAD.label}</span>
+                    </a>
+                  ) : null}
                   <div className="flex items-end justify-between border-t border-white/[.07] pt-4">
                     <div>
                       {pct > 0 ? (
