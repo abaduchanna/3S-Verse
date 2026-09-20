@@ -45,6 +45,26 @@
   status = 200
   force = true
 
+# Dealer store APIs (order intake, customer order status, seller approval
+# console) — same ordering rule: BEFORE the SPA catch-all.
+[[redirects]]
+  from = "/api/order"
+  to = "/.netlify/functions/order"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/order-status"
+  to = "/.netlify/functions/order-status"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/admin"
+  to = "/.netlify/functions/admin"
+  status = 200
+  force = true
+
 # Single-page app: serve index.html for client-side routes (Netlify
 # serves real files first, so assets are unaffected).
 [[redirects]]

@@ -2,6 +2,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import DealerStore from '@/components/DealerStore';
+import OrderStatus from '@/pages/OrderStatus';
+import Admin from '@/pages/Admin';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AnimatePresence, motion, useInView, useScroll, useSpring, type Variants } from 'framer-motion';
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
@@ -246,33 +249,64 @@ function ScrollTop() {
   );
 }
 
+/* Ambient pointer spotlight. Perf-critical: this used to call setState on
+   EVERY pointermove (re-rendering the tree + driving a framer-motion spring
+   per event) — the single biggest main-thread cost on the page. Now it
+   lerps in a requestAnimationFrame loop with direct style writes, idles
+   when the pointer stops, and is disabled for touch devices and
+   reduced-motion users. Visual output is unchanged. */
 function Spotlight() {
-  const [pos, setPos] = useState<{ x: number; y: number; visible: boolean }>({ x: 0, y: 0, visible: false });
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const onMove = (e: PointerEvent) => setPos({ x: e.clientX, y: e.clientY, visible: true });
-    const onLeave = () => setPos((p) => ({ ...p, visible: false }));
-    window.addEventListener('pointermove', onMove);
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    let visible = false;
+    const target = { x: -700, y: -700 };
+    const pos = { x: -700, y: -700 };
+    const tick = () => {
+      pos.x += (target.x - pos.x) * 0.14;
+      pos.y += (target.y - pos.y) * 0.14;
+      el.style.transform = `translate3d(${(pos.x - 320).toFixed(1)}px, ${(pos.y - 320).toFixed(1)}px, 0)`;
+      raf = visible ? requestAnimationFrame(tick) : 0;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return;
+      target.x = e.clientX;
+      target.y = e.clientY;
+      if (!visible) {
+        visible = true;
+        pos.x = target.x;
+        pos.y = target.y;
+        el.style.opacity = '1';
+      }
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+    const onLeave = () => {
+      visible = false;
+      el.style.opacity = '0';
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
     window.addEventListener('pointerleave', onLeave);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerleave', onLeave);
     };
   }, []);
   return (
-    <motion.div
-      className="pointer-events-none fixed left-0 top-0 z-[20] h-[640px] w-[640px] rounded-full"
-      animate={{
-        x: pos.x - 320,
-        y: pos.y - 320,
-        opacity: pos.visible ? 1 : 0,
-        scale: pos.visible ? 1 : 0.6,
-      }}
-      transition={{ type: 'spring', stiffness: 80, damping: 24, mass: 1 }}
+    <div
+      ref={ref}
       aria-hidden="true"
+      className="pointer-events-none fixed left-0 top-0 z-[20] h-[640px] w-[640px] rounded-full opacity-0 transition-opacity duration-500 will-change-transform"
       style={{
         background:
           'radial-gradient(circle, rgba(110,231,239,.10) 0%, rgba(228,75,215,.06) 42%, transparent 70%)',
         filter: 'blur(6px)',
+        transform: 'translate3d(-700px, -700px, 0)',
       }}
     />
   );
@@ -992,11 +1026,7 @@ function Tools() {
             </AnimatePresence>
           </div>
         </Reveal>
-        <Reveal delay={0.15}>
-          <div className="mt-8 flex justify-center">
-            <BtnWhite href="#contact" testId="button-tools-demo">Get these tools working for you</BtnWhite>
-          </div>
-        </Reveal>
+        <DealerStore />
       </div>
     </section>
   );
@@ -1656,7 +1686,14 @@ function Home() {
 }
 
 function Router() {
-  return <Switch><Route path="/" component={Home} /><Route component={NotFound} /></Switch>;
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/order/:id" component={OrderStatus} />
+      <Route path="/admin" component={Admin} />
+      <Route component={NotFound} />
+    </Switch>
+  );
 }
 
 function App() {
