@@ -54,7 +54,7 @@ export const PRODUCTS: Product[] = [
       'One-click Excel workbook output',
       'Human-verification handled automatically',
     ],
-    prices: { trial: 0, '1y': 59, lifetime: 99 },
+    prices: { trial: 0, '1y': 499, lifetime: 1499 },
   },
   {
     id: 'ordering',
@@ -66,7 +66,7 @@ export const PRODUCTS: Product[] = [
       'Automatic human-verification handling',
       'Runs on a second screen, unattended',
     ],
-    prices: { trial: 0, '1y': 79, lifetime: 149 },
+    prices: { trial: 0, '1y': 599, lifetime: 1799 },
   },
   {
     id: 'rebate',
@@ -78,7 +78,7 @@ export const PRODUCTS: Product[] = [
       'Store login management built in',
       'Per-claim status tracking',
     ],
-    prices: { trial: 0, '1y': 99, lifetime: 199 },
+    prices: { trial: 0, '1y': 699, lifetime: 1999 },
   },
   {
     id: 'bundle',
@@ -90,7 +90,7 @@ export const PRODUCTS: Product[] = [
       'Priority support',
       'Everything the dealership needs',
     ],
-    prices: { trial: 0, '1y': 179, lifetime: 349 },
+    prices: { trial: 0, '1y': 1199, lifetime: 3000 },
   },
 ];
 
