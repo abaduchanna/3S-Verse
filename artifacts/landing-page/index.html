@@ -78,7 +78,9 @@
          only normalizes the state the page starts in. */
       (function () {
         try { history.scrollRestoration = 'manual'; } catch (e) {}
-        if (location.hash) {
+        if (location.hash && !location.hash.startsWith('#/')) {
+          /* "#/…" are app routes (e.g. #/invoice = Invoice Studio) — they
+             must survive; only section anchors (#contact, …) are stripped. */
           try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
         }
         scrollTo(0, 0);
