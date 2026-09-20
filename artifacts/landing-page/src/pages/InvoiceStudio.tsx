@@ -39,6 +39,11 @@ const DEFAULT_NOTES =
 
 const inputClass =
   'w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-2.5 text-[14px] text-white placeholder:text-[#6d6a80] outline-none transition-colors focus:border-[#6ee7ef]/60';
+/* Same as inputClass but without w-full — avoids the width conflict when a
+   fixed width is layered on top inside flex rows (w-full wins by stylesheet
+   order and squeezes the other flex children). */
+const fieldClass =
+  'rounded-xl border border-white/10 bg-white/[.04] px-4 py-2.5 text-[14px] text-white placeholder:text-[#6d6a80] outline-none transition-colors focus:border-[#6ee7ef]/60 [&>option]:bg-[#141320]';
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-[.16em] text-[#8b87a3]';
 
 interface Row {
@@ -303,7 +308,7 @@ export default function InvoiceStudio() {
                   <div key={index} className="rounded-xl border border-white/10 bg-white/[.02] p-3">
                     <div className="flex items-center gap-2">
                       <select
-                        className={inputClass + ' flex-1 [&>option]:bg-[#141320]'}
+                        className={fieldClass + ' w-full'}
                         value={row.productId}
                         onChange={(e) => patchRow(index, { productId: e.target.value })}
                       >
@@ -324,7 +329,7 @@ export default function InvoiceStudio() {
                     </div>
                     <div className="mt-2 flex items-center gap-2">
                       <select
-                        className={inputClass + ' flex-1 [&>option]:bg-[#141320]'}
+                        className={fieldClass + ' min-w-0 flex-1'}
                         value={row.model}
                         onChange={(e) => patchRow(index, { model: e.target.value as ModelId })}
                       >
@@ -335,7 +340,7 @@ export default function InvoiceStudio() {
                         ))}
                       </select>
                       <select
-                        className={inputClass + ' w-[110px] [&>option]:bg-[#141320]'}
+                        className={fieldClass + ' w-[118px] shrink-0'}
                         value={row.seats}
                         onChange={(e) => patchRow(index, { seats: e.target.value as SeatsId })}
                       >
@@ -349,7 +354,7 @@ export default function InvoiceStudio() {
                         type="number"
                         min={1}
                         max={10}
-                        className={inputClass + ' w-[76px]'}
+                        className={fieldClass + ' w-[76px] shrink-0 text-center'}
                         value={row.qty}
                         onChange={(e) =>
                           patchRow(index, { qty: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })
