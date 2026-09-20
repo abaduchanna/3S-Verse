@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import InvoiceStudio from '@/pages/InvoiceStudio';
 import DealerStore from '@/components/DealerStore';
 // NOTE: /order/:id + /admin routes were removed — they depended on the
 // Netlify server functions, which are dormant since the GitHub Pages deploy.
@@ -1577,6 +1578,7 @@ function Footer() {
                 <Eye className="h-3.5 w-3.5 text-[#6ee7ef]" />{visits.toLocaleString('en-US')} visitors
               </span>
             )}
+            <a href="#/invoice" data-testid="link-footer-invoice" className="transition-colors hover:text-white" title="Invoice Studio (seller)">Invoice</a>
             <a href="#top" data-testid="link-footer-top" className="transition-colors hover:text-white">Back to top ↑</a>
           </div>
         </div>
@@ -1646,6 +1648,9 @@ function Home() {
       if (!anchor) return;
       const href = anchor.getAttribute('href');
       if (!href || href === '#') return;
+      // Hash-routed app views (e.g. #/invoice) need native fragment
+      // navigation so the hashchange event fires and App() can remount.
+      if (href.startsWith('#/')) return;
       // A smooth scroll started in the same tick as the mobile menu's exit
       // animation gets canceled before it moves (reproduced: scrollY stayed
       // 0). Update the URL instantly, then scroll — immediately for normal
@@ -1696,6 +1701,15 @@ function Router() {
 }
 
 function App() {
+  // #/invoice — seller-only Invoice Studio, hash-routed so it stays
+  // static-safe on GitHub Pages (no SPA fallback needed for deep links).
+  const [hash, setHash] = useState(() => (typeof window === 'undefined' ? '' : window.location.hash));
+  useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+  if (hash.startsWith('#/invoice')) return <InvoiceStudio />;
   return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
 }
 
