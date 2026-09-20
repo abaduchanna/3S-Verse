@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>3S Verse — Redirecting…</title>
+<script>
+  /* GitHub Pages serves this file for any unknown path. Route friendly
+     shortcuts to their real homes: /invoice -> /#/invoice (Invoice
+     Studio, hash-routed so it stays static-safe). Everything else goes
+     to the landing page. */
+  (function () {
+    var path = location.pathname.replace(/\/+$/, '').toLowerCase();
+    if (path === '/invoice' || path === '/invoicestudio') {
+      location.replace(location.origin + '/#/invoice');
+      return;
+    }
+    location.replace(location.origin + '/');
+  })();
+</script>
+</head>
+<body></body>
+</html>
