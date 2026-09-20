@@ -1,0 +1,62 @@
+/**
+ * 3S Verse — automatic order invoice.
+ *
+ * Builds a complete InvoiceData straight from the DealerStore order lines,
+ * so the customer's success screen can show the real invoice the moment the
+ * order is placed — no manual step for the seller. Prices always come from
+ * the catalog (launch offer included) via catalogInvoiceItem.
+ */
+import {
+  INVOICE_DUE_DAYS,
+  catalogInvoiceItem,
+  dueDateISO,
+  invoiceNumberFromRef,
+  todayLong,
+  type InvoiceData,
+  type InvoiceItem,
+} from './invoice';
+import type { ModelId, SeatsId } from './catalog';
+
+export interface AutoOrderLine {
+  productId: string;
+  model: ModelId;
+  seats: SeatsId;
+  qty: number;
+}
+
+export interface AutoOrderInput {
+  ref: string;
+  name: string;
+  company?: string;
+  email: string;
+  notes?: string;
+  lines: AutoOrderLine[];
+}
+
+export function buildOrderInvoice(input: AutoOrderInput): InvoiceData {
+  const items = input.lines
+    .map((l) => catalogInvoiceItem(l.productId, l.model, l.seats, l.qty))
+    .filter((i): i is InvoiceItem => i !== null);
+
+  return {
+    invoiceNo: invoiceNumberFromRef(input.ref),
+    orderRef: input.ref,
+    date: todayLong(),
+    status: 'DUE',
+    validUntil: dueDateISO(INVOICE_DUE_DAYS),
+    customer: {
+      name: input.name,
+      company: input.company ?? '',
+      email: input.email,
+    },
+    paymentNote: 'Bank transfer · Wise · PayPal · USDT — pay within 7 days',
+    items,
+    keys: [],
+    notes:
+      (input.notes ? `${input.notes}\n\n` : '') +
+      `Pay by bank transfer, Wise, PayPal, or USDT — reply to Connect@3SVerse.com ` +
+      `with your payment receipt and order reference ${input.ref}. ` +
+      `License keys + download links are delivered right after payment is confirmed. ` +
+      `This invoice auto-cancels if payment is not received within ${INVOICE_DUE_DAYS} days.`,
+  };
+}

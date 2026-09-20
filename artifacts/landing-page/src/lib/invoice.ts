@@ -22,7 +22,10 @@ import {
   type SeatsId,
 } from './catalog';
 
-export type InvoiceStatus = 'PAID' | 'DUE';
+export type InvoiceStatus = 'PAID' | 'DUE' | 'CANCELLED';
+
+/** Unpaid invoices auto-cancel after this many days. */
+export const INVOICE_DUE_DAYS = 7;
 
 export interface InvoiceItem {
   name: string;
@@ -45,6 +48,8 @@ export interface InvoiceData {
   /** Long-form date, e.g. "September 20, 2026". */
   date: string;
   status: InvoiceStatus;
+  /** ISO due timestamp — DUE invoices auto-cancel past this point. */
+  validUntil?: string;
   customer: { name: string; company: string; email: string };
   paymentNote: string;
   items: InvoiceItem[];
@@ -131,16 +136,46 @@ export function todayLong(now = new Date()): string {
   return now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+/** ISO timestamp at end-of-day, `days` from now (invoice expiry). */
+export function dueDateISO(days = INVOICE_DUE_DAYS, now = new Date()): string {
+  const d = new Date(now.getTime());
+  d.setDate(d.getDate() + days);
+  d.setHours(23, 59, 59, 0);
+  return d.toISOString();
+}
+
+/** Long-form display of an ISO expiry timestamp. */
+export function formatDueLong(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return todayLong(d);
+}
+
+/** True when a DUE invoice is past its validUntil window. */
+export function isInvoiceExpired(data: Pick<InvoiceData, 'status' | 'validUntil'>): boolean {
+  if (data.status !== 'DUE' || !data.validUntil) return false;
+  const t = new Date(data.validUntil).getTime();
+  return !Number.isNaN(t) && Date.now() > t;
+}
+
 /* ===================================================================== */
 /*  Body renderer — email-safe, table-based, inline styles only.         */
 /* ===================================================================== */
 export function renderInvoiceBody(data: InvoiceData): string {
   const { listSubtotal, discount, total } = invoiceTotals(data.items);
   const paid = data.status === 'PAID';
+  const cancelled = data.status === 'CANCELLED';
 
-  const badge = paid
-    ? `<span style="display:inline-block;margin-top:10px;padding:5px 14px;border-radius:999px;background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;font-size:11px;font-weight:700;letter-spacing:.16em;">PAID</span>`
-    : `<span style="display:inline-block;margin-top:10px;padding:5px 14px;border-radius:999px;background:#fffbeb;border:1px solid #fde68a;color:#b45309;font-size:11px;font-weight:700;letter-spacing:.16em;">PAYMENT DUE</span>`;
+  const badge = cancelled
+    ? `<span id="inv-badge" style="display:inline-block;margin-top:10px;padding:5px 14px;border-radius:999px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:11px;font-weight:700;letter-spacing:.16em;">CANCELLED</span>`
+    : paid
+      ? `<span id="inv-badge" style="display:inline-block;margin-top:10px;padding:5px 14px;border-radius:999px;background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;font-size:11px;font-weight:700;letter-spacing:.16em;">PAID</span>`
+      : `<span id="inv-badge" style="display:inline-block;margin-top:10px;padding:5px 14px;border-radius:999px;background:#fffbeb;border:1px solid #fde68a;color:#b45309;font-size:11px;font-weight:700;letter-spacing:.16em;">PAYMENT DUE</span>`;
+
+  const cancelBanner = cancelled
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 6px;"><tr><td style="padding:12px 16px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;font-size:13px;font-weight:600;color:#b91c1c;">This invoice has been cancelled and is no longer payable. If you believe this is a mistake, contact Connect@3sverse.com with your order reference.</td></tr></table>`
+    : '';
 
   const detailRow = (label: string, value: string) =>
     `<tr>
@@ -175,7 +210,9 @@ export function renderInvoiceBody(data: InvoiceData): string {
 
   const parts: string[] = [];
 
-  parts.push(`<table role="presentation" class="inv-shell" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid ${HAIR};border-top:3px solid ${ACCENT};border-radius:6px;font-family:${FONT};">
+  if (cancelBanner) parts.push(cancelBanner);
+
+  parts.push(`<table role="presentation" class="inv-shell" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid ${HAIR};border-top:3px solid ${cancelled ? '#b91c1c' : ACCENT};border-radius:6px;font-family:${FONT};">
 <tr><td style="padding:0 36px;">`);
 
   /* header */
@@ -203,6 +240,7 @@ export function renderInvoiceBody(data: InvoiceData): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-left:auto;">
       ${detailRow('Invoice no', data.invoiceNo)}
       ${detailRow('Date', data.date)}
+      ${data.validUntil && !paid && !cancelled ? detailRow('Pay by', formatDueLong(data.validUntil)) : ''}
       ${data.orderRef ? detailRow('Order ref', data.orderRef) : ''}
       ${data.paymentNote ? detailRow('Payment', data.paymentNote) : ''}
     </table>
@@ -221,7 +259,7 @@ ${itemRows}
 </table>`);
 
   /* totals */
-  const totalLabel = paid ? 'Total paid (USD)' : 'Amount due (USD)';
+  const totalLabel = cancelled ? 'Total (USD)' : paid ? 'Total paid (USD)' : 'Amount due (USD)';
   parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
   <td style="padding:6px 0 26px;vertical-align:bottom;">
     ${data.orderRef ? `<div style="font-size:12px;color:${MUTED};">Reference: ${esc(data.orderRef)}</div>` : ''}
@@ -242,7 +280,10 @@ ${itemRows}
       </tr>
     </table>
   </td>
-</tr></table>`);
+</tr></table>
+${data.validUntil && !paid && !cancelled
+    ? `<div id="inv-expire-note" style="font-size:12px;color:${MUTED};text-align:right;margin:-14px 0 22px;">Invoice auto-cancels if unpaid by <strong style="color:${INK};">${esc(formatDueLong(data.validUntil))}</strong>.</div>`
+    : ''}`);
 
   /* keys */
   if (data.keys.length > 0) {
@@ -297,6 +338,31 @@ export function renderInvoiceDocument(data: InvoiceData): string {
 <div class="inv-wrap" style="padding:28px 12px;">
 ${renderInvoiceBody(data)}
 </div>
+${data.status === 'DUE' && data.validUntil
+    ? `<script>
+(function () {
+  /* Auto-cancel check — runs when the invoice FILE is opened in a browser.
+     Email clients strip scripts, so the emailed copy stays a static snapshot. */
+  try {
+    var until = new Date(${JSON.stringify(data.validUntil)}).getTime();
+    if (!isFinite(until) || Date.now() <= until) return;
+    var badge = document.getElementById('inv-badge');
+    if (badge) {
+      badge.textContent = 'CANCELLED \u2014 PAYMENT WINDOW EXPIRED';
+      badge.style.background = '#fef2f2';
+      badge.style.borderColor = '#fecaca';
+      badge.style.color = '#b91c1c';
+    }
+    var note = document.getElementById('inv-expire-note');
+    if (note) {
+      note.textContent = 'This invoice auto-cancelled \u2014 payment was not received within the window.';
+      note.style.color = '#b91c1c';
+      note.style.fontWeight = '600';
+    }
+  } catch (e) { /* never block the invoice view */ }
+})();
+</script>`
+    : ''}
 </body>
 </html>`;
 }
@@ -304,9 +370,14 @@ ${renderInvoiceBody(data)}
 /** Plain-text fallback used when pasting email as text or clipboard is blocked. */
 export function plainTextInvoice(data: InvoiceData): string {
   const { discount, total } = invoiceTotals(data.items);
+  const state =
+    data.status === 'PAID' ? 'PAID' : data.status === 'CANCELLED' ? 'CANCELLED' : 'PAYMENT DUE';
   const lines = [
-    `INVOICE ${data.invoiceNo} — 3S Verse (${data.status === 'PAID' ? 'PAID' : 'PAYMENT DUE'})`,
+    `INVOICE ${data.invoiceNo} — 3S Verse (${state})`,
     `Date: ${data.date}`,
+    data.status === 'DUE' && data.validUntil
+      ? `Pay by: ${formatDueLong(data.validUntil)} (invoice auto-cancels after this date)`
+      : '',
     `Order ref: ${data.orderRef || '—'}`,
     `Bill to: ${[data.customer.name, data.customer.company, data.customer.email].filter(Boolean).join(' · ')}`,
     '',

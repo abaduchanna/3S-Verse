@@ -21,7 +21,9 @@ import {
 import { MODELS, PRODUCTS, SEATS, formatUSD, seatsAllowedForModel, type ModelId, type SeatsId } from '@/lib/catalog';
 import {
   SAMPLE_INVOICE,
+  INVOICE_DUE_DAYS,
   catalogInvoiceItem,
+  dueDateISO,
   invoiceNumberFromRef,
   invoiceTotals,
   parseKeysText,
@@ -73,6 +75,14 @@ export default function InvoiceStudio() {
   const [orderRef, setOrderRef] = useState('');
   const [dateISO, setDateISO] = useState(todayISO());
   const [status, setStatus] = useState<InvoiceStatus>('PAID');
+  const [dueDays, setDueDays] = useState(INVOICE_DUE_DAYS);
+  const [cancelledRefs, setCancelledRefs] = useState<string[]>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem('3sv_cancelled_refs') || '[]') as string[];
+    } catch {
+      return [];
+    }
+  });
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
@@ -108,14 +118,22 @@ export default function InvoiceStudio() {
       orderRef: orderRef.trim(),
       date: dateLong,
       status,
+      /* DUE invoices auto-cancel N days after the invoice date. */
+      validUntil:
+        status === 'DUE' && dateISO
+          ? dueDateISO(dueDays, new Date(`${dateISO}T12:00:00`))
+          : undefined,
       customer: { name, company, email },
       paymentNote,
       items,
       keys: parseKeysText(keysText),
       notes,
     }),
-    [invoiceNo, orderRef, dateLong, status, name, company, email, paymentNote, items, keysText, notes],
+    [invoiceNo, orderRef, dateLong, status, dateISO, dueDays, name, company, email, paymentNote, items, keysText, notes],
   );
+
+  const refWasCancelled =
+    status !== 'CANCELLED' && orderRef.trim() !== '' && cancelledRefs.includes(orderRef.trim().toUpperCase());
 
   const previewDoc = useMemo(
     () => (items.length > 0 ? renderInvoiceDocument(draft) : ''),
@@ -281,8 +299,51 @@ export default function InvoiceStudio() {
                 <button type="button" className={pill(status === 'DUE')} onClick={() => setStatus('DUE')}>
                   Due
                 </button>
+                <button
+                  type="button"
+                  className={pill(status === 'CANCELLED')}
+                  onClick={() => {
+                    setStatus('CANCELLED');
+                    /* remember cancelled order refs on this device so a
+                       re-used ref triggers the warning below */
+                    const ref = orderRef.trim().toUpperCase();
+                    if (ref) {
+                      setCancelledRefs((prev) => {
+                        const next = prev.includes(ref) ? prev : [...prev, ref];
+                        try {
+                          window.localStorage.setItem('3sv_cancelled_refs', JSON.stringify(next));
+                        } catch {
+                          /* private mode — memory only */
+                        }
+                        return next;
+                      });
+                    }
+                  }}
+                >
+                  Cancelled
+                </button>
               </div>
             </div>
+            {status === 'DUE' ? (
+              <div className="mt-3 flex items-center gap-2">
+                <span className={labelClass + ' !mb-0'}>Auto-cancel after</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={dueDays}
+                  onChange={(e) => setDueDays(Math.max(1, Math.min(60, Number(e.target.value) || INVOICE_DUE_DAYS)))}
+                  className={fieldClass + ' w-[76px] text-center'}
+                />
+                <span className="text-[12px] text-[#8b87a3]">days unpaid (expiry shown on invoice)</span>
+              </div>
+            ) : null}
+            {refWasCancelled ? (
+              <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-2.5 text-[12.5px] text-amber-200/90">
+                Warning: is order ref ({orderRef.trim().toUpperCase()}) pe pehle koi invoice CANCEL
+                ho chuki hai — dobara check kar lo.
+              </p>
+            ) : null}
 
             <div className={labelClass + ' mt-5'}>Bill to</div>
             <div className="space-y-3">
@@ -406,7 +467,7 @@ export default function InvoiceStudio() {
                 </div>
               )}
               <div className="mt-2 flex justify-between border-t border-white/10 pt-2 text-[15px] font-bold">
-                <span>Total ({status === 'PAID' ? 'paid' : 'due'})</span>
+                <span>Total ({status === 'PAID' ? 'paid' : status === 'CANCELLED' ? 'cancelled' : 'due'})</span>
                 <span>{formatUSD(totals.total)}</span>
               </div>
             </div>

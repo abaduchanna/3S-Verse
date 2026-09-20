@@ -4,9 +4,12 @@ import {
   Check,
   Copy,
   Download,
+  FileText,
   Loader2,
+  MailCheck,
   Minus,
   Plus,
+  Printer,
   ShieldCheck,
   ShoppingCart,
   Trash2,
@@ -25,6 +28,13 @@ import {
   type ModelId,
   type SeatsId,
 } from '@/lib/catalog';
+import { buildOrderInvoice } from '@/lib/autoinvoice';
+import {
+  formatDueLong,
+  renderInvoiceDocument,
+  type InvoiceData,
+} from '@/lib/invoice';
+import { emailInvoiceHtml, emailjsConfigured } from '@/lib/notify';
 
 const ORDER_EMAIL = 'connect@3sverse.com';
 
@@ -66,6 +76,8 @@ export default function DealerStore() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<OrderResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [invoice, setInvoice] = useState<InvoiceData | null>(null);
+  const [invoiceEmailed, setInvoiceEmailed] = useState(false);
 
   const total = useMemo(
     () =>
@@ -155,6 +167,37 @@ export default function DealerStore() {
     }
   };
 
+  /* ---------- auto invoice actions ---------- */
+  const downloadInvoice = () => {
+    if (!invoice) return;
+    const blob = new Blob([renderInvoiceDocument(invoice)], {
+      type: 'text/html;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${invoice.invoiceNo || '3SVerse-invoice'}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
+  const openInvoicePdf = () => {
+    if (!invoice) return;
+    // Open the print-ready invoice in a new tab; the browser's print dialog
+    // saves it as PDF. A floating button re-opens the dialog any time.
+    const doc = renderInvoiceDocument(invoice).replace(
+      '</body>',
+      `<div onclick="window.print()" style="position:fixed;top:14px;right:14px;z-index:99;background:#0e7c8c;color:#fff;font:600 13px/1.2 -apple-system,'Segoe UI',Roboto,sans-serif;padding:11px 18px;border-radius:999px;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,.28);">Save as PDF / Print</div>` +
+        `<script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},700);});</` + `script>`,
+    );
+    const blob = new Blob([doc], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener');
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (submitting || lines.length === 0) return;
@@ -162,6 +205,16 @@ export default function DealerStore() {
     setError('');
 
     const ref = `3SV-${Date.now().toString(36).toUpperCase()}`;
+    // The order IS the invoice: auto-build it from the exact lines the
+    // customer picked, so no manual invoice step is ever needed.
+    const autoInvoice = buildOrderInvoice({
+      ref,
+      name: form.name.trim(),
+      company: form.company.trim(),
+      email: form.email.trim(),
+      notes: form.notes.trim(),
+      lines,
+    });
     const placed = (viaFallback: boolean): OrderResult => ({
       ref,
       totalLabel: formatUSD(total),
@@ -222,7 +275,20 @@ export default function DealerStore() {
         window.clearTimeout(timeoutId);
       }
       if (!response.ok || payload?.success !== 'true') throw new Error('order relay failed');
+      setInvoice(autoInvoice);
       setResult(placed(false));
+      // Auto-email the invoice to the customer (EmailJS). Fire-and-forget:
+      // the success screen must never wait on the mail relay.
+      if (emailjsConfigured()) {
+        void emailInvoiceHtml({
+          to: autoInvoice.customer.email,
+          name: autoInvoice.customer.name,
+          invoiceNo: autoInvoice.invoiceNo,
+          orderRef: autoInvoice.orderRef,
+          totalLabel: formatUSD(total),
+          html: renderInvoiceDocument(autoInvoice),
+        }).then((ok) => setInvoiceEmailed(ok));
+      }
     } catch {
       // Relay unreachable — never lose the order: hand it to the visitor's
       // own email client with everything pre-filled.
@@ -233,6 +299,7 @@ export default function DealerStore() {
       } catch {
         /* mailto blocked — the order summary is still on screen */
       }
+      setInvoice(autoInvoice);
       setResult(placed(true));
     } finally {
       setSubmitting(false);
@@ -270,7 +337,8 @@ export default function DealerStore() {
             <div>
               <p className="text-[17px] font-medium text-white">Order placed — {result.ref}</p>
               <p className="text-[13.5px] text-[#b9b6c9]">
-                Total {result.totalLabel} · a copy of these details was sent to the 3S Verse team.
+                Total {result.totalLabel} · your invoice is ready below · a copy of these details
+                was sent to the 3S Verse team.
               </p>
             </div>
           </div>
@@ -285,18 +353,61 @@ export default function DealerStore() {
           </p>
           <ol className="mb-6 max-w-2xl space-y-2.5 text-[14px] font-light leading-6 text-[#b9b6c9]">
             <li className="flex gap-2.5">
-              <span className="font-mono-tech text-[#6ee7ef]">1.</span> We email / WhatsApp you a
-              secure invoice (bank transfer, Wise, PayPal, or USDT).
+              <span className="font-mono-tech text-[#6ee7ef]">1.</span> Your invoice is ready right
+              here — download it or open the PDF version below (it is also emailed to you).
             </li>
             <li className="flex gap-2.5">
-              <span className="font-mono-tech text-[#6ee7ef]">2.</span> You pay and share the
-              payment receipt with us.
+              <span className="font-mono-tech text-[#6ee7ef]">2.</span> You pay within the due
+              window (bank transfer, Wise, PayPal, or USDT) and share the payment receipt with us.
             </li>
             <li className="flex gap-2.5">
               <span className="font-mono-tech text-[#6ee7ef]">3.</span> Your license key(s) +
               download links are delivered — usually within a few hours.
             </li>
           </ol>
+          {invoice ? (
+            <div
+              data-testid="auto-invoice-card"
+              className="mb-6 rounded-xl border border-white/10 bg-white/[.03] p-4"
+            >
+              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <FileText className="h-4 w-4 text-[#6ee7ef]" />
+                <p className="text-[14px] font-medium text-white">
+                  Invoice {invoice.invoiceNo} — ready
+                </p>
+                {invoiceEmailed ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#6ee7ef]/10 px-2.5 py-1 text-[12px] font-medium text-[#6ee7ef]">
+                    <MailCheck className="h-3.5 w-3.5" /> emailed to {invoice.customer.email}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mb-3 text-[13px] font-light text-[#b9b6c9]">
+                Amount due {result.totalLabel}
+                {invoice.validUntil ? ` · pay by ${formatDueLong(invoice.validUntil)}` : ''} — the
+                invoice auto-cancels if unpaid by then.
+              </p>
+              <div className="flex flex-wrap gap-2.5">
+                <button
+                  type="button"
+                  onClick={openInvoicePdf}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                >
+                  <Printer className="h-4 w-4" /> Open PDF (new tab)
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadInvoice}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-[13.5px] font-medium text-white transition-colors hover:border-white/40"
+                >
+                  <Download className="h-4 w-4" /> Download invoice
+                </button>
+              </div>
+              <p className="mt-2 text-[12px] text-[#8d8a9e]">
+                PDF opens print-ready in a new tab — choose “Save as PDF”. Keep it for your
+                accounts.
+              </p>
+            </div>
+          ) : null}
           {result.savingsLabel ? (
             <p className="mb-6 flex items-center gap-2 text-[13.5px] text-[#6ee7ef]">
               <BadgePercent className="h-4 w-4" /> Launch offer applied — you save{' '}
