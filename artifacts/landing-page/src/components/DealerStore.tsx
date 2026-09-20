@@ -1,15 +1,30 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Check, Copy, Loader2, Minus, Plus, ShieldCheck, ShoppingCart, Trash2 } from 'lucide-react';
 import {
+  BadgePercent,
+  Check,
+  Copy,
+  Loader2,
+  Minus,
+  Plus,
+  ShieldCheck,
+  ShoppingCart,
+  Trash2,
+} from 'lucide-react';
+import {
+  LAUNCH_OFFER,
   MODELS,
   PRODUCTS,
   SEATS,
+  discountPercent,
   formatUSD,
+  listPrice,
   seatsAllowedForModel,
   unitPrice,
   type ModelId,
   type SeatsId,
 } from '@/lib/catalog';
+
+const ORDER_EMAIL = 'connect@3sverse.com';
 
 interface Line {
   productId: string;
@@ -19,12 +34,10 @@ interface Line {
 }
 
 interface OrderResult {
-  id: string;
-  token: string;
+  ref: string;
   totalLabel: string;
-  statusUrl: string;
-  paymentInstructions: string;
-  emailHint?: string;
+  savingsLabel: string;
+  viaFallback: boolean;
 }
 
 const inputClass =
@@ -57,6 +70,18 @@ export default function DealerStore() {
       lines.reduce((sum, l) => {
         const product = PRODUCTS.find((p) => p.id === l.productId);
         return product ? sum + unitPrice(product, l.model, l.seats) * l.qty : sum;
+      }, 0),
+    [lines],
+  );
+
+  const savings = useMemo(
+    () =>
+      lines.reduce((sum, l) => {
+        const product = PRODUCTS.find((p) => p.id === l.productId);
+        return product
+          ? sum +
+              (listPrice(product, l.model, l.seats) - unitPrice(product, l.model, l.seats)) * l.qty
+          : sum;
       }, 0),
     [lines],
   );
@@ -96,14 +121,35 @@ export default function DealerStore() {
     setLines((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const copyStatusUrl = async () => {
+  const orderSummaryText = (res: OrderResult) =>
+    [
+      `Order ${res.ref} — 3S Verse Dealer Store`,
+      ...lines.map((l) => {
+        const product = PRODUCTS.find((p) => p.id === l.productId);
+        if (!product) return '';
+        return `• ${product.name} · ${MODELS.find((m) => m.id === l.model)?.label} · ${
+          SEATS.find((s) => s.id === l.seats)?.label
+        } × ${l.qty} — ${formatUSD(unitPrice(product, l.model, l.seats) * l.qty)}`;
+      }),
+      `Total: ${res.totalLabel}`,
+      res.savingsLabel ? `Launch offer: ${res.savingsLabel} saved vs list` : '',
+      `Name: ${form.name}`,
+      `Email: ${form.email}`,
+      form.company ? `Company: ${form.company}` : '',
+      form.messenger ? `Telegram/WhatsApp: ${form.messenger}` : '',
+      form.notes ? `Notes: ${form.notes}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+  const copyOrderSummary = async () => {
     if (!result) return;
     try {
-      await navigator.clipboard.writeText(new URL(result.statusUrl, window.location.origin).href);
+      await navigator.clipboard.writeText(orderSummaryText(result));
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      /* clipboard unavailable — the link is visible for manual copy */
+      /* clipboard unavailable — the summary stays visible on screen */
     }
   };
 
@@ -112,30 +158,80 @@ export default function DealerStore() {
     if (submitting || lines.length === 0) return;
     setSubmitting(true);
     setError('');
-    try {
-      const res = await fetch('/api/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          items: lines.map(({ productId, model, seats }) => ({ productId, model, seats })),
+
+    const ref = `3SV-${Date.now().toString(36).toUpperCase()}`;
+    const placed = (viaFallback: boolean): OrderResult => ({
+      ref,
+      totalLabel: formatUSD(total),
+      savingsLabel: savings > 0 ? formatUSD(savings) : '',
+      viaFallback,
+    });
+    const summary = orderSummaryText(placed(false));
+
+    // Static hosting (GitHub Pages) has no server functions, so orders go
+    // through FormSubmit — the same relay the contact form uses. The very
+    // first submission emails a one-time activation link to the seller inbox.
+    const fields: Record<string, string> = {
+      order_ref: ref,
+      name: form.name.trim().slice(0, 120),
+      email: form.email.trim().slice(0, 254),
+      company: form.company.trim().slice(0, 160),
+      messenger: form.messenger.trim().slice(0, 120),
+      notes: form.notes.trim().slice(0, 1000),
+      ...Object.fromEntries(
+        lines.map((l, i) => {
+          const product = PRODUCTS.find((p) => p.id === l.productId);
+          if (!product) return [`item_${i + 1}`, 'unknown item'];
+          const discounted = discountPercent(product, l.model, l.seats) > 0;
+          return [
+            `item_${i + 1}`,
+            `${product.name} · ${MODELS.find((m) => m.id === l.model)?.label} · ${
+              SEATS.find((s) => s.id === l.seats)?.label
+            } × ${l.qty} = ${formatUSD(unitPrice(product, l.model, l.seats) * l.qty)}` +
+              (discounted
+                ? ` (list ${formatUSD(listPrice(product, l.model, l.seats) * l.qty)})`
+                : ''),
+          ];
         }),
-      });
-      const data = (await res.json()) as Record<string, unknown> & OrderResult;
-      if (!res.ok || !data.ok) {
-        setError(String(data.error ?? 'Could not place the order — please try again.'));
-        return;
+      ),
+      total_usd: formatUSD(total),
+      launch_offer:
+        savings > 0 ? `applied — customer saves ${formatUSD(savings)} vs list` : 'n/a',
+      _subject: `License order ${ref} — ${formatUSD(total)}`,
+      _template: 'table',
+      _captcha: 'false',
+      _replyto: form.email.trim().slice(0, 254),
+    };
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+      let response: Response;
+      let payload: { success?: string } | null = null;
+      try {
+        response = await fetch(`https://formsubmit.co/ajax/${ORDER_EMAIL}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(fields),
+          signal: controller.signal,
+        });
+        payload = (await response.json().catch(() => null)) as { success?: string } | null;
+      } finally {
+        window.clearTimeout(timeoutId);
       }
-      setResult({
-        id: data.id,
-        token: data.token,
-        totalLabel: data.totalLabel ?? formatUSD(total),
-        statusUrl: data.statusUrl,
-        paymentInstructions: data.paymentInstructions ?? '',
-        emailHint: data.emailHint,
-      });
+      if (!response.ok || payload?.success !== 'true') throw new Error('order relay failed');
+      setResult(placed(false));
     } catch {
-      setError('Network error — check your connection and try again.');
+      // Relay unreachable — never lose the order: hand it to the visitor's
+      // own email client with everything pre-filled.
+      try {
+        window.location.href = `mailto:${ORDER_EMAIL}?subject=${encodeURIComponent(
+          fields._subject,
+        )}&body=${encodeURIComponent(summary)}`;
+      } catch {
+        /* mailto blocked — the order summary is still on screen */
+      }
+      setResult(placed(true));
     } finally {
       setSubmitting(false);
     }
@@ -153,6 +249,10 @@ export default function DealerStore() {
           </h3>
         </div>
         <p className="max-w-md text-[14px] font-light leading-6 text-[#b9b6c9]">
+          {LAUNCH_OFFER.active ? (
+            <span className="text-[#6ee7ef]">{LAUNCH_OFFER.label} — every license is discounted
+            below list price for a limited time. </span>
+          ) : null}
           Pick a tool, choose a model, and place your order. USD billing — pay by bank transfer,
           Wise, PayPal, or USDT. License keys and download links are delivered after payment
           confirmation.
@@ -166,48 +266,57 @@ export default function DealerStore() {
               <Check className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[17px] font-medium text-white">Order placed — {result.id}</p>
+              <p className="text-[17px] font-medium text-white">Order placed — {result.ref}</p>
               <p className="text-[13.5px] text-[#b9b6c9]">
                 Total {result.totalLabel} · a copy of these details was sent to the 3S Verse team.
               </p>
             </div>
           </div>
-          <p className="mb-2 text-[13px] font-medium uppercase tracking-[.14em] text-[#8d8a9e]">
-            Your order status link — save it
-          </p>
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-            <code className="flex-1 overflow-x-auto rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 font-mono-tech text-[13px] text-[#d8d5e8]">
-              {typeof window !== 'undefined'
-                ? new URL(result.statusUrl, window.location.origin).href
-                : result.statusUrl}
-            </code>
-            <button
-              type="button"
-              onClick={copyStatusUrl}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[14px] font-medium text-white transition-colors hover:border-white/40"
-            >
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? 'Copied' : 'Copy link'}
-            </button>
-          </div>
-          <p className="mb-2 text-[13px] font-medium uppercase tracking-[.14em] text-[#8d8a9e]">
-            How payment works
-          </p>
-          <p className="max-w-2xl text-[14px] font-light leading-6 text-[#b9b6c9]">
-            {result.paymentInstructions}
-          </p>
-          {result.emailHint ? (
-            <p className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-3 text-[13px] text-amber-200/90">
-              Note: the seller notification could not be emailed automatically
-              ({result.emailHint}). The order is safely stored and visible in the admin console.
+          {result.viaFallback ? (
+            <p className="mb-6 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-3 text-[13px] text-amber-200/90">
+              Your email app just opened with the order pre-filled — press send there so the order
+              reaches us.
             </p>
           ) : null}
+          <p className="mb-2 text-[13px] font-medium uppercase tracking-[.14em] text-[#8d8a9e]">
+            What happens next
+          </p>
+          <ol className="mb-6 max-w-2xl space-y-2.5 text-[14px] font-light leading-6 text-[#b9b6c9]">
+            <li className="flex gap-2.5">
+              <span className="font-mono-tech text-[#6ee7ef]">1.</span> We email / WhatsApp you a
+              secure invoice (bank transfer, Wise, PayPal, or USDT).
+            </li>
+            <li className="flex gap-2.5">
+              <span className="font-mono-tech text-[#6ee7ef]">2.</span> You pay and share the
+              payment receipt with us.
+            </li>
+            <li className="flex gap-2.5">
+              <span className="font-mono-tech text-[#6ee7ef]">3.</span> Your license key(s) +
+              download links are delivered — usually within a few hours.
+            </li>
+          </ol>
+          {result.savingsLabel ? (
+            <p className="mb-6 flex items-center gap-2 text-[13.5px] text-[#6ee7ef]">
+              <BadgePercent className="h-4 w-4" /> Launch offer applied — you save{' '}
+              {result.savingsLabel} vs list price.
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={copyOrderSummary}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[14px] font-medium text-white transition-colors hover:border-white/40"
+          >
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? 'Copied' : 'Copy order summary'}
+          </button>
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
           {PRODUCTS.map((product) => {
             const sel = selections[product.id];
             const price = unitPrice(product, sel.model, sel.seats);
+            const list = listPrice(product, sel.model, sel.seats);
+            const pct = discountPercent(product, sel.model, sel.seats);
             return (
               <div
                 key={product.id}
@@ -256,8 +365,18 @@ export default function DealerStore() {
                   </div>
                   <div className="flex items-end justify-between border-t border-white/[.07] pt-4">
                     <div>
+                      {pct > 0 ? (
+                        <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-md bg-[#6ee7ef]/10 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[.12em] text-[#6ee7ef]">
+                          <BadgePercent className="h-3 w-3" /> {LAUNCH_OFFER.label} −{pct}%
+                        </p>
+                      ) : null}
                       <p className="text-[26px] font-light leading-none text-white">
                         {price === 0 ? 'Free' : formatUSD(price)}
+                        {pct > 0 ? (
+                          <span className="ml-2 text-[14px] text-[#8d8a9e] line-through">
+                            {formatUSD(list)}
+                          </span>
+                        ) : null}
                       </p>
                       <p className="mt-1 text-[11.5px] text-[#8d8a9e]">
                         {sel.model === 'trial'
@@ -339,6 +458,16 @@ export default function DealerStore() {
                 </div>
               );
             })}
+            {savings > 0 ? (
+              <div className="flex items-center justify-between px-1 pt-1">
+                <span className="flex items-center gap-1.5 text-[13px] text-[#6ee7ef]">
+                  <BadgePercent className="h-3.5 w-3.5" /> {LAUNCH_OFFER.label} — you save
+                </span>
+                <span className="text-[14px] font-medium text-[#6ee7ef]">
+                  {formatUSD(savings)}
+                </span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between px-1 pt-1">
               <span className="text-[14px] text-[#b9b6c9]">Total (USD)</span>
               <span className="text-[20px] font-light text-white">{formatUSD(total)}</span>

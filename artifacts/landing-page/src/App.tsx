@@ -3,8 +3,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import DealerStore from '@/components/DealerStore';
-import OrderStatus from '@/pages/OrderStatus';
-import Admin from '@/pages/Admin';
+// NOTE: /order/:id + /admin routes were removed — they depended on the
+// Netlify server functions, which are dormant since the GitHub Pages deploy.
+// Orders now flow through FormSubmit inside DealerStore.tsx (static-safe).
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AnimatePresence, motion, useInView, useScroll, useSpring, type Variants } from 'framer-motion';
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
@@ -1689,8 +1690,6 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/order/:id" component={OrderStatus} />
-      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );

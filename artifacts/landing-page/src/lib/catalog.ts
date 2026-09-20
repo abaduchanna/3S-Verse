@@ -28,9 +28,21 @@ export interface Product {
   name: string;
   tagline: string;
   features: string[];
-  /** Price per model in whole USD. */
+  /** Regular (list) price per model in whole USD. */
   prices: Record<ModelId, number>;
+  /** Launch-offer price per model in whole USD (optional — falls back to list). */
+  launchPrices?: Partial<Record<ModelId, number>>;
 }
+
+/**
+ * Launch offer — site-wide introductory discount. Flip `active` to false to
+ * end the promotion; UI and emails fall back to list prices automatically.
+ */
+export const LAUNCH_OFFER = {
+  active: true,
+  label: 'Launch Offer',
+  note: 'Introductory launch pricing — limited time.',
+} as const;
 
 export const MODELS: ModelOption[] = [
   { id: 'trial', label: '7-Day Trial', note: 'Full features, 7 days, 1 PC' },
@@ -55,6 +67,7 @@ export const PRODUCTS: Product[] = [
       'Human-verification handled automatically',
     ],
     prices: { trial: 0, '1y': 499, lifetime: 1499 },
+    launchPrices: { trial: 0, '1y': 299, lifetime: 899 },
   },
   {
     id: 'ordering',
@@ -67,6 +80,7 @@ export const PRODUCTS: Product[] = [
       'Runs on a second screen, unattended',
     ],
     prices: { trial: 0, '1y': 599, lifetime: 1799 },
+    launchPrices: { trial: 0, '1y': 349, lifetime: 999 },
   },
   {
     id: 'rebate',
@@ -79,6 +93,7 @@ export const PRODUCTS: Product[] = [
       'Per-claim status tracking',
     ],
     prices: { trial: 0, '1y': 699, lifetime: 1999 },
+    launchPrices: { trial: 0, '1y': 399, lifetime: 1199 },
   },
   {
     id: 'bundle',
@@ -91,6 +106,7 @@ export const PRODUCTS: Product[] = [
       'Everything the dealership needs',
     ],
     prices: { trial: 0, '1y': 1199, lifetime: 3000 },
+    launchPrices: { trial: 0, '1y': 699, lifetime: 1499 },
   },
 ];
 
@@ -99,10 +115,30 @@ export function seatsAllowedForModel(model: ModelId): SeatsId[] {
   return model === 'trial' ? ['1pc'] : SEATS.map((s) => s.id);
 }
 
-export function unitPrice(product: Product, model: ModelId, seats: SeatsId): number {
+/** Price with NO promotion applied (used for the struck-through list price). */
+export function listPrice(product: Product, model: ModelId, seats: SeatsId): number {
   const base = product.prices[model] ?? 0;
   const seat = SEATS.find((s) => s.id === seats);
   return Math.round(base * (seat?.multiplier ?? 1));
+}
+
+export function unitPrice(product: Product, model: ModelId, seats: SeatsId): number {
+  const seat = SEATS.find((s) => s.id === seats);
+  const multiplier = seat?.multiplier ?? 1;
+  if (LAUNCH_OFFER.active) {
+    const launch = product.launchPrices?.[model];
+    if (typeof launch === 'number') return Math.round(launch * multiplier);
+  }
+  const base = product.prices[model] ?? 0;
+  return Math.round(base * multiplier);
+}
+
+/** Percent off the list price for the current promotion (0 when none). */
+export function discountPercent(product: Product, model: ModelId, seats: SeatsId): number {
+  const list = listPrice(product, model, seats);
+  const unit = unitPrice(product, model, seats);
+  if (list <= 0 || unit >= list) return 0;
+  return Math.round((1 - unit / list) * 100);
 }
 
 export function productById(id: string): Product | undefined {
