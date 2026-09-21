@@ -1,0 +1,10 @@
+"""license_core.py (mock — hook behind failing conditional import)"""
+try:
+    from license_server_hooks import trial_server_sync
+except ImportError:
+    pass
+
+
+def ensure_licensed(feature=None):
+    trial_server_sync()
+    return True

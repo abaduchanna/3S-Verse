@@ -1,0 +1,6 @@
+"""license_core.py (mock — healthy, star import + hook defined)"""
+from trial_helpers import *
+
+def ensure_licensed(feature=None):
+    trial_server_sync()
+    return True

@@ -1,0 +1,23 @@
+"""license_core.py (mock, broken — user's exact case)"""
+import os
+import json
+
+MODE = "TRIAL"
+TRIAL_DAYS = 7
+
+
+def _load_state():
+    return {"activated": False, "expires": None}
+
+
+def trial_server_status():
+    # extra hook that DOES exist — must not be touched
+    return "offline"
+
+
+def ensure_licensed(feature=None):
+    state = _load_state()
+    if not state["activated"]:
+        # line ~1113 equivalent
+        trial_server_sync()
+    return True
