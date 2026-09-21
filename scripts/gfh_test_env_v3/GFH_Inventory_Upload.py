@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================
-#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3 (SHEET-AWARE)
+#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.1 (CREDENTIAL FIX)
 # ============================================================
 #  Kya karta hai:
 #    Aap ki Excel (.xlsx) ya CSV file ke SAARE rows read kar ke
@@ -9,7 +9,8 @@
 #
 #  2 MODES (khud choose karta hai):
 #    1) CREDENTIAL MODE (secure): Folder mein agar Firebase ki
-#       service-account JSON mili (jaise firebase-credentials.json)
+#       service-account JSON mili (naam: credential.json - bas itna
+#       hi naam kaafi hai, lamba naam ki zaroorat nahi)
 #       to usi se login kar ke upload karta hai.
 #       -> Is mode mein chahe Firebase rules lock hon, chalega.
 #       -> Credential file SIRF apne paas rakho, kisi ko na do,
@@ -271,35 +272,77 @@ def fb_request(url, method="GET", payload=None, timeout=600):
 
 def find_credential():
     """Folder mein Firebase service-account JSON dhundta hai.
-       (backup files aur bina private_key wali files ignore)"""
+       STEP 1: credential.json (exact naam - chhota naam kaafi hai)
+       STEP 2: baaki .json files (backup/temp files ignore)
+       Notepad se save hui files (BOM / UTF-16 / ANSI) bhi read hoti hain.
+       Returns: (path, data, issue)
+         - path+data : credential mili
+         - issue     : file mili thi par valid service-account key NAHI (wajah ke sath)
+         - teeno None: folder mein koi credential nahi"""
     folder = os.path.dirname(os.path.abspath(__file__))
+
+    def load_json(p):
+        last_err = None
+        for enc in ("utf-8-sig", "utf-16", "cp1252"):
+            try:
+                with open(p, "r", encoding=enc) as f:
+                    return json.load(f), None
+            except Exception as e:
+                last_err = e
+                continue
+        return None, last_err
+
+    def is_service_account(d):
+        return (isinstance(d, dict)
+                and str(d.get("private_key") or "").strip() != ""
+                and str(d.get("client_email") or "").strip() != "")
+
+    def check_file(p):
+        data, err = load_json(p)
+        if is_service_account(data):
+            return data, None
+        if isinstance(data, dict):
+            missing = [k for k in ("private_key", "client_email")
+                       if not str(data.get(k) or "").strip()]
+            return None, (f"{os.path.basename(p)} mili thi lekin ye Firebase "
+                          f"service-account key nahi lagti (missing/corrupt: "
+                          f"{', '.join(missing) if missing else 'private_key khali hai'})")
+        return None, (f"{os.path.basename(p)} mili thi lekin read nahi ho saki "
+                      f"(sahi JSON nahi hai: {str(err)[:100]})")
+
+    # STEP 1: user ka standard naam - credential.json
+    p = os.path.join(folder, "credential.json")
+    if os.path.isfile(p):
+        data, issue = check_file(p)
+        if data is not None:
+            return p, data, None
+        return None, None, issue
+
+    # STEP 2: folder ki doosri .json files (alphabetical)
     for fn in sorted(os.listdir(folder)):
         if not fn.lower().endswith(".json") or fn.startswith("~$"):
             continue
-        p = os.path.join(folder, fn)
-        try:
-            with open(p, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict) and "private_key" in data and "client_email" in data:
-                return p, data
-        except Exception:
-            continue
-    return None, None
+        p2 = os.path.join(folder, fn)
+        data, issue = check_file(p2)
+        if data is not None:
+            return p2, data, None
+    return None, None, None
 
 
 def try_admin_upload(node, payload):
     """Mode 1: service-account credential se secure upload.
-       Returns: True (kamyaab), False (fail - fallback banta hai), None (credential nahi mili)"""
-    cred_path, cred = find_credential()
+       Returns: (True, None) kamyaab | (False, None) fail -> fallback
+                | (None, issue) credential nahi mili (issue = wajah ya None)"""
+    cred_path, cred, cred_issue = find_credential()
     if not cred_path:
-        return None
+        return None, cred_issue
     print(f"[MODE] Credential file mili: {os.path.basename(cred_path)}")
     pid = (cred.get("project_id") or "").strip()
     if pid and pid != PROJECT_ID:
         print(f"[WARN] Credential ka project '{pid}' hai, expected '{PROJECT_ID}' - phir bhi try karta hoon.")
     if not ensure_firebase_admin():
         print("[WARN] firebase-admin install nahi ho saka - direct mode use karunga.")
-        return False
+        return False, None
     try:
         import firebase_admin
         from firebase_admin import credentials as fbcred
@@ -313,11 +356,11 @@ def try_admin_upload(node, payload):
         t0 = time.time()
         fdb.reference(node).set(payload)
         print(f"[OK] Upload ho gaya! (credential mode, {time.time() - t0:.0f} sec)")
-        return True
+        return True, None
     except Exception as e:
         print(f"[WARN] Credential se upload fail: {str(e)[:200]}")
         print("       Direct method se try karta hoon...")
-        return False
+        return False, None
 
 
 def upload(payload, dry_run=False, node=DATA_NODE):
@@ -339,12 +382,16 @@ def upload(payload, dry_run=False, node=DATA_NODE):
         print("\n  YAAD RAHE: Upload poore dashboard ka data REPLACE kar dega.")
         input("  Upload shuru karne ke liye ENTER dabao (cancel = Ctrl+C): ")
 
-    admin_ok = try_admin_upload(node, payload)
+    admin_ok, cred_issue = try_admin_upload(node, payload)
     if admin_ok is True:
         print("\n  Dashboard kholo aur refresh karo:  https://gfhinventorydashboard.netlify.app")
         return
     if admin_ok is None:
-        print("[MODE] Credential file nahi mili - direct method (bina login).")
+        if cred_issue:
+            print(f"[MODE] {cred_issue}")
+            print("[MODE] Direct method use kar raha hoon (bina login).")
+        else:
+            print("[MODE] Credential file nahi mili - direct method (bina login).")
 
     print("[UPLOAD] Data bhej raha hoon... (11 MB tak lag sakta hai, tab mat band karna)")
     t0 = time.time()

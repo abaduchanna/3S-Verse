@@ -1,4 +1,4 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3 (SHEET-AWARE + CREDENTIAL)
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.1 (SHEET + CREDENTIAL FIX)
 =========================================================================
 
 Ye wo file hai jo lost ho gayi thi. Ye aap ki Excel/CSV data
@@ -17,9 +17,15 @@ SHEET (TAB) KA RULE (v3 naya)
 2 MODES (script khud choose karta hai)
 --------------------------------------
 1) CREDENTIAL MODE (secure):
-   Apni Firebase credential JSON file isi folder mein rakho
-   (koi bhi naam chalega, jaise firebase-credentials.json).
+   Firebase credential JSON file isi folder mein rakho.
+   NAAM: credential.json - bas itna hi naam kaafi hai,
+   lamba naam banane ki zaroorat nahi.
    Script khud dhundh kar usi se login kar ke upload karegi.
+   (Notepad se save hui file bhi chalegi - BOM/encoding khud
+   handle ho jata hai.)
+   Agar file mili par valid nahi (koi cheez missing hai), to
+   script saaf bata degi ki masla kya hai - chup-chaap skip
+   nahi karegi.
    Fayda: Firebase rules LOCK hon tab bhi chalega.
 
 2) DIRECT MODE (fallback):
