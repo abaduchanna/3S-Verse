@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-400.woff2') format('woff2');font-weight:400;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-600.woff2') format('woff2');font-weight:600;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-700.woff2') format('woff2');font-weight:700;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-800.woff2') format('woff2');font-weight:800;}
+  @font-face{font-family:'DM Mono';src:url('fonts/dm-mono-latin-400.woff2') format('woff2');font-weight:400;}
+  @font-face{font-family:'DM Mono';src:url('fonts/dm-mono-latin-500.woff2') format('woff2');font-weight:500;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1200px;height:630px;overflow:hidden;}
+  body{
+    font-family:'Montserrat',sans-serif;color:#F1F5F9;
+    background:
+      radial-gradient(560px 560px at 92% 30%, rgba(59,130,246,.18), transparent 60%),
+      radial-gradient(420px 420px at 55% 110%, rgba(16,185,129,.10), transparent 60%),
+      linear-gradient(150deg,#090D26 0%,#0F1F3D 60%,#0A1628 100%);
+    position:relative;
+  }
+  .shape1{position:absolute;right:-130px;top:-140px;width:560px;opacity:.36;}
+  .shape2{position:absolute;right:200px;bottom:-210px;width:430px;opacity:.22;}
+  .wrap{position:relative;z-index:2;height:100%;display:flex;padding:40px 60px 36px 60px;gap:40px;}
+  .left{flex:1.25;display:flex;flex-direction:column;align-items:flex-start;}
+  .logo-badge{background:#0A1628;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:8px 15px;display:inline-flex;}
+  .logo-badge img{height:36px;display:block;}
+  .label{font-family:'DM Mono';font-size:13px;letter-spacing:5px;color:#60A5FA;font-weight:500;margin-top:16px;}
+  h1{font-size:56px;line-height:1.05;font-weight:800;margin-top:10px;letter-spacing:-1.5px;}
+  h1 .grad{background:linear-gradient(92deg,#60A5FA,#3B82F6 55%,#10B981);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{font-size:19px;font-weight:400;color:#94A3B8;margin-top:12px;line-height:1.35;}
+  .chips{display:flex;flex-direction:column;gap:9px;margin-top:16px;}
+  .chip{display:flex;align-items:center;gap:11px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:9px 16px;font-size:17px;font-weight:600;white-space:nowrap;}
+  .cta{margin-top:20px;display:inline-flex;align-items:center;gap:14px;background:linear-gradient(92deg,#3B82F6,#2563EB);color:#fff;font-size:20px;font-weight:700;padding:14px 32px;border-radius:12px;box-shadow:0 14px 34px rgba(37,99,235,.35);}
+  .url{font-family:'DM Mono';font-size:15px;color:#93C5FD;margin-top:10px;letter-spacing:1px;}
+  .right{flex:.85;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .pill{display:inline-flex;align-items:center;gap:12px;border:1.5px solid rgba(16,185,129,.55);background:rgba(10,22,40,.85);color:#6EE7B7;border-radius:999px;padding:10px 20px;font-family:'DM Mono';font-size:14px;font-weight:500;letter-spacing:1.5px;position:absolute;top:22px;right:0;box-shadow:0 10px 30px rgba(0,0,0,.35);}
+  .dot{width:9px;height:9px;border-radius:50%;background:#10B981;box-shadow:0 0 12px #10B981;}
+  .foot{position:absolute;bottom:12px;right:0;font-family:'DM Mono';font-size:12px;color:#64748B;letter-spacing:1px;}
+</style>
+</head>
+<body>
+  <img class="shape1" src="shape-v1.webp">
+  <img class="shape2" src="shape-v3.webp">
+  <div class="wrap">
+    <div class="left">
+      <div class="logo-badge"><img src="logo-240.png"></div>
+      <div class="label">VIDAPAY DEALER TOOLS</div>
+      <h1>Run your store<br><span class="grad">on autopilot.</span></h1>
+      <div class="sub">Incentives, ordering and rebates — automated<br>for VidaPay dealers.</div>
+      <div class="chips">
+        <div class="chip"><svg width="17" height="17" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="#10B981" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Incentive Extractor</div>
+        <div class="chip"><svg width="17" height="17" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="#10B981" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Ordering Bot</div>
+        <div class="chip"><svg width="17" height="17" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke="#10B981" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>Rebate Filing</div>
+      </div>
+      <div class="cta">DOWNLOAD FREE TRIAL</div>
+      <div class="url">3sverse.com</div>
+    </div>
+    <div class="right">
+      <div class="pill"><span class="dot"></span>7-DAY FREE TRIAL • NO KEY</div>
+      <div class="foot">WINDOWS 10/11</div>
+    </div>
+  </div>
+</body>
+</html>
