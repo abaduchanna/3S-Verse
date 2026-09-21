@@ -1,10 +1,16 @@
 3S VERSE - SOCIAL MEDIA POSTS (INSTAGRAM / FACEBOOK / LINKEDIN)
 ================================================================
 
-NOTE: Har caption ke end mein apna download link paste kar dena
-(Google Drive folder ka link ya 3sverse.com). Instagram pe link
-caption mein clickable nahi hota — bio mein lagao, caption mein
-sirf "link in bio" likha hai.
+LIVE DOWNLOAD LINKS (abhi check kiye — dono kaam kar rahe hain)
+----------------------------------------------------------------
+1) GFH Inventory Uploader (PERMANENT — kabhi expire nahi hoga):
+   https://3sverse.com/download/GFH-Uploader.zip
+2) Backup link (72 ghantay baad expire — Sept 24 tak chalega):
+   https://litter.catbox.moe/sc9ncp.zip
+
+NOTE: Instagram pe caption ka link clickable nahi hota — GFH link
+apni bio mein lagao, caption mein sirf "link in bio" likha hai.
+Facebook/LinkedIn mein link caption mein directly paste karo.
 
 ---------------------------------------------------------------
 INSTAGRAM  (image: 3sverse_insta.png — 1080x1080)
@@ -22,6 +28,9 @@ No license key. No sign-up. Just download and start working.
 
 Free trial pack - link in bio.
 
+P.S. GFH Inventory Uploader bhi FREE hai — Excel/CSV se Firebase
+upload ek click mein. Bio link se download karo.
+
 #3SVerse #VidaPay #TelecomSoftware #RetailAutomation #WirelessDealer #PhoneStoreOwner #CellPhoneBusiness #InventoryManagement #RebateManagement #SmallBusinessTools #BusinessAutomation #FreeTrial #TechForDealers #StoreOwner #SmallBusinessGrowth
 
 ---------------------------------------------------------------
@@ -38,7 +47,11 @@ Still doing incentives, orders and rebates by hand?
 
 Try everything FREE for 7 days — no license key, no sign-up. Works on Windows 10/11.
 
-Download the trial pack: [YAHAN APNA LINK Dalo]
+Trial pack: https://3sverse.com
+
+Also 100% free — GFH Inventory Uploader: upload 35,000+ inventory
+rows from Excel/CSV to Firebase in one click.
+https://3sverse.com/download/GFH-Uploader.zip
 
 #3SVerse #VidaPay #RetailAutomation #TelecomSoftware #BusinessTools #FreeTrial #WirelessDealer
 
@@ -56,7 +69,12 @@ We built three tools to change that:
 
 All three are available as a 7-day free trial. No license key required — download, install on Windows 10/11, and start working.
 
-Try it here: [YAHAN APNA LINK Dalo]
+Try it here: https://3sverse.com
+
+Also free: GFH Inventory Uploader — move 35,000+ inventory rows
+from Excel/CSV into Firebase with a single click, with a safe
+backup mode built in.
+https://3sverse.com/download/GFH-Uploader.zip
 
 If you run a wireless retail operation or manage its back office, we would love your feedback.
 
