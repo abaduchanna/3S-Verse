@@ -235,7 +235,7 @@ export default function InvoiceStudio() {
     // Map sample items back to catalog rows so prices recompute live.
     const rowMap: Row[] = [
       { productId: 'bundle', model: 'lifetime', seats: '5pc', qty: 1 },
-      { productId: 'extractor', model: '1y', seats: '1pc', qty: 1 },
+      { productId: 'extractor', model: 'lifetime', seats: '1pc', qty: 1 },
     ];
     setRows(rowMap);
     setKeysText(SAMPLE_INVOICE.keys.map((k) => `${k.label}: ${k.key}`).join('\n'));

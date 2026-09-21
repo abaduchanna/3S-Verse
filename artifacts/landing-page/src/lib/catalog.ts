@@ -8,7 +8,7 @@
  * All prices in USD. Edit prices here and redeploy — nothing else to touch.
  */
 
-export type ModelId = 'trial' | '1y' | 'lifetime';
+export type ModelId = 'trial' | 'lifetime';
 export type SeatsId = '1pc' | '5pc';
 
 export interface ModelOption {
@@ -41,7 +41,7 @@ export interface Product {
 export const LAUNCH_OFFER = {
   active: true,
   label: 'Launch Offer',
-  note: 'Introductory launch pricing — limited time.',
+  note: 'Launch pricing for the first 50 dealers — after that, list price.',
 } as const;
 
 /**
@@ -58,9 +58,8 @@ export const TRIAL_DOWNLOAD = {
 } as const;
 
 export const MODELS: ModelOption[] = [
-  { id: 'trial', label: '7-Day Trial', note: 'Full features, 7 days, 1 PC' },
-  { id: '1y', label: '1 Year', note: '12 months of updates included' },
-  { id: 'lifetime', label: 'Lifetime', note: 'Yours forever, updates included' },
+  { id: 'trial', label: '7-Day Free Trial', note: 'Full features, 7 days, 1 PC — no card needed' },
+  { id: 'lifetime', label: 'Lifetime', note: 'Pay once — yours forever, updates included. No subscription, ever.' },
 ];
 
 export const SEATS: SeatsOption[] = [
@@ -79,8 +78,8 @@ export const PRODUCTS: Product[] = [
       'One-click Excel workbook output',
       'Human-verification handled automatically',
     ],
-    prices: { trial: 0, '1y': 499, lifetime: 1499 },
-    launchPrices: { trial: 0, '1y': 299, lifetime: 899 },
+    prices: { trial: 0, lifetime: 1499 },
+    launchPrices: { trial: 0, lifetime: 899 },
   },
   {
     id: 'ordering',
@@ -92,8 +91,8 @@ export const PRODUCTS: Product[] = [
       'Automatic human-verification handling',
       'Runs on a second screen, unattended',
     ],
-    prices: { trial: 0, '1y': 599, lifetime: 1799 },
-    launchPrices: { trial: 0, '1y': 349, lifetime: 999 },
+    prices: { trial: 0, lifetime: 1799 },
+    launchPrices: { trial: 0, lifetime: 999 },
   },
   {
     id: 'rebate',
@@ -105,8 +104,8 @@ export const PRODUCTS: Product[] = [
       'Store login management built in',
       'Per-claim status tracking',
     ],
-    prices: { trial: 0, '1y': 699, lifetime: 1999 },
-    launchPrices: { trial: 0, '1y': 399, lifetime: 1199 },
+    prices: { trial: 0, lifetime: 1999 },
+    launchPrices: { trial: 0, lifetime: 1199 },
   },
   {
     id: 'bundle',
@@ -118,8 +117,8 @@ export const PRODUCTS: Product[] = [
       'Priority support',
       'Everything the dealership needs',
     ],
-    prices: { trial: 0, '1y': 1199, lifetime: 3000 },
-    launchPrices: { trial: 0, '1y': 699, lifetime: 1499 },
+    prices: { trial: 0, lifetime: 3000 },
+    launchPrices: { trial: 0, lifetime: 1499 },
   },
 ];
 

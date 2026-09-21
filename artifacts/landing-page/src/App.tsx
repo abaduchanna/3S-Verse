@@ -22,7 +22,9 @@ import {
   Bot,
   Boxes,
   Check,
+  Clock,
   Database,
+  Download,
   Eye,
   Facebook,
   Globe2,
@@ -32,6 +34,7 @@ import {
   Network,
   Package,
   Play,
+  Plus,
   ShieldCheck,
   Smartphone,
   Sparkles,
@@ -395,6 +398,7 @@ const navItems = [
   { label: 'What we offer', href: '#services' },
   { label: 'How it works', href: '#how' },
   { label: 'Dealer tools', href: '#tools' },
+  { label: 'FAQ', href: '#faq' },
   { label: 'Reviews', href: '#reviews' },
 ];
 
@@ -894,14 +898,16 @@ function Outcomes() {
   );
 }
 
-/* Dealer tools — template's "Use cases" tabbed card, with the two VidaPay
-   portal tools by their FULL names (always, everywhere). */
+/* Dealer tools — template's "Use cases" tabbed card, with the three VidaPay
+   portal tools by their FULL names (always, everywhere). Positioned for the
+   dealership's FRONT OFFICE (owner / office manager / admin staff) — these
+   are back-office tools, not counter apps for sales reps. */
 const TOOLS = [
   {
     id: 'extractor',
     tab: 'VidaPay Incentive Extractor',
     title: 'VidaPay Incentive Extractor',
-    blurb: 'Every rebate, spiff, and incentive pulled straight out of the VidaPay portal into one clean sheet. No screenshots, no retyping, no missed dollars — built for dealers who live in VidaPay every week.',
+    blurb: 'Every rebate, spiff, and incentive pulled straight out of the VidaPay portal into one clean sheet. No screenshots, no retyping, no missed dollars — built for the front office that reconciles VidaPay every week.',
     chips: [
       { icon: FileSpreadsheet, label: 'Rebate tracking' },
       { icon: ClipboardCheck, label: 'Claim matching' },
@@ -937,7 +943,7 @@ const TOOLS = [
     id: 'ordering',
     tab: 'VidaPay Device Ordering',
     title: 'VidaPay Device Ordering',
-    blurb: 'Device orders for every store, placed in minutes — pick the model, set per-store quantities, submit once. Wrong-SKU, wrong-store chaos, gone for good.',
+    blurb: 'Device orders for every branch, placed in minutes — pick the model, set per-store quantities, submit once. The front office stops babysitting the portal; wrong-SKU, wrong-store chaos is gone for good.',
     chips: [
       { icon: ShoppingCart, label: 'Bulk ordering' },
       { icon: Store, label: 'Per-store quantities' },
@@ -969,6 +975,42 @@ const TOOLS = [
       </div>
     ),
   },
+  {
+    id: 'rebate',
+    tab: 'VidaPay Rebate Filing',
+    title: 'VidaPay Rebate Filing',
+    blurb: 'Every eligible rebate filed in bulk — with per-claim status you can check any time. The money the front office used to leave on the table, now filed and tracked to the last claim.',
+    chips: [
+      { icon: FileSpreadsheet, label: 'Bulk filing' },
+      { icon: ClipboardCheck, label: 'Templates + validation' },
+      { icon: History, label: 'Per-claim status' },
+      { icon: TrendingUp, label: 'Nothing missed' },
+    ],
+    tags: ['Rebates', 'Bulk', 'Status tracking', 'Validation'],
+    visual: (
+      <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-5">
+        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
+          <span>Rebate claims · Batch 12</span><span className="rounded border border-[#6ee7ef]/30 px-1.5 py-0.5 text-[#6ee7ef]">FILED</span>
+        </div>
+        <div className="mt-4 space-y-2.5">
+          {[
+            ['Vendor rebates — 24 claims', 'PAID'],
+            ['Activation spiffs — 41 claims', 'FILED'],
+            ['Bundle bonuses — 18 claims', 'QUEUED'],
+          ].map(([claim, status], i) => (
+            <motion.div key={claim} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-white/[.07] bg-white/[.02] px-3.5 py-2.5">
+              <span className="text-[13px] text-[#d8d5e8]">{claim}</span>
+              <span className={`font-mono-tech text-[11px] ${status === 'PAID' ? 'text-[#c7ef70]' : status === 'FILED' ? 'text-[#6ee7ef]' : 'text-[#e44bd7]'}`}>{status}</span>
+            </motion.div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-white/[.07] pt-3.5">
+          <span className="font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">83 claims this batch</span>
+          <span className="text-[20px] font-light tracking-tight text-white">$9,140.00</span>
+        </div>
+      </div>
+    ),
+  },
 ];
 
 function Tools() {
@@ -982,10 +1024,10 @@ function Tools() {
           <div className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <Kicker magenta>04 — Dealer tools</Kicker>
-              <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">Tools that run the store floor</h2>
+              <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">Built for the front office</h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              Two production systems born inside a real multi-store wireless operation — battle-tested every week by dealers who rely on them.
+              Born inside a real multi-store wireless operation — the owner&apos;s back office, not the sales counter. Commissions, ordering, and rebates run on these tools while your reps keep selling.
             </p>
           </div>
           <div className="mb-6 flex flex-wrap gap-3" role="tablist" aria-label="VidaPay tools">
@@ -1048,6 +1090,169 @@ function Tools() {
   );
 }
 
+/* Before/After — the manual grind vs the 3S Verse front office, side by side.
+   Ends with the free-forever GFH Inventory Uploader strip. */
+const COMPARE_ROWS: Array<[string, string, string]> = [
+  [
+    'Incentive & rebate data',
+    'Screenshots + retyping into Excel — hours every week, typos included',
+    'One run — every rebate, spiff, and claim in a clean workbook',
+  ],
+  [
+    'Missed money',
+    'Unclaimed rebates quietly expire — $500–$2,000/month for a typical dealer',
+    'Every eligible claim extracted, filed, and tracked to PAID',
+  ],
+  [
+    'Device ordering',
+    'Portal opened store by store — wrong SKU, wrong store, re-orders',
+    'All branches in one guided submit — per-store quantities, zero guesswork',
+  ],
+  [
+    'Growth',
+    'More stores = proportionally more hours at the desk',
+    'More stores, same minutes — the workload does not scale with the store count',
+  ],
+  [
+    'Cost shape',
+    'Labor hours you never invoice, month after month',
+    'One-time license — no subscription, pays for itself within weeks',
+  ],
+];
+
+function Compare() {
+  return (
+    <section id="compare" className="relative overflow-hidden py-28 lg:py-36">
+      <div className="mx-auto max-w-7xl px-5 lg:px-8">
+        <Reveal>
+          <div className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <Kicker>05 — Manual vs 3S Verse</Kicker>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+                The same week, <span className="text-[#6ee7ef]">two ways.</span>
+              </h2>
+            </div>
+            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+              Nothing theoretical — this is the exact work your front office does today, before and after the tools take it over.
+            </p>
+          </div>
+        </Reveal>
+        <Reveal delay={0.08}>
+          <div className="overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11]">
+            <div className="hidden grid-cols-[1.1fr_1.3fr_1.3fr] border-b border-white/[.07] font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e] md:grid">
+              <div className="px-6 py-4">The work</div>
+              <div className="border-x border-white/[.07] px-6 py-4 text-[#e44bd7]">Manual today</div>
+              <div className="px-6 py-4 text-[#6ee7ef]">With 3S Verse</div>
+            </div>
+            {COMPARE_ROWS.map(([work, before, after], i) => (
+              <div
+                key={work}
+                className={`grid gap-3 border-b border-white/[.05] px-6 py-5 last:border-b-0 md:grid-cols-[1.1fr_1.3fr_1.3fr] md:items-center md:gap-0 md:px-0 md:py-0 ${i % 2 ? 'bg-white/[.015]' : ''}`}
+              >
+                <div className="text-[14.5px] font-medium text-white md:border-r-0 md:px-6">{work}</div>
+                <div className="flex items-start gap-2.5 border-white/[.07] text-[13.5px] font-light leading-6 text-[#b9b6c9] md:border-x md:border-b-0 md:px-6 md:py-5">
+                  <X className="mt-0.5 h-4 w-4 shrink-0 text-[#e44bd7]" />{before}
+                </div>
+                <div className="flex items-start gap-2.5 text-[13.5px] font-light leading-6 text-[#d8d5e8] md:px-6 md:py-5">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#6ee7ef]" />{after}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+        <Reveal delay={0.14}>
+          <div className="mt-6 flex flex-col items-start justify-between gap-5 rounded-3xl border border-[#c7ef70]/25 bg-[#c7ef70]/[.05] p-7 sm:flex-row sm:items-center sm:p-8">
+            <div className="flex items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#c7ef70]/40 bg-white/[.04] text-[#c7ef70]">
+                <Boxes className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="flex flex-wrap items-center gap-2.5 text-[16px] font-medium text-white">
+                  GFH Inventory Uploader <span className="rounded-md bg-[#c7ef70]/15 px-2 py-0.5 font-mono-tech text-[9px] uppercase tracking-[.16em] text-[#c7ef70]">Free forever</span>
+                </p>
+                <p className="mt-1.5 max-w-xl text-[13.5px] font-light leading-6 text-[#b9b6c9]">
+                  Push your inventory Excel straight into your live dashboard in one run — column checking, backups, and safe errors included. Ours forever free, for every dealer.
+                </p>
+              </div>
+            </div>
+            <BtnGhost href="#contact" testId="button-compare-gfh" className="shrink-0">Ask for it</BtnGhost>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* FAQ — the questions dealers actually ask before they buy, answered in
+   plain English. Native <details> accordion: zero JS cost, keyboard-safe. */
+const FAQ_ITEMS: Array<{ q: string; a: string }> = [
+  {
+    q: 'Do the tools run under my own VidaPay login?',
+    a: 'Yes. Everything runs on your own Windows PC under your own dealer login. Your VidaPay credentials stay on your machine — the tools never send them anywhere, and each license is machine-locked to the PC you activate it on.',
+  },
+  {
+    q: 'I run multiple stores. Will it keep up?',
+    a: 'That is exactly what they were built for. All three tools were born inside a real multi-store wireless operation — per-store dashboards, per-store ordering quantities, and bulk claim filing across every branch are the default, not an add-on. Licenses come in 1 PC and 5 PC editions, and larger groups get flat volume pricing.',
+  },
+  {
+    q: 'Is this a subscription?',
+    a: 'No — and it never will be. A lifetime license is one payment and it is yours forever, updates included. There is no monthly rent, no renewal fee, no per-seat surprises. The only recurring thing here is the money you stop losing.',
+  },
+  {
+    q: 'What is the difference between the free trial and lifetime?',
+    a: 'The trial is the full software, free for 7 days on 1 PC — no card required, no feature locks. Lifetime is the same software with the clock removed: one payment, every future update, and support on WhatsApp and email.',
+  },
+  {
+    q: 'What happens when VidaPay updates their portal?',
+    a: 'Portals change — that is the reality of the job. Updates are included with every lifetime license, so when the portal moves, the tools move with it. The tools also handle the portal’s human-verification steps automatically instead of freezing mid-run.',
+  },
+  {
+    q: 'What do I need to run it?',
+    a: 'A Windows 10 or 11 PC, your VidaPay dealer login, and Excel for the outputs. That is the whole checklist. The GFH Inventory Uploader is included free forever and needs only a Firebase dashboard to push to.',
+  },
+  {
+    q: 'How do payment and delivery work?',
+    a: 'Place the order and a proper invoice opens in your browser instantly (PDF-ready, emailed to you). Pay by bank transfer, Wise, PayPal, or USDT, share the receipt, and your license keys plus download links arrive — usually within a few hours.',
+  },
+  {
+    q: 'What if it does not work out for my dealership?',
+    a: 'Every license carries a 30-day money-back guarantee. If a tool does not do what this page promises on your dealership’s data, tell us within 30 days of delivery and we refund you — no drama, no forms.',
+  },
+];
+
+function Faq() {
+  return (
+    <section id="faq" className="relative overflow-hidden py-28 lg:py-36">
+      <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-16 h-[360px] w-[640px] -translate-x-1/2 rounded-full bg-[#e44bd7]/[.05] blur-[130px]" />
+      <div className="relative mx-auto max-w-4xl px-5 lg:px-8">
+        <Reveal>
+          <div className="mb-12 text-center">
+            <Kicker>06 — Straight answers</Kicker>
+            <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+              Questions dealers <span className="text-[#e44bd7]">actually ask.</span>
+            </h2>
+          </div>
+        </Reveal>
+        <Reveal delay={0.08}>
+          <div className="overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11]">
+            {FAQ_ITEMS.map(({ q, a }, i) => (
+              <details key={q} data-testid={`faq-item-${i}`} className="group border-b border-white/[.06] last:border-b-0">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 px-7 py-5 text-left transition-colors hover:bg-white/[.02] [&::-webkit-details-marker]:hidden">
+                  <span className="text-[15.5px] font-medium leading-6 text-white">{q}</span>
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-[#6ee7ef] transition-transform duration-300 group-open:rotate-45">
+                    <Plus className="h-3.5 w-3.5" />
+                  </span>
+                </summary>
+                <p className="px-7 pb-6 pr-14 text-[14px] font-light leading-7 text-[#b9b6c9]">{a}</p>
+              </details>
+            ))}
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 /* Reviews — template's testimonial card with highlighted phrases. */
 function Reviews() {
   const reviews = [
@@ -1076,7 +1281,7 @@ function Reviews() {
         <Reveal>
           <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
-              <Kicker>05 — Client reviews</Kicker>
+              <Kicker>07 — Client reviews</Kicker>
               <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
                 People who run on <span className="text-[#6ee7ef]">3S Verse.</span>
               </h2>
@@ -1370,7 +1575,7 @@ function TurnstileWidget({ onToken }: { onToken: (token: string) => void }) {
 }
 
 function Contact() {
-  const [form, setForm] = useState({ name: '', email: '', organization: '', message: '', website: '' });
+  const [form, setForm] = useState({ name: '', email: '', organization: '', locations: '2–5 stores', interest: 'Dealer tools (Extractor / Ordering / Rebate)', message: '', website: '' });
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [serverNote, setServerNote] = useState('');
   const [cfToken, setCfToken] = useState('');
@@ -1403,8 +1608,10 @@ function Contact() {
       name: cleanName,
       email: cleanEmail,
       organization: cleanOrganization,
+      locations: form.locations,
+      interest: form.interest,
       message: cleanMessage,
-      _subject: `New project inquiry — ${cleanName}${cleanOrganization ? ` (${cleanOrganization})` : ''}`,
+      _subject: `New inquiry — ${cleanName}${cleanOrganization ? ` (${cleanOrganization})` : ''} · ${form.locations}`,
       _template: 'table',
       _captcha: 'false',
       _replyto: cleanEmail,
@@ -1434,7 +1641,7 @@ function Contact() {
         throw new Error('Contact submission failed');
       }
 
-      setForm({ name: '', email: '', organization: '', message: '', website: '' });
+      setForm({ name: '', email: '', organization: '', locations: '2–5 stores', interest: 'Dealer tools (Extractor / Ordering / Rebate)', message: '', website: '' });
       setCfToken('');
       setCfResetCount((count) => count + 1);
       setSubmitStatus('success');
@@ -1444,7 +1651,7 @@ function Contact() {
       try {
         const subject = encodeURIComponent(fields._subject);
         const body = encodeURIComponent(
-          `Name: ${form.name}\nEmail: ${form.email}\nOrganization: ${form.organization || '—'}\n\n${form.message}`,
+          `Name: ${form.name}\nEmail: ${form.email}\nOrganization: ${form.organization || '—'}\nLocations: ${form.locations}\nInterested in: ${form.interest}\n\n${form.message}`,
         );
         window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
         setServerNote('your email app just opened with the message pre-filled — press send there');
@@ -1472,7 +1679,7 @@ function Contact() {
               Bring us the <span className="text-[#6ee7ef]">bottleneck.</span>
             </h2>
             <p className="mx-auto mt-6 max-w-xl text-[16px] font-light leading-8 text-[#b9b6c9]">
-              A website, an app, an AI agent, or a workflow that should have been automated years ago — tell us where the hours go, and we&apos;ll show you how to get them back.
+              Dealer tools for your front office, a website, an app, an AI agent, or a workflow that should have been automated years ago — two clicks below tells us where the hours go, and we&apos;ll show you how to get them back.
             </p>
           </div>
         </Reveal>
@@ -1494,6 +1701,25 @@ function Contact() {
               <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e] sm:col-span-2">
                 Organization
                 <input required maxLength={160} name="organization" value={form.organization} onChange={(event) => { setForm((current) => ({ ...current, organization: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-organization" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="Company or organization" />
+              </label>
+              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                Locations you run
+                <select name="locations" value={form.locations} onChange={(event) => { setForm((current) => ({ ...current, locations: event.target.value })); setSubmitStatus('idle'); }} data-testid="select-contact-locations" className="mt-2 w-full appearance-none rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors focus:border-[#6ee7ef]/70">
+                  <option className="bg-[#0b0a11]">Just exploring</option>
+                  <option className="bg-[#0b0a11]">1 store</option>
+                  <option className="bg-[#0b0a11]">2–5 stores</option>
+                  <option className="bg-[#0b0a11]">6–15 stores</option>
+                  <option className="bg-[#0b0a11]">16+ stores</option>
+                </select>
+              </label>
+              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                I&apos;m interested in
+                <select name="interest" value={form.interest} onChange={(event) => { setForm((current) => ({ ...current, interest: event.target.value })); setSubmitStatus('idle'); }} data-testid="select-contact-interest" className="mt-2 w-full appearance-none rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors focus:border-[#6ee7ef]/70">
+                  <option className="bg-[#0b0a11]">Dealer tools (Extractor / Ordering / Rebate)</option>
+                  <option className="bg-[#0b0a11]">Custom software / automation</option>
+                  <option className="bg-[#0b0a11]">Website or app</option>
+                  <option className="bg-[#0b0a11]">Something else</option>
+                </select>
               </label>
             </div>
             <label className="mt-5 block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
@@ -1696,8 +1922,10 @@ function Home() {
         <HowItWorks />
         <Outcomes />
         <Tools />
-        <Work />
+        <Compare />
         <Reviews />
+        <Faq />
+        <Work />
         <Contact />
       </main>
       <Footer />

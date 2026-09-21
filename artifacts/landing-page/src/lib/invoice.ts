@@ -409,7 +409,7 @@ function sampleItem(productId: string, model: ModelId, seats: SeatsId, qty = 1):
 
 const sampleItems = [
   sampleItem('bundle', 'lifetime', '5pc'),
-  sampleItem('extractor', '1y', '1pc'),
+  sampleItem('extractor', 'lifetime', '1pc'),
 ].filter((i): i is InvoiceItem => i !== null);
 
 export const SAMPLE_INVOICE: InvoiceData = {

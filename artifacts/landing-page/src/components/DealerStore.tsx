@@ -311,7 +311,7 @@ export default function DealerStore() {
       <div className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="mb-3 flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#e44bd7]">
-            <ShoppingCart className="h-3.5 w-3.5" /> Buy licenses
+            <ShoppingCart className="h-3.5 w-3.5" /> Buy licenses — pay once, own forever
           </p>
           <h3 className="text-[clamp(1.7rem,2.6vw,2.5rem)] font-light leading-[1.08] tracking-[-0.02em] text-white">
             Dealer license store
@@ -319,13 +319,16 @@ export default function DealerStore() {
         </div>
         <p className="max-w-md text-[14px] font-light leading-6 text-[#b9b6c9]">
           {LAUNCH_OFFER.active ? (
-            <span className="text-[#6ee7ef]">{LAUNCH_OFFER.label} — every license is discounted
-            below list price for a limited time. </span>
+            <span className="text-[#6ee7ef]">{LAUNCH_OFFER.label} — {LAUNCH_OFFER.note} </span>
           ) : null}
-          Pick a tool, choose a model, and place your order. USD billing — pay by bank transfer,
-          Wise, PayPal, or USDT. License keys and download links are delivered after payment
-          confirmation.
+          Every license is a one-time purchase — <span className="text-white">no subscription, no monthly rent, no renewal fees.</span> Start with the free 7-day trial, buy when it has paid for itself. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
         </p>
+      </div>
+      <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-2xl border border-white/[.06] bg-white/[.02] px-5 py-3.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
+        <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#6ee7ef]" /> Secure SSL checkout</span>
+        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> 30-day money-back guarantee</span>
+        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> Machine-locked licenses</span>
+        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> Support on WhatsApp &amp; email</span>
       </div>
 
       {result ? (
@@ -525,10 +528,8 @@ export default function DealerStore() {
                       </p>
                       <p className="mt-1 text-[11.5px] text-[#8d8a9e]">
                         {sel.model === 'trial'
-                          ? '7 days · 1 PC'
-                          : sel.model === '1y'
-                            ? 'one-time · 12 months'
-                            : 'one-time · yours forever'}
+                          ? '7 days · 1 PC · no card needed'
+                          : 'one-time payment · yours forever'}
                       </p>
                     </div>
                     <button
@@ -545,6 +546,13 @@ export default function DealerStore() {
           })}
         </div>
       )}
+
+      {!result ? (
+        <p className="mt-5 text-[13px] font-light text-[#8d8a9e]">
+          Running 10+ PCs across multiple branches? Message us for volume pricing — multi-store
+deployments get a flat per-PC rate, not per-seat multiply.
+        </p>
+      ) : null}
 
       {!result && lines.length > 0 ? (
         <form
