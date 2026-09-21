@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-400.woff2') format('woff2');font-weight:400;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-600.woff2') format('woff2');font-weight:600;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-700.woff2') format('woff2');font-weight:700;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-800.woff2') format('woff2');font-weight:800;}
+  @font-face{font-family:'DM Mono';src:url('fonts/dm-mono-latin-400.woff2') format('woff2');font-weight:400;}
+  @font-face{font-family:'DM Mono';src:url('fonts/dm-mono-latin-500.woff2') format('woff2');font-weight:500;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1080px;height:1080px;overflow:hidden;}
+  body{
+    font-family:'Montserrat',sans-serif;color:#F1F5F9;
+    background:
+      radial-gradient(620px 620px at 88% 90%, rgba(59,130,246,.16), transparent 62%),
+      radial-gradient(520px 520px at 6% 12%, rgba(16,185,129,.10), transparent 60%),
+      linear-gradient(155deg,#0A102C 0%,#0F1F3D 55%,#0A1628 100%);
+    position:relative;
+  }
+  .shape1{position:absolute;right:-200px;bottom:-230px;width:600px;opacity:.30;}
+  .shape2{position:absolute;left:-150px;top:-190px;width:520px;opacity:.24;transform:scaleY(-1);}
+  .daychip{position:absolute;top:46px;right:50px;font-family:'DM Mono';font-size:19px;color:#64748B;letter-spacing:3px;border:1px solid rgba(255,255,255,.10);border-radius:999px;padding:11px 20px;z-index:3;background:rgba(10,22,40,.6);}
+  .wrap{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:70px 88px 58px;}
+  .logo-badge{background:#0A1628;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:15px 24px;display:inline-flex;}
+  .logo-badge img{height:52px;display:block;}
+  .label{font-family:'DM Mono';font-size:20px;letter-spacing:5px;color:#FBBF24;font-weight:500;margin-top:36px;}
+  h1{font-size:84px;line-height:1.06;font-weight:800;margin-top:20px;letter-spacing:-2px;}
+  h1 .grad{background:linear-gradient(92deg,#60A5FA,#3B82F6 55%,#10B981);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{font-size:27px;font-weight:400;color:#94A3B8;margin-top:24px;line-height:1.5;max-width:850px;}
+  .stack{display:flex;flex-direction:column;gap:16px;margin-top:40px;}
+  .chip{display:flex;align-items:center;gap:16px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:19px 28px;font-size:24px;font-weight:600;width:fit-content;}
+  .chip .num{font-family:'DM Mono';font-size:19px;color:#FBBF24;letter-spacing:1px;font-weight:500;margin-right:6px;}
+  .cta{margin-top:46px;display:inline-flex;align-items:center;gap:16px;background:linear-gradient(92deg,#3B82F6,#2563EB);color:#fff;font-size:29px;font-weight:700;padding:25px 54px;border-radius:16px;box-shadow:0 18px 44px rgba(37,99,235,.35);}
+  .url{font-family:'DM Mono';font-size:21px;color:#93C5FD;margin-top:22px;letter-spacing:1px;}
+</style>
+</head>
+<body>
+  <img class="shape1" src="shape-v1.webp">
+  <img class="shape2" src="shape-v3.webp">
+  <div class="daychip">04 / 07</div>
+  <div class="wrap">
+    <div class="logo-badge"><img src="logo-240.png"></div>
+    <div class="label">TOOL 03 — REBATE FILING</div>
+    <h1>Rebates filed in<br><span class="grad">minutes, not evenings.</span></h1>
+    <div class="sub">Claims prepared with logs you can trust — so nothing<br>slips through and no money is left on the table.</div>
+    <div class="stack">
+      <div class="chip"><span class="num">01</span>Claims prepared in minutes</div>
+      <div class="chip"><span class="num">02</span>Logs you can trust</div>
+      <div class="chip"><span class="num">03</span>Nothing left on the table</div>
+    </div>
+    <div class="cta">DOWNLOAD FREE TRIAL</div>
+    <div class="url">3sverse.com</div>
+  </div>
+</body>
+</html>

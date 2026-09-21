@@ -1,9 +1,18 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v2 (CREDENTIAL)
-===========================================================
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3 (SHEET-AWARE + CREDENTIAL)
+=========================================================================
 
 Ye wo file hai jo lost ho gayi thi. Ye aap ki Excel/CSV data
 padh kar dashboard (gfhinventorydashboard.netlify.app) par
 upload kar deti hai.
+
+SHEET (TAB) KA RULE (v3 naya)
+-----------------------------
+- Data 'database' NAAM ke tab mein hona chahiye.
+- Agar tab ka naam kuch aur hai, to bhi ghabrao nahi: script har
+  sheet ke headers dashboard se match kar ke sahi tab khud dhoond
+  legi (chuney par [SHEET] line mein naam dikha degi).
+- Jo sheet aap khol kar dikhti hai (Dashboard/Summary wali) us se
+  data NAHI uthaya jayega - sirf data wala tab.
 
 2 MODES (script khud choose karta hai)
 --------------------------------------

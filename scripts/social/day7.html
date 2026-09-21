@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-400.woff2') format('woff2');font-weight:400;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-600.woff2') format('woff2');font-weight:600;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-700.woff2') format('woff2');font-weight:700;}
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-latin-800.woff2') format('woff2');font-weight:800;}
+  @font-face{font-family:'DM Mono';src:url('fonts/dm-mono-latin-400.woff2') format('woff2');font-weight:400;}
+  @font-face{font-family:'DM Mono';src:url('fonts/dm-mono-latin-500.woff2') format('woff2');font-weight:500;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:1080px;height:1080px;overflow:hidden;}
+  body{
+    font-family:'Montserrat',sans-serif;color:#F1F5F9;
+    background:
+      radial-gradient(680px 680px at 50% 112%, rgba(59,130,246,.22), transparent 62%),
+      radial-gradient(540px 540px at 50% -6%, rgba(16,185,129,.13), transparent 60%),
+      linear-gradient(180deg,#090D26 0%,#0D1B38 55%,#0A1628 100%);
+    position:relative;
+  }
+  .shape1{position:absolute;left:-240px;top:-200px;width:600px;opacity:.28;}
+  .shape2{position:absolute;right:-200px;bottom:-220px;width:560px;opacity:.28;}
+  .daychip{position:absolute;top:46px;right:50px;font-family:'DM Mono';font-size:19px;color:#64748B;letter-spacing:3px;border:1px solid rgba(255,255,255,.10);border-radius:999px;padding:11px 20px;z-index:3;background:rgba(10,22,40,.6);}
+  .wrap{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;align-items:center;text-align:center;padding:70px 90px 56px;}
+  .logo-badge{background:#0A1628;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:15px 24px;display:inline-flex;}
+  .logo-badge img{height:52px;display:block;}
+  .label{font-family:'DM Mono';font-size:20px;letter-spacing:6px;color:#6EE7B7;font-weight:500;margin-top:40px;}
+  h1{font-size:92px;line-height:1.05;font-weight:800;margin-top:22px;letter-spacing:-2px;}
+  h1 .grad{background:linear-gradient(92deg,#60A5FA,#3B82F6 55%,#10B981);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{font-size:28px;font-weight:400;color:#94A3B8;margin-top:26px;line-height:1.5;max-width:830px;}
+  .chips{display:flex;gap:18px;margin-top:46px;}
+  .chip{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px 26px;font-size:23px;font-weight:600;}
+  .pill{margin-top:38px;display:inline-flex;align-items:center;gap:14px;border:1.5px solid rgba(16,185,129,.55);background:rgba(16,185,129,.10);color:#6EE7B7;border-radius:999px;padding:16px 34px;font-family:'DM Mono';font-size:21px;font-weight:500;letter-spacing:2px;}
+  .dot{width:10px;height:10px;border-radius:50%;background:#10B981;box-shadow:0 0 14px #10B981;}
+  .cta{margin-top:48px;display:inline-flex;align-items:center;gap:16px;background:linear-gradient(92deg,#3B82F6,#2563EB);color:#fff;font-size:31px;font-weight:700;padding:27px 62px;border-radius:16px;box-shadow:0 18px 44px rgba(37,99,235,.35);}
+  .url{font-family:'DM Mono';font-size:22px;color:#93C5FD;margin-top:24px;letter-spacing:1px;}
+</style>
+</head>
+<body>
+  <img class="shape1" src="shape-v1.webp">
+  <img class="shape2" src="shape-v3.webp">
+  <div class="daychip">07 / 07</div>
+  <div class="wrap">
+    <div class="logo-badge"><img src="logo-240.png"></div>
+    <div class="label">THIS WEEK'S MOVE</div>
+    <h1>Try all three.<br><span class="grad">Free for 7 days.</span></h1>
+    <div class="sub">No license key. No sign-up. Download, install on<br>Windows 10/11, and feel the difference this week.</div>
+    <div class="chips">
+      <div class="chip">Incentive Extractor</div>
+      <div class="chip">Ordering Bot</div>
+      <div class="chip">Rebate Filing</div>
+    </div>
+    <div class="pill"><span class="dot"></span>WORKS ON WINDOWS 10/11</div>
+    <div class="cta">START FREE TRIAL</div>
+    <div class="url">3sverse.com</div>
+  </div>
+</body>
+</html>
