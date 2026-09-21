@@ -1090,8 +1090,7 @@ function Tools() {
   );
 }
 
-/* Before/After — the manual grind vs the 3S Verse front office, side by side.
-   Ends with the free-forever GFH Inventory Uploader strip. */
+/* Before/After — the manual grind vs the 3S Verse front office, side by side. */
 const COMPARE_ROWS: Array<[string, string, string]> = [
   [
     'Incentive & rebate data',
@@ -1160,24 +1159,6 @@ function Compare() {
             ))}
           </div>
         </Reveal>
-        <Reveal delay={0.14}>
-          <div className="mt-6 flex flex-col items-start justify-between gap-5 rounded-3xl border border-[#c7ef70]/25 bg-[#c7ef70]/[.05] p-7 sm:flex-row sm:items-center sm:p-8">
-            <div className="flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#c7ef70]/40 bg-white/[.04] text-[#c7ef70]">
-                <Boxes className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="flex flex-wrap items-center gap-2.5 text-[16px] font-medium text-white">
-                  GFH Inventory Uploader <span className="rounded-md bg-[#c7ef70]/15 px-2 py-0.5 font-mono-tech text-[9px] uppercase tracking-[.16em] text-[#c7ef70]">Free forever</span>
-                </p>
-                <p className="mt-1.5 max-w-xl text-[13.5px] font-light leading-6 text-[#b9b6c9]">
-                  Push your inventory Excel straight into your live dashboard in one run — column checking, backups, and safe errors included. Ours forever free, for every dealer.
-                </p>
-              </div>
-            </div>
-            <BtnGhost href="#contact" testId="button-compare-gfh" className="shrink-0">Ask for it</BtnGhost>
-          </div>
-        </Reveal>
       </div>
     </section>
   );
@@ -1192,7 +1173,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'I run multiple stores. Will it keep up?',
-    a: 'That is exactly what they were built for. All three tools were born inside a real multi-store wireless operation — per-store dashboards, per-store ordering quantities, and bulk claim filing across every branch are the default, not an add-on. Licenses come in 1 PC and 5 PC editions, and larger groups get flat volume pricing.',
+    a: 'That is exactly what they were built for. All three tools were born inside a real multi-store wireless operation — per-store dashboards, per-store ordering quantities, and bulk claim filing across every branch are the default, not an add-on. Pick exactly how many PCs you need when ordering: 2–4 PCs get 20% off per PC, 5–9 get 40%, and 10 or more get 50% off, applied automatically.',
   },
   {
     q: 'Is this a subscription?',
@@ -1208,7 +1189,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'What do I need to run it?',
-    a: 'A Windows 10 or 11 PC, your VidaPay dealer login, and Excel for the outputs. That is the whole checklist. The GFH Inventory Uploader is included free forever and needs only a Firebase dashboard to push to.',
+    a: 'A Windows 10 or 11 PC, your VidaPay dealer login, and Excel for the outputs. That is the whole checklist — install, activate with the key we email you, and run.',
   },
   {
     q: 'How do payment and delivery work?',

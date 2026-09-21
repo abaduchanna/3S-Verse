@@ -15,12 +15,13 @@ import {
   type InvoiceData,
   type InvoiceItem,
 } from './invoice';
-import type { ModelId, SeatsId } from './catalog';
+import type { ModelId } from './catalog';
 
 export interface AutoOrderLine {
   productId: string;
   model: ModelId;
-  seats: SeatsId;
+  /** How many PCs this license covers. */
+  pcs: number;
   qty: number;
 }
 
@@ -35,7 +36,7 @@ export interface AutoOrderInput {
 
 export function buildOrderInvoice(input: AutoOrderInput): InvoiceData {
   const items = input.lines
-    .map((l) => catalogInvoiceItem(l.productId, l.model, l.seats, l.qty))
+    .map((l) => catalogInvoiceItem(l.productId, l.model, l.pcs, l.qty))
     .filter((i): i is InvoiceItem => i !== null);
 
   return {

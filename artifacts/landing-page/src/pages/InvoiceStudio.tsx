@@ -18,7 +18,7 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react';
-import { MODELS, PRODUCTS, SEATS, formatUSD, seatsAllowedForModel, type ModelId, type SeatsId } from '@/lib/catalog';
+import { MODELS, PRODUCTS, PC_MAX, formatUSD, pcAllowedForModel, pcLabel, type ModelId } from '@/lib/catalog';
 import {
   SAMPLE_INVOICE,
   INVOICE_DUE_DAYS,
@@ -51,7 +51,7 @@ const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-[.
 interface Row {
   productId: string;
   model: ModelId;
-  seats: SeatsId;
+  pcs: number;
   qty: number;
 }
 
@@ -106,7 +106,7 @@ export default function InvoiceStudio() {
   const items = useMemo(
     () =>
       rows
-        .map((r) => catalogInvoiceItem(r.productId, r.model, r.seats, r.qty))
+        .map((r) => catalogInvoiceItem(r.productId, r.model, r.pcs, r.qty))
         .filter((i): i is InvoiceItem => i !== null),
     [rows],
   );
@@ -142,13 +142,13 @@ export default function InvoiceStudio() {
 
   /* ---------- row helpers ---------- */
   const addRow = () =>
-    setRows((prev) => [...prev, { productId: 'bundle', model: 'lifetime', seats: '1pc', qty: 1 }]);
+    setRows((prev) => [...prev, { productId: 'bundle', model: 'lifetime', pcs: 1, qty: 1 }]);
   const patchRow = (index: number, patch: Partial<Row>) =>
     setRows((prev) =>
       prev.map((r, i) => {
         if (i !== index) return r;
         const next = { ...r, ...patch };
-        if (!seatsAllowedForModel(next.model).includes(next.seats)) next.seats = '1pc';
+        if (!pcAllowedForModel(next.model, next.pcs)) next.pcs = 1;
         return next;
       }),
     );
@@ -228,14 +228,14 @@ export default function InvoiceStudio() {
       SAMPLE_INVOICE.items.map(() => ({
         productId: 'bundle',
         model: 'lifetime' as ModelId,
-        seats: '1pc' as SeatsId,
+        pcs: 1,
         qty: 1,
       })),
     );
     // Map sample items back to catalog rows so prices recompute live.
     const rowMap: Row[] = [
-      { productId: 'bundle', model: 'lifetime', seats: '5pc', qty: 1 },
-      { productId: 'extractor', model: 'lifetime', seats: '1pc', qty: 1 },
+      { productId: 'bundle', model: 'lifetime', pcs: 5, qty: 1 },
+      { productId: 'extractor', model: 'lifetime', pcs: 1, qty: 1 },
     ];
     setRows(rowMap);
     setKeysText(SAMPLE_INVOICE.keys.map((k) => `${k.label}: ${k.key}`).join('\n'));
@@ -364,7 +364,6 @@ export default function InvoiceStudio() {
             <div className="space-y-3">
               {rows.map((row, index) => {
                 const product = PRODUCTS.find((p) => p.id === row.productId);
-                const allowedSeats = seatsAllowedForModel(row.model);
                 return (
                   <div key={index} className="rounded-xl border border-white/10 bg-white/[.02] p-3">
                     <div className="flex items-center gap-2">
@@ -400,17 +399,19 @@ export default function InvoiceStudio() {
                           </option>
                         ))}
                       </select>
-                      <select
-                        className={fieldClass + ' w-[118px] shrink-0'}
-                        value={row.seats}
-                        onChange={(e) => patchRow(index, { seats: e.target.value as SeatsId })}
-                      >
-                        {SEATS.filter((s) => allowedSeats.includes(s.id)).map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.label}
-                          </option>
-                        ))}
-                      </select>
+                      <input
+                        type="number"
+                        min={1}
+                        max={PC_MAX}
+                        aria-label="PCs per license"
+                        className={fieldClass + ' w-[92px] shrink-0 text-center'}
+                        value={row.pcs}
+                        onChange={(e) =>
+                          patchRow(index, {
+                            pcs: Math.min(PC_MAX, Math.max(1, Math.round(Number(e.target.value) || 1))),
+                          })
+                        }
+                      />
                       <input
                         type="number"
                         min={1}
@@ -424,7 +425,7 @@ export default function InvoiceStudio() {
                     </div>
                     {product && (
                       <div className="mt-2 text-[12.5px] text-[#8b87a3]">
-                        {formatUSD(catalogInvoiceItem(product.id, row.model, row.seats, 1)?.unit ?? 0)} per unit
+                        {formatUSD(catalogInvoiceItem(product.id, row.model, row.pcs, 1)?.unit ?? 0)} per license ({pcLabel(row.pcs)})
                       </div>
                     )}
                   </div>

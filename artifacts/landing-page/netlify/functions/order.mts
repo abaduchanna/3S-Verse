@@ -24,14 +24,14 @@
 import { getStore } from "@netlify/blobs";
 import {
   MODELS,
+  PC_MAX,
+  PC_MIN,
   PRODUCTS,
-  SEATS,
   formatUSD,
+  pcLabel,
   productById,
-  seatsAllowedForModel,
   unitPrice,
   type ModelId,
-  type SeatsId,
 } from "../../src/lib/catalog";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
@@ -128,7 +128,7 @@ function orderId(): string {
 interface IncomingItem {
   productId?: unknown;
   model?: unknown;
-  seats?: unknown;
+  pcs?: unknown;
 }
 
 interface OrderLine {
@@ -137,12 +137,18 @@ interface OrderLine {
   productName: string;
   model: ModelId;
   modelLabel: string;
-  seats: SeatsId;
+  pcs: number;
   seatsLabel: string;
   qty: number;
   unitPrice: number;
   lineTotal: number;
   licenseKey: string;
+}
+
+function readPcs(value: unknown): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isInteger(n) || n < PC_MIN || n > PC_MAX) return null;
+  return n;
 }
 
 function buildLines(rawItems: unknown): { lines: OrderLine[] } | { error: string } {
@@ -153,22 +159,21 @@ function buildLines(rawItems: unknown): { lines: OrderLine[] } | { error: string
   for (const raw of rawItems as IncomingItem[]) {
     const productId = readText(raw?.productId, 40);
     const model = readText(raw?.model, 16) as ModelId;
-    const seats = readText(raw?.seats, 8) as SeatsId;
+    const pcs = readPcs(raw?.pcs);
     const product = productById(productId);
     if (!product) return { error: "Unknown product selected." };
     if (!MODELS.some((m) => m.id === model)) {
       return { error: "Unknown billing model selected." };
     }
-    if (!SEATS.some((s) => s.id === seats)) {
-      return { error: "Unknown PC count selected." };
+    if (pcs === null) {
+      return { error: `PC count must be a whole number between ${PC_MIN} and ${PC_MAX}.` };
     }
-    if (!seatsAllowedForModel(model).includes(seats)) {
+    if (model === "trial" && pcs !== 1) {
       return { error: "Trials are limited to 1 PC." };
     }
     const modelLabel = MODELS.find((m) => m.id === model)!.label;
-    const seatsLabel = SEATS.find((s) => s.id === seats)!.label;
-    const price = unitPrice(product, model, seats);
-    const lineKey = `${productId}|${model}|${seats}`;
+    const price = unitPrice(product, model, pcs);
+    const lineKey = `${productId}|${model}|${pcs}`;
     const existing = merged.get(lineKey);
     if (existing) {
       existing.qty += 1;
@@ -180,8 +185,8 @@ function buildLines(rawItems: unknown): { lines: OrderLine[] } | { error: string
         productName: product.name,
         model,
         modelLabel,
-        seats,
-        seatsLabel,
+        pcs,
+        seatsLabel: pcLabel(pcs),
         qty: 1,
         unitPrice: price,
         lineTotal: price,

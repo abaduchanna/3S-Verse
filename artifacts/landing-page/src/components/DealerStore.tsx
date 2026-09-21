@@ -17,16 +17,19 @@ import {
 import {
   LAUNCH_OFFER,
   MODELS,
+  PC_MIN,
   PRODUCTS,
-  SEATS,
   TRIAL_DOWNLOAD,
   discountPercent,
   formatUSD,
   listPrice,
-  seatsAllowedForModel,
+  nextVolumeTier,
+  pcAllowedForModel,
+  pcLabel,
+  perPcPrice,
   unitPrice,
+  volumeTier,
   type ModelId,
-  type SeatsId,
 } from '@/lib/catalog';
 import { buildOrderInvoice } from '@/lib/autoinvoice';
 import {
@@ -41,7 +44,7 @@ const ORDER_EMAIL = 'connect@3sverse.com';
 interface Line {
   productId: string;
   model: ModelId;
-  seats: SeatsId;
+  pcs: number;
   qty: number;
 }
 
@@ -65,9 +68,9 @@ function pill(active: boolean): string {
 }
 
 export default function DealerStore() {
-  const [selections, setSelections] = useState<Record<string, { model: ModelId; seats: SeatsId }>>(
+  const [selections, setSelections] = useState<Record<string, { model: ModelId; pcs: number }>>(
     Object.fromEntries(
-      PRODUCTS.map((p) => [p.id, { model: 'lifetime' as ModelId, seats: '1pc' as SeatsId }]),
+      PRODUCTS.map((p) => [p.id, { model: 'lifetime' as ModelId, pcs: 1 }]),
     ),
   );
   const [lines, setLines] = useState<Line[]>([]);
@@ -83,7 +86,7 @@ export default function DealerStore() {
     () =>
       lines.reduce((sum, l) => {
         const product = PRODUCTS.find((p) => p.id === l.productId);
-        return product ? sum + unitPrice(product, l.model, l.seats) * l.qty : sum;
+        return product ? sum + unitPrice(product, l.model, l.pcs) * l.qty : sum;
       }, 0),
     [lines],
   );
@@ -94,32 +97,39 @@ export default function DealerStore() {
         const product = PRODUCTS.find((p) => p.id === l.productId);
         return product
           ? sum +
-              (listPrice(product, l.model, l.seats) - unitPrice(product, l.model, l.seats)) * l.qty
+              (listPrice(product, l.model, l.pcs) - unitPrice(product, l.model, l.pcs)) * l.qty
           : sum;
       }, 0),
     [lines],
   );
 
-  const setSelection = (productId: string, patch: Partial<{ model: ModelId; seats: SeatsId }>) => {
+  const setSelection = (productId: string, patch: Partial<{ model: ModelId; pcs: number }>) => {
     setSelections((prev) => {
       const next = { ...prev[productId], ...patch };
-      if (!seatsAllowedForModel(next.model).includes(next.seats)) next.seats = '1pc';
+      if (patch.model !== undefined && !pcAllowedForModel(next.model, next.pcs)) next.pcs = 1;
       return { ...prev, [productId]: next };
     });
+  };
+
+  const setPcs = (productId: string, pcs: number) => {
+    const sel = selections[productId];
+    const model = sel?.model ?? 'lifetime';
+    const clamped = Math.max(PC_MIN, Math.min(50, Math.round(Number.isFinite(pcs) ? pcs : 1)));
+    setSelection(productId, { pcs: model === 'trial' ? 1 : clamped });
   };
 
   const addLine = (productId: string) => {
     const sel = selections[productId];
     setLines((prev) => {
       const existing = prev.find(
-        (l) => l.productId === productId && l.model === sel.model && l.seats === sel.seats,
+        (l) => l.productId === productId && l.model === sel.model && l.pcs === sel.pcs,
       );
       if (existing) {
         return prev.map((l) =>
           l === existing ? { ...l, qty: Math.min(10, l.qty + 1) } : l,
         );
       }
-      return [...prev, { productId, model: sel.model, seats: sel.seats, qty: 1 }];
+      return [...prev, { productId, model: sel.model, pcs: sel.pcs, qty: 1 }];
     });
   };
 
@@ -142,8 +152,8 @@ export default function DealerStore() {
         const product = PRODUCTS.find((p) => p.id === l.productId);
         if (!product) return '';
         return `• ${product.name} · ${MODELS.find((m) => m.id === l.model)?.label} · ${
-          SEATS.find((s) => s.id === l.seats)?.label
-        } × ${l.qty} — ${formatUSD(unitPrice(product, l.model, l.seats) * l.qty)}`;
+          pcLabel(l.pcs)
+        } × ${l.qty} — ${formatUSD(unitPrice(product, l.model, l.pcs) * l.qty)}`;
       }),
       `Total: ${res.totalLabel}`,
       res.savingsLabel ? `Launch offer: ${res.savingsLabel} saved vs list` : '',
@@ -237,14 +247,14 @@ export default function DealerStore() {
         lines.map((l, i) => {
           const product = PRODUCTS.find((p) => p.id === l.productId);
           if (!product) return [`item_${i + 1}`, 'unknown item'];
-          const discounted = discountPercent(product, l.model, l.seats) > 0;
+          const discounted = discountPercent(product, l.model, l.pcs) > 0;
           return [
             `item_${i + 1}`,
             `${product.name} · ${MODELS.find((m) => m.id === l.model)?.label} · ${
-              SEATS.find((s) => s.id === l.seats)?.label
-            } × ${l.qty} = ${formatUSD(unitPrice(product, l.model, l.seats) * l.qty)}` +
+              pcLabel(l.pcs)
+            } × ${l.qty} = ${formatUSD(unitPrice(product, l.model, l.pcs) * l.qty)}` +
               (discounted
-                ? ` (list ${formatUSD(listPrice(product, l.model, l.seats) * l.qty)})`
+                ? ` (list ${formatUSD(listPrice(product, l.model, l.pcs) * l.qty)})`
                 : ''),
           ];
         }),
@@ -450,9 +460,11 @@ export default function DealerStore() {
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
           {PRODUCTS.map((product) => {
             const sel = selections[product.id];
-            const price = unitPrice(product, sel.model, sel.seats);
-            const list = listPrice(product, sel.model, sel.seats);
-            const pct = discountPercent(product, sel.model, sel.seats);
+            const price = unitPrice(product, sel.model, sel.pcs);
+            const list = listPrice(product, sel.model, sel.pcs);
+            const pct = discountPercent(product, sel.model, sel.pcs);
+            const tier = volumeTier(sel.pcs);
+            const nextTier = nextVolumeTier(sel.pcs);
             return (
               <div
                 key={product.id}
@@ -483,22 +495,57 @@ export default function DealerStore() {
                       </button>
                     ))}
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SEATS.map((s) => {
-                      const allowed = seatsAllowedForModel(sel.model).includes(s.id);
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          disabled={!allowed}
-                          className={[pill(sel.seats === s.id), !allowed ? 'cursor-not-allowed opacity-30' : ''].join(' ')}
-                          onClick={() => setSelection(product.id, { seats: s.id })}
-                        >
-                          {s.label}
-                        </button>
-                      );
-                    })}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      aria-label="Fewer PCs"
+                      data-testid={`pcs-minus-${product.id}`}
+                      disabled={sel.model === 'trial' || sel.pcs <= PC_MIN}
+                      className={[pill(false), 'px-3', sel.model === 'trial' || sel.pcs <= PC_MIN ? 'cursor-not-allowed opacity-30' : ''].join(' ')}
+                      onClick={() => setPcs(product.id, sel.pcs - 1)}
+                    >
+                      −
+                    </button>
+                    <span
+                      data-testid={`pcs-value-${product.id}`}
+                      className="min-w-[72px] text-center text-[14px] font-medium text-white"
+                    >
+                      {pcLabel(sel.pcs)}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="More PCs"
+                      data-testid={`pcs-plus-${product.id}`}
+                      disabled={sel.model === 'trial'}
+                      className={[pill(false), 'px-3', sel.model === 'trial' ? 'cursor-not-allowed opacity-30' : ''].join(' ')}
+                      onClick={() => setPcs(product.id, sel.pcs + 1)}
+                    >
+                      +
+                    </button>
+                    {sel.model === 'trial' ? (
+                      <span className="text-[11.5px] text-[#8d8a9e]">trials are 1 PC</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        aria-label="Number of PCs"
+                        value={sel.pcs}
+                        onChange={(e) => setPcs(product.id, Number(e.target.value))}
+                        className="w-[64px] rounded-lg border border-white/10 bg-white/[.04] px-2 py-1.5 text-center text-[13px] text-white outline-none focus:border-[#6ee7ef]/60 [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    )}
                   </div>
+                  {sel.model !== 'trial' ? (
+                    <p className="text-[11.5px] leading-4 text-[#8d8a9e]">
+                      {tier.offPct > 0 ? (
+                        <span className="text-[#6ee7ef]">{tier.label} included</span>
+                      ) : (
+                        '1 license, runs on as many PCs as you pick'
+                      )}
+                      {nextTier ? ` — ${nextTier.min - sel.pcs} more PC${nextTier.min - sel.pcs === 1 ? '' : 's'} → ${nextTier.offPct}% off per PC` : ''}
+                    </p>
+                  ) : null}
                   {sel.model === 'trial' && TRIAL_DOWNLOAD.url ? (
                     <a
                       href={TRIAL_DOWNLOAD.url}
@@ -529,7 +576,7 @@ export default function DealerStore() {
                       <p className="mt-1 text-[11.5px] text-[#8d8a9e]">
                         {sel.model === 'trial'
                           ? '7 days · 1 PC · no card needed'
-                          : 'one-time payment · yours forever'}
+                          : `${formatUSD(perPcPrice(product, sel.model, sel.pcs))} per PC · one-time payment · yours forever`}
                       </p>
                     </div>
                     <button
@@ -549,8 +596,9 @@ export default function DealerStore() {
 
       {!result ? (
         <p className="mt-5 text-[13px] font-light text-[#8d8a9e]">
-          Running 10+ PCs across multiple branches? Message us for volume pricing — multi-store
-deployments get a flat per-PC rate, not per-seat multiply.
+          Pick exactly how many PCs you need — 2–4 PCs get 20% off per PC, 5–9 get 40%, and 10 or
+          more get 50%, applied automatically. Running 50+ PCs or need central billing for a whole
+          district? Message us and we will set it up.
         </p>
       ) : null}
 
@@ -565,17 +613,17 @@ deployments get a flat per-PC rate, not per-seat multiply.
           <div className="mb-6 space-y-2">
             {lines.map((line, index) => {
               const product = PRODUCTS.find((p) => p.id === line.productId)!;
-              const lineTotal = unitPrice(product, line.model, line.seats) * line.qty;
+              const lineTotal = unitPrice(product, line.model, line.pcs) * line.qty;
               return (
                 <div
-                  key={`${line.productId}|${line.model}|${line.seats}`}
+                  key={`${line.productId}|${line.model}|${line.pcs}`}
                   className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[.06] bg-white/[.02] px-4 py-3"
                 >
                   <span className="min-w-0 flex-1 text-[14px] text-white">
                     {product.name}
                     <span className="ml-2 text-[12px] text-[#8d8a9e]">
                       {MODELS.find((m) => m.id === line.model)?.label} ·{' '}
-                      {SEATS.find((s) => s.id === line.seats)?.label}
+                      {pcLabel(line.pcs)}
                     </span>
                   </span>
                   <span className="font-mono-tech text-[13px] text-[#d8d5e8]">

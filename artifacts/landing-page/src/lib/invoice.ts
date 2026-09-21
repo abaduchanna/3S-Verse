@@ -13,13 +13,12 @@
 import {
   MODELS,
   PRODUCTS,
-  SEATS,
   discountPercent,
   formatUSD,
   listPrice,
+  pcLabel,
   unitPrice,
   type ModelId,
-  type SeatsId,
 } from './catalog';
 
 export type InvoiceStatus = 'PAID' | 'DUE' | 'CANCELLED';
@@ -84,24 +83,24 @@ export function invoiceNumberFromRef(ref: string): string {
 export function catalogInvoiceItem(
   productId: string,
   model: ModelId,
-  seats: SeatsId,
+  pcs: number,
   qty: number,
 ): InvoiceItem | null {
   const product = PRODUCTS.find((p) => p.id === productId);
   if (!product) return null;
   const modelLabel = MODELS.find((m) => m.id === model)?.label ?? model;
-  const seatsLabel = SEATS.find((s) => s.id === seats)?.label ?? seats;
-  const off = discountPercent(product, model, seats);
+  const seatsLabel = pcLabel(pcs);
+  const off = discountPercent(product, model, pcs);
   const detail =
     off > 0
-      ? `${modelLabel} · ${seatsLabel} — list ${formatUSD(listPrice(product, model, seats))} · Launch Offer −${off}%`
+      ? `${modelLabel} · ${seatsLabel} — list ${formatUSD(listPrice(product, model, pcs))} · −${off}%`
       : `${modelLabel} · ${seatsLabel}`;
   return {
     name: product.name,
     detail,
     qty,
-    unit: unitPrice(product, model, seats),
-    listUnit: listPrice(product, model, seats),
+    unit: unitPrice(product, model, pcs),
+    listUnit: listPrice(product, model, pcs),
   };
 }
 
@@ -403,13 +402,13 @@ export function plainTextInvoice(data: InvoiceData): string {
 /*  Items are derived from the catalog so the sample always matches the  */
 /*  current storefront prices.                                           */
 /* ===================================================================== */
-function sampleItem(productId: string, model: ModelId, seats: SeatsId, qty = 1): InvoiceItem | null {
-  return catalogInvoiceItem(productId, model, seats, qty);
+function sampleItem(productId: string, model: ModelId, pcs: number, qty = 1): InvoiceItem | null {
+  return catalogInvoiceItem(productId, model, pcs, qty);
 }
 
 const sampleItems = [
-  sampleItem('bundle', 'lifetime', '5pc'),
-  sampleItem('extractor', 'lifetime', '1pc'),
+  sampleItem('bundle', 'lifetime', 5),
+  sampleItem('extractor', 'lifetime', 1),
 ].filter((i): i is InvoiceItem => i !== null);
 
 export const SAMPLE_INVOICE: InvoiceData = {
