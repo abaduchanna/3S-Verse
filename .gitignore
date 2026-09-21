@@ -64,3 +64,8 @@ Thumbs.db
 /scripts/*.log
 /scripts/prot_*.json
 /scripts/rewrite_identities_phase_a.sh
+
+# heavy build artifacts stay out of git (delivered via gofile/releases)
+download/app-builds/
+*.exe
+scripts/workspace-extract*/

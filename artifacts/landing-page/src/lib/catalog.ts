@@ -268,3 +268,34 @@ export function formatUSD(amount: number): string {
     maximumFractionDigits: 0,
   }).format(amount);
 }
+
+/**
+ * VERIFIED REVIEWS — how this works (audit fix: anonymous testimonials kill
+ * trust, so the site ships with ZERO invented reviews).
+ *
+ * 1. A dealer submits the review form on the site (#reviews).
+ * 2. The submission lands in the Connect@3SVerse.com inbox
+ *    (subject: "New dealer review — ...").
+ * 3. Verify the person against your license records, then — and only then —
+ *    add an entry below and redeploy. It appears on the site instantly.
+ *
+ * Publish the reviewer's FIRST NAME + store/city at minimum (audit: named
+ * reviews are 3x more persuasive; anonymous ones read as fabricated).
+ * Leave the array empty to keep the honest "no published reviews yet" state.
+ */
+export interface DealerReview {
+  /** The review text, as the dealer wrote it (lightly formatted is fine). */
+  quote: string;
+  /** First name + last initial, e.g. 'John D.' */
+  name: string;
+  /** Store/city line, e.g. 'Total Wireless dealer · Houston, TX' */
+  org: string;
+  /** Two-letter avatar, e.g. 'JD' */
+  initials: string;
+  /** 1–5 stars the dealer gave. */
+  stars: number;
+  /** Month/year published, e.g. 'Oct 2026'. */
+  date: string;
+}
+
+export const REVIEWS: DealerReview[] = [];

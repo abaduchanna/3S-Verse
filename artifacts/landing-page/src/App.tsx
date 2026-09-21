@@ -53,14 +53,22 @@ import {
   History,
   TrendingUp,
   ClipboardCheck,
+  BookOpen,
+  MonitorSmartphone,
+  Undo2,
+  KeyRound,
+  CreditCard,
+  UserCheck,
 } from 'lucide-react';
 import {
   PRODUCTS,
+  REVIEWS,
   VIDEO_DEMO,
   YOUTUBE_URL,
   formatUSD,
   perPcPrice,
   whatsappLink,
+  type DealerReview,
 } from '@/lib/catalog';
 
 const queryClient = new QueryClient();
@@ -412,6 +420,7 @@ const navItems = [
   { label: 'What we offer', href: '#services' },
   { label: 'How it works', href: '#how' },
   { label: 'Dealer tools', href: '#tools' },
+  { label: 'Guides', href: '#guides' },
   { label: 'FAQ', href: '#faq' },
   { label: 'Reviews', href: '#reviews' },
 ];
@@ -1441,7 +1450,7 @@ function Faq() {
       <div className="relative mx-auto max-w-4xl px-5 lg:px-8">
         <Reveal>
           <div className="mb-12 text-center">
-            <Kicker>06 — Straight answers</Kicker>
+            <Kicker>07 — Straight answers</Kicker>
             <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
               Questions dealers <span className="text-[#e44bd7]">actually ask.</span>
             </h2>
@@ -1467,74 +1476,355 @@ function Faq() {
   );
 }
 
-/* Reviews — template's testimonial card with highlighted phrases. */
+/* ── Dealer field guides (audit: zero educational content = invisible to
+   Google; dealers search these exact problems every day) ───────────────── */
+const GUIDES = [
+  {
+    tag: 'Rebate recovery',
+    title: 'Where VidaPay rebates leak — and how to plug every hole',
+    read: '4 min read',
+    icon: ClipboardCheck,
+    body: [
+      'Every Total Wireless dealer files rebates — almost none recover all of them. The money doesn’t disappear in one dramatic failure; it leaks in small, boring places: a claim filed outside the promo window, a screenshot that missed one IMEI, a rejection nobody followed up on because “the portal says pending” and nobody rechecks pending claims on a Saturday.',
+      'The first leak is capture. If your rebate list starts life as a staff member reading the portal and retyping lines into Excel, some claims never make the list at all. A bulk extraction straight from VidaPay — IMEI-level, per store, in one run — means the claim list starts complete instead of approximate.',
+      'The second leak is status. VidaPay claims move through states (submitted, pending, approved, rejected), and rejected claims don’t scream for attention. Dealers who recheck non-approved claims weekly recover a meaningful share of “lost” rebates; dealers who file and forget, don’t. Set a fixed weekly slot — same day, same time — and work the pending list before filing anything new.',
+      'The third leak is proof. When a claim disputes, the dealer with an extracted, timestamped workbook wins the argument; the dealer with a screenshot folder doesn’t. Keep one clean workbook per month per store, exported from the portal itself, and every future dispute is a five-minute email instead of an afternoon of scrolling.',
+    ],
+  },
+  {
+    tag: 'Incentives & spiffs',
+    title: 'Spiffs and incentives: capture every dollar your stores earned',
+    read: '4 min read',
+    icon: FileSpreadsheet,
+    body: [
+      'Spiffs are the money your stores earn by accident — a bonus on a specific device this week, a flash incentive on a plan, a volume kicker buried three screens deep in the portal. Manufacturer and carrier incentives change fast, and the dealers who lose them aren’t lazy; they just reconcile monthly in one giant painful sitting, after some spiffs have already expired.',
+      'The fix is cadence, not effort. Pull incentives per store weekly, not monthly. A weekly IMEI-level extraction takes minutes and answers the only two questions that matter: what did each store actually earn, and what hasn’t been paid yet. When the answer is visible every week, staff behavior changes on its own — they file while the promo is still live.',
+      'Reconciliation is the second half. Compare the extracted incentive rows against what actually landed in payments, line by line. Every mismatch is either a claim that never got filed or a payment that never got chased — both are recoverable, but only if you can see them. One dealer-facing rule of thumb: if you can’t produce last month’s incentive totals per store in under five minutes, you’re leaking money you’ll never be able to audit later.',
+      'Multi-store owners feel this hardest: totals per location drive which store gets coaching, which gets staff, and which quietly underperforms. IMEI-level extraction per store turns that from a monthly guessing game into a weekly one-page answer.',
+    ],
+  },
+  {
+    tag: 'Front-office math',
+    title: 'The real cost of manual VidaPay work at a 3-store dealership',
+    read: '5 min read',
+    icon: TrendingUp,
+    body: [
+      'Manual VidaPay work doesn’t show up as a line item, which is exactly why it survives every budget review. So price it out. A three-store dealership running screenshots, retyping, and manual claim filing spends roughly fifteen to thirty staff-hours a week on portal busywork. At even a modest loaded labor rate, that’s hundreds of dollars a month in wages doing work a machine should do.',
+      'Then add the error tax. Retyped IMEIs get one digit wrong. Screenshots miss the one row that mattered. Claims go in past the window because nobody saw the promo until it ended. Across the industry this shows up as several hundred to a couple thousand dollars a month in rebates and incentives that were earned, owed — and never collected. That is not a rounding error; at the low end it is a staff wage, at the high end it is a store’s rent.',
+      'Finally add the focus cost. The owner or office manager doing portal work at 9 PM is not training staff, walking the floor, or opening store number four. Automation’s biggest return is rarely the hours it saves — it’s the decisions the operator finally gets to make because the extraction, ordering, and claim tracking run themselves.',
+      'The payback math is one line: if the tools recover even the low end of the leakage — a few hundred dollars a month — they have paid for themselves inside the first month, and everything after that is recovered margin. Run your own numbers for two minutes in the ROI calculator above and the manual process stops looking free.',
+    ],
+  },
+];
+
+function Guides() {
+  return (
+    <section id="guides" className="relative overflow-hidden py-28 lg:py-36">
+      <Shape v={1} className="pointer-events-none absolute -left-44 top-24 hidden w-[420px] opacity-25 lg:block" spin={90} floatY={10} floatDur={14} />
+      <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
+        <Reveal>
+          <div className="mb-14 flex flex-col justify-between gap-8 md:flex-row md:items-end">
+            <div>
+              <Kicker magenta>06 — Dealer field guides</Kicker>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+                Written for the <span className="text-[#6ee7ef]">front office,</span> not the boardroom.
+              </h2>
+            </div>
+            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+              The same playbooks we built the tools around — rebate recovery, incentive capture, and what manual VidaPay work really costs. Free, no email wall.
+            </p>
+          </div>
+        </Reveal>
+        <Reveal delay={0.08}>
+          <div className="space-y-4">
+            {GUIDES.map((g, i) => {
+              const Icon = g.icon;
+              return (
+                <details key={g.title} data-testid={`guide-${i}`} className="group overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] transition-colors duration-300 open:border-[#6ee7ef]/25 hover:border-white/[.15]">
+                  <summary className="flex cursor-pointer list-none items-center gap-4 px-7 py-6 [&::-webkit-details-marker]:hidden">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[.08] bg-white/[.03]">
+                      <Icon className="h-4.5 w-4.5 text-[#6ee7ef]" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-mono-tech text-[9.5px] uppercase tracking-[.18em] text-[#e44bd7]">{g.tag}</span>
+                      <span className="mt-1 block text-[17px] font-medium leading-snug text-white md:text-[19px]">{g.title}</span>
+                    </span>
+                    <span className="hidden shrink-0 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e] sm:block">{g.read}</span>
+                    <ArrowDownRight className="h-5 w-5 shrink-0 text-[#8d8a9e] transition-transform duration-300 group-open:rotate-180" />
+                  </summary>
+                  <div className="space-y-4 border-t border-white/[.06] px-7 py-6">
+                    {g.body.map((para, k) => (
+                      <p key={k} className="max-w-3xl text-[14.5px] font-light leading-7.5 text-[#b9b6c9]">{para}</p>
+                    ))}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ── Reviews & trust (audit: anonymous testimonials read as fabricated and
+   Trust Signals scored 4/10) — the site ships with ZERO invented reviews:
+   a verified review program + submission box + an explicit trust panel. ── */
+
+const TRUST_CARDS = [
+  {
+    icon: MonitorSmartphone,
+    title: 'Runs on your machine',
+    text: 'The tools log into VidaPay from your own store PC. Your portal credentials never touch our servers — there are no servers holding them.',
+  },
+  {
+    icon: Undo2,
+    title: '30-day money-back',
+    text: 'Every purchase carries a full 30-day refund window. If the tool doesn’t fit your dealership, you get your money back — no interrogation.',
+  },
+  {
+    icon: KeyRound,
+    title: 'Machine-locked licenses',
+    text: 'Keys are locked to the PCs you licensed. No leaked key files, no gray-market resales — the price you see stays worth paying.',
+  },
+  {
+    icon: MessageCircle,
+    title: 'Human support',
+    text: 'WhatsApp and email, answered by the person who built the tools — usually same business day, next day worst case.',
+  },
+  {
+    icon: UserCheck,
+    title: 'Founder-operated',
+    text: '13+ years of wireless retail operations stand behind every workflow. You are dealing with an operator, not a reseller.',
+  },
+  {
+    icon: CreditCard,
+    title: 'Pay your way',
+    text: 'Bank transfer, Wise, PayPal, or USDT — with a proper invoice and receipt for your records. No card required for the 7-day trial.',
+  },
+];
+
+const REVIEW_TOOLS = [
+  'VidaPay Incentive Extractor',
+  'VidaPay Device Ordering',
+  'VidaPay Rebate Filing',
+  'VidaPay Full Bundle',
+];
+
+function ReviewCard({ review }: { review: DealerReview }) {
+  return (
+    <figure data-testid={`review-${review.initials}`} className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] p-8 transition-colors duration-500 hover:border-white/[.16] lg:p-9">
+      <div>
+        <div className="flex items-center gap-1 text-[#e44bd7]" aria-label={`${review.stars} out of 5 stars`}>
+          {Array.from({ length: 5 }).map((_, s) => (
+            <Star key={s} className={`h-4 w-4 ${s < review.stars ? 'fill-current' : 'opacity-25'}`} />
+          ))}
+        </div>
+        <blockquote className="mt-6 text-[15px] font-light leading-8 text-[#c9c6d8]">“{review.quote}”</blockquote>
+      </div>
+      <figcaption className="mt-9 flex items-center gap-3.5 border-t border-white/[.07] pt-6">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e44bd7]/40 bg-white/[.04] font-mono-tech text-[11px] text-[#6ee7ef]">{review.initials}</span>
+        <div>
+          <div className="flex items-center gap-1.5 text-[14px] font-medium text-white">
+            {review.name}
+            <span className="inline-flex items-center gap-1 rounded-md border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.08] px-1.5 py-0.5 font-mono-tech text-[8.5px] uppercase tracking-[.12em] text-[#6ee7ef]" title="License verified against purchase records">
+              <ShieldCheck className="h-2.5 w-2.5" /> Verified purchase
+            </span>
+          </div>
+          <div className="mt-0.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">{review.org} · {review.date}</div>
+        </div>
+      </figcaption>
+    </figure>
+  );
+}
+
 function Reviews() {
-  const reviews = [
-    {
-      quote: ['He rebuilt our ordering process end to end and cut the manual inventory busywork ', 'by more than half', '. Our buyers just work smarter now.'],
-      name: 'Operations Director',
-      org: 'Wireless Retail Group',
-      initials: 'RD',
-    },
-    {
-      quote: ['The dashboard changed how we run the business — for the first time, the whole team sees inventory, sales, and claims ', 'in one live view', '.'],
-      name: 'Finance Lead',
-      org: 'FMCG Distributor',
-      initials: 'FK',
-    },
-    {
-      quote: ['Fast, pragmatic, and genuinely invested. He understood our workflow before we finished explaining it and shipped something ', 'we use every day', '.'],
-      name: 'General Manager',
-      org: 'Multi-location Retail',
-      initials: 'GM',
-    },
-  ];
+  const [form, setForm] = useState({ name: '', email: '', store: '', tool: REVIEW_TOOLS[0], rating: '5', text: '', website: '' });
+  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [note, setNote] = useState('');
+
+  const clean = (v: string) => v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const name = clean(form.name);
+    const store = clean(form.store);
+    const text = clean(form.text);
+    const email = clean(form.email);
+    if (!name || !email || !store || !text) return;
+    setStatus('sending');
+    setNote('');
+    const fields = {
+      name,
+      email,
+      store,
+      tool: form.tool,
+      rating: `${form.rating} / 5`,
+      review: text,
+      _subject: `New dealer review — ${form.tool} — ${store} — ${form.rating}/5`,
+      _template: 'table',
+      _captcha: 'false',
+      _replyto: email,
+      _autoresponse: 'Thanks for your 3S Verse review! We verify every review against license records before publishing. We may reply here to confirm a detail or two.',
+      _honey: form.website,
+    };
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch('https://formsubmit.co/ajax/connect@3sverse.com', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(fields),
+        signal: controller.signal,
+      });
+      const payload = (await response.json().catch(() => null)) as { success?: string } | null;
+      clearTimeout(timeoutId);
+      if (!response.ok || payload?.success !== 'true') throw new Error('review submit failed');
+      setForm({ name: '', email: '', store: '', tool: REVIEW_TOOLS[0], rating: '5', text: '', website: '' });
+      setStatus('success');
+    } catch {
+      // Relay unreachable — hand the review to the dealer's own email client
+      const subject = encodeURIComponent(fields._subject);
+      const body = encodeURIComponent(
+        `Name: ${name}\nEmail: ${email}\nStore / city: ${store}\nTool: ${form.tool}\nRating: ${form.rating}/5\n\n${text}`,
+      );
+      window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
+      setNote('your email app just opened with the review pre-filled — press send there');
+      setStatus('error');
+    }
+  };
+
   return (
     <section id="reviews" className="relative overflow-hidden py-28 lg:py-36">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
         <Reveal>
-          <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
+          <div className="mb-14 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
-              <Kicker>07 — Client reviews</Kicker>
+              <Kicker>08 — Reviews &amp; trust</Kicker>
               <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                People who run on <span className="text-[#6ee7ef]">3S Verse.</span>
+                No invented praise. <span className="text-[#6ee7ef]">Verified dealers</span> only.
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              From the operations leaders, finance teams, and managers who trusted us with their day-to-day.
+              We publish zero anonymous quotes and zero paid testimonials. Every review below comes from a license holder we can point to in our records.
             </p>
           </div>
         </Reveal>
-        <div className="grid gap-4 md:grid-cols-3">
-          {reviews.map((review, i) => (
-            <Reveal key={review.name} delay={i * 0.1}>
-              <figure data-testid={`review-${i}`} className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] p-8 transition-colors duration-500 hover:border-white/[.16] lg:p-9">
-                <div>
-                  <div className="flex items-center gap-1 text-[#e44bd7]" aria-label="5 out of 5 stars">
-                    {Array.from({ length: 5 }).map((_, s) => <Star key={s} className="h-4 w-4 fill-current" />)}
+
+        {/* trust panel — audit scored Trust Signals 4/10; these are the
+            commitments we can actually keep, stated up front */}
+        <Reveal delay={0.05}>
+          <div className="mb-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="trust-grid">
+            {TRUST_CARDS.map((card) => {
+              const Icon = card.icon;
+              return (
+                <div key={card.title} className="rounded-2xl border border-white/[.07] bg-[#0b0a11] p-6 transition-colors duration-300 hover:border-[#6ee7ef]/25">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#6ee7ef]/25 bg-[#6ee7ef]/[.06]">
+                      <Icon className="h-4 w-4 text-[#6ee7ef]" />
+                    </span>
+                    <h3 className="text-[15px] font-medium text-white">{card.title}</h3>
                   </div>
-                  <blockquote className="mt-6 text-[15px] font-light leading-8 text-[#c9c6d8]">
-                    “{review.quote[0]}
-                    <span className="rounded-md bg-white/[.1] px-1.5 py-0.5 text-white">{review.quote[1]}</span>
-                    {review.quote[2]}”
-                  </blockquote>
+                  <p className="mt-3 text-[13.5px] font-light leading-6.5 text-[#b9b6c9]">{card.text}</p>
                 </div>
-                <figcaption className="mt-9 flex items-center gap-3.5 border-t border-white/[.07] pt-6">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e44bd7]/40 bg-white/[.04] font-mono-tech text-[11px] text-[#6ee7ef]">{review.initials}</span>
-                  <div>
-                    <div className="flex items-center gap-1.5 text-[14px] font-medium text-white">
-                      {review.name}
-                      <span className="inline-flex items-center gap-1 rounded-md border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.08] px-1.5 py-0.5 font-mono-tech text-[8.5px] uppercase tracking-[.12em] text-[#6ee7ef]" title="Confirmed 3S Verse customer">
-                        <ShieldCheck className="h-2.5 w-2.5" /> Verified
-                      </span>
-                    </div>
-                    <div className="mt-0.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">{review.org}</div>
+              );
+            })}
+          </div>
+        </Reveal>
+
+        {/* published reviews — or the honest empty state */}
+        {REVIEWS.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-3">
+            {REVIEWS.map((review) => (
+              <Reveal key={review.initials + review.date} delay={0.06}>
+                <ReviewCard review={review} />
+              </Reveal>
+            ))}
+          </div>
+        ) : (
+          <Reveal delay={0.06}>
+            <div className="mb-14 rounded-2xl border border-dashed border-white/[.14] bg-white/[.015] p-7 text-center" data-testid="reviews-empty">
+              <p className="text-[15px] font-light leading-7 text-[#b9b6c9]">
+                <span className="font-medium text-white">No published reviews yet.</span>{' '}
+                We would rather show an empty wall than a fake one. The first verified dealer reviews go up here the moment they clear verification — good or bad.
+              </p>
+            </div>
+          </Reveal>
+        )}
+
+        {/* the review box — submissions land in the 3S Verse inbox, get
+            verified against license records, then get published */}
+        <Reveal delay={0.08}>
+          <div className="grid gap-10 rounded-3xl border border-white/[.08] bg-[#0b0a11] p-7 shadow-[0_30px_100px_rgba(0,0,0,.5)] sm:p-10 lg:grid-cols-[1fr_1.4fr]">
+            <div>
+              <h3 className="text-[24px] font-light leading-tight tracking-[-0.01em] text-white">Running a tool? <span className="text-[#6ee7ef]">Leave a review.</span></h3>
+              <ol className="mt-6 space-y-4">
+                {[
+                  'Submit the form — takes a minute.',
+                  'We verify you against license records (your email is never published).',
+                  'Your review goes live with your name, store, and city. Critical reviews publish too.',
+                ].map((step, i) => (
+                  <li key={i} className="flex gap-3.5 text-[14px] font-light leading-6.5 text-[#b9b6c9]">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#e44bd7]/40 font-mono-tech text-[10px] text-[#6ee7ef]">{i + 1}</span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-6 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
+                Verified purchase badge · moderated by a human
+              </p>
+            </div>
+            <form onSubmit={submit} data-testid="form-review" className="min-w-0">
+              <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] h-px w-px overflow-hidden">
+                <label htmlFor="review-website">Leave this field empty</label>
+                <input id="review-website" name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => setForm((c) => ({ ...c, website: event.target.value }))} />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                  Name
+                  <input required maxLength={120} value={form.name} onChange={(e) => { setForm((c) => ({ ...c, name: e.target.value })); setStatus('idle'); }} data-testid="input-review-name" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="First and last name" />
+                </label>
+                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                  Email <span className="normal-case text-[#8d8a9e]/70">(not published)</span>
+                  <input required maxLength={254} type="email" value={form.email} onChange={(e) => { setForm((c) => ({ ...c, email: e.target.value })); setStatus('idle'); }} data-testid="input-review-email" autoComplete="email" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="Used only for verification" />
+                </label>
+                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                  Store / city
+                  <input required maxLength={160} value={form.store} onChange={(e) => { setForm((c) => ({ ...c, store: e.target.value })); setStatus('idle'); }} data-testid="input-review-store" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="e.g. Total Wireless · Dallas, TX" />
+                </label>
+                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                  Tool you use
+                  <select value={form.tool} onChange={(e) => { setForm((c) => ({ ...c, tool: e.target.value })); setStatus('idle'); }} data-testid="select-review-tool" className="mt-2 w-full appearance-none rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors focus:border-[#6ee7ef]/70">
+                    {REVIEW_TOOLS.map((t) => <option key={t} className="bg-[#0b0a11]">{t}</option>)}
+                  </select>
+                </label>
+                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e] sm:col-span-2">
+                  Rating
+                  <div className="mt-2 flex gap-2">
+                    {[['5', '5 — excellent'], ['4', '4 — good'], ['3', '3 — okay'], ['2', '2 — poor'], ['1', '1 — bad']].map(([v, label]) => (
+                      <button key={v} type="button" onClick={() => setForm((c) => ({ ...c, rating: v }))} data-testid={`review-rating-${v}`} aria-label={label} className={`flex h-10 flex-1 items-center justify-center rounded-xl border font-mono-tech text-[12px] transition-colors ${form.rating === v ? 'border-[#6ee7ef]/70 bg-[#6ee7ef]/10 text-[#6ee7ef]' : 'border-white/[.1] bg-white/[.03] text-[#8d8a9e] hover:border-white/[.25]'}`}>
+                        {v}★
+                      </button>
+                    ))}
                   </div>
-                </figcaption>
-              </figure>
-            </Reveal>
-          ))}
-        </div>
+                </label>
+              </div>
+              <label className="mt-4 block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                Your experience
+                <textarea required maxLength={2000} rows={4} value={form.text} onChange={(e) => { setForm((c) => ({ ...c, text: e.target.value })); setStatus('idle'); }} data-testid="textarea-review-text" className="mt-2 w-full resize-y rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="What did the tool change for your stores? Real numbers beat adjectives." />
+              </label>
+              <div className="mt-6 flex flex-wrap items-center gap-4">
+                <button type="submit" disabled={status === 'sending'} data-testid="button-review-submit" className="group inline-flex items-center justify-center gap-2.5 rounded-xl bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] disabled:cursor-wait disabled:opacity-70">
+                  {status === 'sending' ? 'Sending...' : 'Submit review'}
+                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                </button>
+                <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
+                  {status === 'success' ? 'Review received — thank you. It goes up after verification.' : status === 'error' ? `${note || 'Couldn’t send'}. Email ${CONTACT_EMAIL} directly.` : 'Verified against purchase records before publishing.'}
+                </span>
+              </div>
+            </form>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -2151,8 +2441,9 @@ function Home() {
         <Outcomes />
         <Tools />
         <Compare />
-        <Reviews />
+        <Guides />
         <Faq />
+        <Reviews />
         <Work />
         <Contact />
       </main>

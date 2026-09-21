@@ -679,6 +679,17 @@ export default function DealerStore() {
                     <span className="flex items-center gap-1"><Undo2 className="h-3 w-3 text-[#6ee7ef]" /> 30-day money-back</span>
                     <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3 text-[#6ee7ef]" /> PayPal accepted</span>
                   </div>
+                  {/* value line — audit: dealers compare daily costs, not
+                      sticker prices; anchor the price against the leakage */}
+                  {sel.model !== 'trial' && price > 0 ? (
+                    <p className="pt-0.5 text-[11px] font-light leading-5 text-[#8d8a9e]" data-testid={`value-line-${product.id}`}>
+                      {sel.model === 'monthly'
+                        ? `≈ ${formatUSD(Math.max(1, Math.round(price / 30)))}/day — a fraction of one month’s missed rebates. Cancel anytime.`
+                        : sel.model === 'annual'
+                          ? `≈ ${formatUSD(Math.max(1, Math.round(price / 365)))}/day — billed once a year, every update included.`
+                          : 'One payment — most dealers recover it from the first month of captured rebates alone.'}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             );
