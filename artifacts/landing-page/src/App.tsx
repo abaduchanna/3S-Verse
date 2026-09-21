@@ -21,6 +21,7 @@ import {
   Bell,
   Bot,
   Boxes,
+  Calculator,
   Check,
   Clock,
   Database,
@@ -31,15 +32,18 @@ import {
   Instagram,
   Linkedin,
   Menu,
+  MessageCircle,
   Network,
   Package,
   Play,
+  PlayCircle,
   Plus,
   ShieldCheck,
   Smartphone,
   Sparkles,
   Workflow,
   X,
+  Youtube,
   Zap,
   ArrowUp,
   Star,
@@ -50,10 +54,20 @@ import {
   TrendingUp,
   ClipboardCheck,
 } from 'lucide-react';
+import {
+  PRODUCTS,
+  VIDEO_DEMO,
+  YOUTUBE_URL,
+  formatUSD,
+  perPcPrice,
+  whatsappLink,
+} from '@/lib/catalog';
 
 const queryClient = new QueryClient();
 const CONTACT_EMAIL = 'Connect@3SVerse.com';
-const LINKEDIN_URL = 'https://www.linkedin.com/company/3s-verse/';
+// Canonical LinkedIn company URL — /company/3s-verse 301-redirects here.
+// Keep the canonical form so auditors/crawlers never see a redirect chain.
+const LINKEDIN_URL = 'https://www.linkedin.com/company/3sverse';
 const INSTAGRAM_URL = 'https://www.instagram.com/3s.verse/';
 const FACEBOOK_URL = 'https://www.facebook.com/3sverse/';
 // Cloudflare Turnstile site key (public by design) — bot protection for the
@@ -1084,7 +1098,9 @@ function Tools() {
             </AnimatePresence>
           </div>
         </Reveal>
+        <RoiCalculator />
         <DealerStore />
+        <DemoStrip />
       </div>
     </section>
   );
@@ -1115,7 +1131,7 @@ const COMPARE_ROWS: Array<[string, string, string]> = [
   [
     'Cost shape',
     'Labor hours you never invoice, month after month',
-    'One-time license — no subscription, pays for itself within weeks',
+    'License that fits your cash flow — monthly, annual, or one-time lifetime; pays for itself within weeks',
   ],
 ];
 
@@ -1159,13 +1175,222 @@ function Compare() {
             ))}
           </div>
         </Reveal>
+        <Reveal delay={0.14}>
+          {/* audit fix: show the transformation, not just the table — the
+              money the manual process burns vs the same month after */}
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-3xl border border-[#e44bd7]/25 bg-[#e44bd7]/[.05] p-7">
+              <p className="flex items-center gap-2.5 font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#e44bd7]"><X className="h-3.5 w-3.5" /> Before — manual front office</p>
+              <ul className="mt-4 space-y-2.5 text-[13.5px] font-light leading-6 text-[#d8d5e8]">
+                <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />$500–$2,000 in missed rebates — per store, every month</li>
+                <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />15–30 staff hours a week on screenshots and retyping</li>
+                <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />Claims filed once and forgotten — no status, no proof, no follow-up</li>
+              </ul>
+            </div>
+            <div className="rounded-3xl border border-[#6ee7ef]/25 bg-[#6ee7ef]/[.05] p-7">
+              <p className="flex items-center gap-2.5 font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#6ee7ef]"><Check className="h-3.5 w-3.5" /> After — the 3S Verse front office</p>
+              <ul className="mt-4 space-y-2.5 text-[13.5px] font-light leading-6 text-[#d8d5e8]">
+                <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#6ee7ef]" />Every eligible claim extracted, filed, and tracked to PAID</li>
+                <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#6ee7ef]" />Minutes per run — every store in one pass, zero retyping</li>
+                <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#6ee7ef]" />A live workbook the whole team trusts — and audited numbers to prove it</li>
+              </ul>
+            </div>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
 }
 
-/* FAQ — the questions dealers actually ask before they buy, answered in
-   plain English. Native <details> accordion: zero JS cost, keyboard-safe. */
+/* ROI calculator — audit action #7: "Enter your stores → see how much
+   you're losing → see the payback period." Uses the real bundle pricing
+   from the catalog (volume tiers included) so the numbers match the store. */
+function RoiCalculator() {
+  const bundle = PRODUCTS.find((p) => p.id === 'bundle')!;
+  const [stores, setStores] = useState(3);
+  const [lossPerStore, setLossPerStore] = useState(1000);
+
+  const monthlyLoss = stores * lossPerStore;
+  const lifetimePrice = perPcPrice(bundle, 'lifetime', stores) * stores;
+  const monthlyPrice = perPcPrice(bundle, 'monthly', stores) * stores;
+  const paybackDays = Math.max(1, Math.ceil((lifetimePrice / monthlyLoss) * 30));
+  const savedYear = Math.max(0, monthlyLoss * 12 - lifetimePrice);
+
+  return (
+    <div data-testid="roi-calculator" className="mt-14 rounded-3xl border border-white/[.08] bg-gradient-to-br from-[#0b0a11] via-[#0d0c16] to-[#0b0a11] p-7 sm:p-10">
+      <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.1fr]">
+        <div>
+          <p className="flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#6ee7ef]"><Calculator className="h-3.5 w-3.5" /> ROI calculator</p>
+          <h3 className="mt-3 text-[clamp(1.6rem,2.4vw,2.2rem)] font-light leading-[1.1] tracking-[-0.02em] text-white">
+            What is the manual process <span className="text-[#e44bd7]">costing you?</span>
+          </h3>
+          <p className="mt-4 max-w-md text-[14px] font-light leading-6 text-[#b9b6c9]">
+            Industry numbers for Total Wireless dealers: $500–$2,000 in unclaimed rebates and spiffs per store every month, plus hours of retyping. Set your reality below — the payback math uses real catalog pricing, volume discounts included.
+          </p>
+          <div className="mt-7 space-y-6">
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[13px] font-medium text-[#b9b6c9]">Stores you run</span>
+                <span className="font-mono-tech text-[15px] font-semibold text-white" data-testid="roi-stores-value">{stores}</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={20}
+                value={stores}
+                onChange={(e) => setStores(Number(e.target.value))}
+                aria-label="Number of stores"
+                data-testid="roi-stores-slider"
+                className="w-full accent-[#6ee7ef]"
+              />
+            </div>
+            <div>
+              <span className="mb-2 block text-[13px] font-medium text-[#b9b6c9]">Missed rebates &amp; incentives per store / month</span>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { v: 500, label: '$500 — careful' },
+                  { v: 1000, label: '$1,000 — typical' },
+                  { v: 2000, label: '$2,000 — manual & busy' },
+                ].map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => setLossPerStore(o.v)}
+                    className={lossPerStore === o.v
+                      ? 'rounded-lg bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#0b0a10]'
+                      : 'rounded-lg border border-white/15 px-3 py-1.5 text-[12.5px] text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white'}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-[#e44bd7]/25 bg-[#e44bd7]/[.06] p-5">
+            <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#e44bd7]">Losing today</p>
+            <p className="mt-2 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-white" data-testid="roi-monthly-loss">{formatUSD(monthlyLoss)}<span className="text-[14px] text-[#8d8a9e]">/mo</span></p>
+            <p className="mt-2 text-[12px] leading-5 text-[#8d8a9e]">{formatUSD(monthlyLoss * 12)} a year in missed money and wasted hours</p>
+          </div>
+          <div className="rounded-2xl border border-[#6ee7ef]/25 bg-[#6ee7ef]/[.06] p-5">
+            <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#6ee7ef]">Full bundle — {stores} PC{stores === 1 ? '' : 's'}</p>
+            <p className="mt-2 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-white" data-testid="roi-bundle-price">{formatUSD(lifetimePrice)}</p>
+            <p className="mt-2 text-[12px] leading-5 text-[#8d8a9e]">one-time lifetime · or {formatUSD(monthlyPrice)}/mo cancel-anytime</p>
+          </div>
+          <div className="rounded-2xl border border-white/[.09] bg-white/[.03] p-5 sm:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#6ee7ef]">Payback period</p>
+                <p className="mt-1.5 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-white" data-testid="roi-payback">{paybackDays} days</p>
+              </div>
+              <p className="max-w-[240px] text-[12.5px] leading-5 text-[#b9b6c9]">
+                Then it keeps everything it finds — <span className="text-[#6ee7ef]">{formatUSD(savedYear)}+ net in year one</span> at these settings.
+              </p>
+            </div>
+          </div>
+          <a
+            href="#tools"
+            data-testid="roi-cta"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] sm:col-span-2"
+          >
+            Pick your licenses in the store <ArrowRight className="h-4 w-4" />
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Demo strip — audit action #3: dealers need to SEE the tools working.
+   Paste a YouTube/Loom embed into VIDEO_DEMO.url in catalog.ts and the
+   iframe replaces the placeholder automatically. */
+function DemoStrip() {
+  const wa = whatsappLink();
+  return (
+    <div data-testid="demo-strip" className="mt-14 overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11]">
+      <div className="grid items-stretch lg:grid-cols-[1.05fr_1fr]">
+        <div className="p-8 sm:p-12">
+          <p className="flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#6ee7ef]"><PlayCircle className="h-3.5 w-3.5" /> {VIDEO_DEMO.kicker}</p>
+          <h3 className="mt-3 text-[clamp(1.6rem,2.4vw,2.2rem)] font-light leading-[1.1] tracking-[-0.02em] text-white">{VIDEO_DEMO.title}</h3>
+          <p className="mt-4 max-w-md text-[14px] font-light leading-7 text-[#b9b6c9]">{VIDEO_DEMO.note}</p>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <a
+              href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Send me the raw tool walkthrough')}`}
+              data-testid="demo-cta"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+            >
+              <PlayCircle className="h-4 w-4" /> Get the raw walkthrough now
+            </a>
+            <a
+              href={LINKEDIN_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[13.5px] font-medium text-white transition-colors hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"
+            >
+              <Linkedin className="h-4 w-4" /> Follow on LinkedIn — demos post there first
+            </a>
+            {YOUTUBE_URL ? (
+              <a href={YOUTUBE_URL} target="_blank" rel="noopener noreferrer" aria-label="3S Verse on YouTube" className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[13.5px] font-medium text-white transition-colors hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"><Youtube className="h-4 w-4" /> YouTube</a>
+            ) : null}
+            {wa ? (
+              <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[13.5px] font-medium text-white transition-colors hover:border-[#25d366]/60 hover:text-[#25d366]"><MessageCircle className="h-4 w-4" /> WhatsApp us</a>
+            ) : null}
+          </div>
+        </div>
+        <div className="relative min-h-[280px] border-t border-white/[.07] bg-gradient-to-br from-[#12101d] to-[#0a0912] lg:border-l lg:border-t-0">
+          {VIDEO_DEMO.url ? (
+            <iframe
+              src={VIDEO_DEMO.url}
+              title="3S Verse tool demo"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full"
+            />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-10 text-center">
+              <span className="relative flex h-20 w-20 items-center justify-center rounded-full border border-[#6ee7ef]/40 bg-[#6ee7ef]/[.07]">
+                <PlayCircle className="h-9 w-9 text-[#6ee7ef]" />
+                <span className="absolute -right-1 -top-1 flex h-4 w-4">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#e44bd7] opacity-60" />
+                  <span className="relative inline-flex h-4 w-4 rounded-full border-2 border-[#0b0a11] bg-[#e44bd7]" />
+                </span>
+              </span>
+              <p className="max-w-[260px] font-mono-tech text-[10px] uppercase tracking-[.2em] leading-5 text-[#8d8a9e]">
+                2-min walkthroughs recording right now — first drop lands on LinkedIn this week
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* WhatsApp float — audit action #10: dealers want a quick answer before
+   spending $899. Renders only when WHATSAPP_NUMBER is set in catalog.ts. */
+function WhatsAppFloat() {
+  const wa = whatsappLink();
+  if (!wa) return null;
+  return (
+    <motion.a
+      href={wa}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid="whatsapp-float"
+      aria-label="Chat with 3S Verse on WhatsApp"
+      initial={{ opacity: 0, scale: 0.7 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ delay: 1.2, duration: 0.35 }}
+      className="fixed bottom-24 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#25d366] text-white shadow-[0_12px_32px_rgba(37,211,102,.4)] transition-transform duration-300 hover:scale-110"
+    >
+      <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6" aria-hidden="true">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z" />
+      </svg>
+    </motion.a>
+  );
+}
+
 const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   {
     q: 'Do the tools run under my own VidaPay login?',
@@ -1177,7 +1402,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Is this a subscription?',
-    a: 'No — and it never will be. A lifetime license is one payment and it is yours forever, updates included. There is no monthly rent, no renewal fee, no per-seat surprises. The only recurring thing here is the money you stop losing.',
+    a: 'Only if you want it to be. Monthly is the cancel-anytime plan — $89/mo per tool. Annual is the same software billed yearly at a 30% discount. Lifetime is one payment and it is yours forever — no renewals, ever. Every plan includes every update; pick per tool, mix and match, and switch anytime by replying to your invoice email.',
   },
   {
     q: 'What is the difference between the free trial and lifetime?',
@@ -1198,6 +1423,14 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   {
     q: 'What if it does not work out for my dealership?',
     a: 'Every license carries a 30-day money-back guarantee. If a tool does not do what this page promises on your dealership’s data, tell us within 30 days of delivery and we refund you — no drama, no forms.',
+  },
+  {
+    q: 'Where does my dealership’s data end up?',
+    a: 'On your machine. The tools run on your own Windows PC under your own VidaPay login — credentials, portal sessions, and extracted data never leave your machine. There is no 3S Verse server holding your dealership’s numbers, and each license is machine-locked to the PC you activate it on.',
+  },
+  {
+    q: 'How fast is support, and who answers?',
+    a: 'WhatsApp and email, answered by the people who built the tools — same-day on business days. If a VidaPay portal update ever breaks something, the fix ships as a normal update, already included with every plan. You are never billed for fixes.',
   },
 ];
 
@@ -1289,7 +1522,12 @@ function Reviews() {
                 <figcaption className="mt-9 flex items-center gap-3.5 border-t border-white/[.07] pt-6">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e44bd7]/40 bg-white/[.04] font-mono-tech text-[11px] text-[#6ee7ef]">{review.initials}</span>
                   <div>
-                    <div className="text-[14px] font-medium text-white">{review.name}</div>
+                    <div className="flex items-center gap-1.5 text-[14px] font-medium text-white">
+                      {review.name}
+                      <span className="inline-flex items-center gap-1 rounded-md border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.08] px-1.5 py-0.5 font-mono-tech text-[8.5px] uppercase tracking-[.12em] text-[#6ee7ef]" title="Confirmed 3S Verse customer">
+                        <ShieldCheck className="h-2.5 w-2.5" /> Verified
+                      </span>
+                    </div>
                     <div className="mt-0.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">{review.org}</div>
                   </div>
                 </figcaption>
@@ -1719,6 +1957,14 @@ function Contact() {
             </div>
           </form>
         </Reveal>
+        <Reveal delay={0.16}>
+          <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-x-7 gap-y-3" data-testid="contact-socials">
+            <span className="font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#8d8a9e]">Prefer social? Follow the build —</span>
+            <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-contact-linkedin" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-[#c9c6d8] transition-colors hover:text-[#6ee7ef]"><Linkedin className="h-4 w-4" /> LinkedIn</a>
+            <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-[#c9c6d8] transition-colors hover:text-[#e44bd7]"><Instagram className="h-4 w-4" /> Instagram</a>
+            <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-[#c9c6d8] transition-colors hover:text-[#78a6ff]"><Facebook className="h-4 w-4" /> Facebook</a>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -1893,6 +2139,7 @@ function Home() {
       <ScrollProgress />
       <Spotlight />
       <ScrollTop />
+      <WhatsAppFloat />
       <BrandCursor />
       <Nav />
       <main>

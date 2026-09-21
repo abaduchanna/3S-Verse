@@ -8,11 +8,37 @@
  * All prices in USD. Edit prices here and redeploy — nothing else to touch.
  */
 
-export type ModelId = 'trial' | 'lifetime';
+export type ModelId = 'trial' | 'monthly' | 'annual' | 'lifetime';
 /** How many PCs one license covers — the customer picks any whole number 1–50. */
 export type PcCount = number;
 export const PC_MIN = 1;
 export const PC_MAX = 50;
+
+/** Suffix shown after a price for recurring models — '' for one-time. */
+export function modelPriceSuffix(model: ModelId): string {
+  if (model === 'monthly') return '/mo';
+  if (model === 'annual') return '/yr';
+  return '';
+}
+
+/** Per-model billing explanation shown under the price in the store. */
+export function modelBillingNote(model: ModelId): string {
+  switch (model) {
+    case 'monthly':
+      return 'per month · cancel anytime';
+    case 'annual':
+      return 'per year · 2 months free vs monthly';
+    case 'lifetime':
+      return 'one-time payment · yours forever';
+    default:
+      return '7 days · 1 PC · no card needed';
+  }
+}
+
+/** True for models that renew (shown on invoices + emails). */
+export function isRecurringModel(model: ModelId): boolean {
+  return model === 'monthly' || model === 'annual';
+}
 
 export interface ModelOption {
   id: ModelId;
@@ -82,7 +108,41 @@ export const LAUNCH_OFFER = {
   active: true,
   label: 'Launch Offer',
   note: 'Launch pricing for the first 50 dealers — after that, list price.',
+  /** ISO deadline for launch pricing — the storefront counts down to it.
+   *  Flip `active` to false (or clear endsAt) when the promo ends. */
+  endsAt: '2026-10-31T23:59:59-05:00',
+  /** Scarcity counter shown next to the countdown. */
+  launchTotal: 50,
+  launchRemaining: 23,
 } as const;
+
+/**
+ * WhatsApp float button — paste the number in international format with no
+ * +, spaces or dashes (e.g. '923001234567'). Leave '' to hide the button.
+ */
+export const WHATSAPP_NUMBER = '';
+export const WHATSAPP_GREETING =
+  'Hi 3S Verse — I have a question about the VidaPay dealer tools.';
+
+export function whatsappLink(): string | null {
+  if (!WHATSAPP_NUMBER) return null;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_GREETING)}`;
+}
+
+/**
+ * Product demo video — paste a YouTube embed URL (https://www.youtube.com/embed/VIDEO_ID)
+ * or a Loom share link after recording the walkthrough. Leave '' to show the
+ * "demo dropping soon" placeholder instead of an iframe.
+ */
+export const VIDEO_DEMO = {
+  url: '',
+  kicker: 'See it before you buy it',
+  title: 'Watch the tools work.',
+  note: 'Raw screen recordings — portal in, clean Excel out. No production polish, because the tools are the point.',
+} as const;
+
+/** Optional YouTube channel link — hidden from the UI while ''. */
+export const YOUTUBE_URL = '';
 
 /**
  * Free-trial download pack. Paste a Google Drive FOLDER link here (folder,
@@ -99,7 +159,9 @@ export const TRIAL_DOWNLOAD = {
 
 export const MODELS: ModelOption[] = [
   { id: 'trial', label: '7-Day Free Trial', note: 'Full features, 7 days, 1 PC — no card needed' },
-  { id: 'lifetime', label: 'Lifetime', note: 'Pay once — yours forever, updates included. No subscription, ever.' },
+  { id: 'monthly', label: 'Monthly', note: '$89/mo per tool — cancel anytime' },
+  { id: 'annual', label: 'Annual', note: 'Save 30% vs monthly — every update included' },
+  { id: 'lifetime', label: 'Lifetime', note: 'Pay once — yours forever, updates included. Never pay again.' },
 ];
 
 export const PRODUCTS: Product[] = [
@@ -113,7 +175,7 @@ export const PRODUCTS: Product[] = [
       'One-click Excel workbook output',
       'Human-verification handled automatically',
     ],
-    prices: { trial: 0, lifetime: 1499 },
+    prices: { trial: 0, monthly: 89, annual: 749, lifetime: 1499 },
     launchPrices: { trial: 0, lifetime: 899 },
   },
   {
@@ -126,7 +188,7 @@ export const PRODUCTS: Product[] = [
       'Automatic human-verification handling',
       'Runs on a second screen, unattended',
     ],
-    prices: { trial: 0, lifetime: 1799 },
+    prices: { trial: 0, monthly: 89, annual: 749, lifetime: 1799 },
     launchPrices: { trial: 0, lifetime: 999 },
   },
   {
@@ -139,7 +201,7 @@ export const PRODUCTS: Product[] = [
       'Store login management built in',
       'Per-claim status tracking',
     ],
-    prices: { trial: 0, lifetime: 1999 },
+    prices: { trial: 0, monthly: 89, annual: 749, lifetime: 1999 },
     launchPrices: { trial: 0, lifetime: 1199 },
   },
   {
@@ -152,7 +214,7 @@ export const PRODUCTS: Product[] = [
       'Priority support',
       'Everything the dealership needs',
     ],
-    prices: { trial: 0, lifetime: 3000 },
+    prices: { trial: 0, monthly: 149, annual: 1249, lifetime: 3000 },
     launchPrices: { trial: 0, lifetime: 1499 },
   },
 ];

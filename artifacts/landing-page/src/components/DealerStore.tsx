@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   BadgePercent,
   Check,
@@ -6,6 +6,7 @@ import {
   Download,
   FileText,
   Loader2,
+  Lock,
   MailCheck,
   Minus,
   Plus,
@@ -13,6 +14,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   Trash2,
+  Undo2,
 } from 'lucide-react';
 import {
   LAUNCH_OFFER,
@@ -22,7 +24,10 @@ import {
   TRIAL_DOWNLOAD,
   discountPercent,
   formatUSD,
+  isRecurringModel,
   listPrice,
+  modelBillingNote,
+  modelPriceSuffix,
   nextVolumeTier,
   pcAllowedForModel,
   pcLabel,
@@ -65,6 +70,76 @@ function pill(active: boolean): string {
       ? 'bg-white text-[#0b0a10]'
       : 'border border-white/15 text-[#d8d5e8] hover:border-white/40 hover:text-white',
   ].join(' ');
+}
+
+/* Launch-offer urgency strip — live countdown to the pricing deadline plus
+   the remaining launch-license counter (audit fix: no urgency = forgotten
+   bookmarks). Renders nothing once the deadline passes. */
+function LaunchBar() {
+  const endsAt = LAUNCH_OFFER.active ? Date.parse(LAUNCH_OFFER.endsAt) : NaN;
+  const total = LAUNCH_OFFER.launchTotal;
+  const remaining = Math.max(0, Math.min(total, LAUNCH_OFFER.launchRemaining));
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!Number.isFinite(endsAt)) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [endsAt]);
+
+  const msLeft = endsAt - now;
+  if (!Number.isFinite(endsAt) || msLeft <= 0) return null;
+
+  const sec = Math.floor(msLeft / 1000);
+  const days = Math.floor(sec / 86400);
+  const hours = Math.floor((sec % 86400) / 3600);
+  const mins = Math.floor((sec % 3600) / 60);
+  const secs = sec % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const sold = Math.max(0, total - remaining);
+
+  return (
+    <div
+      data-testid="launch-bar"
+      className="mb-8 rounded-2xl border border-[#e44bd7]/25 bg-gradient-to-r from-[#e44bd7]/[.08] via-[#78a6ff]/[.06] to-[#6ee7ef]/[.08] px-5 py-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <div className="flex items-center gap-2.5">
+          <BadgePercent className="h-4 w-4 shrink-0 text-[#e44bd7]" />
+          <p className="text-[13.5px] font-medium text-white">
+            Launch pricing ends Oct 31 — <span className="text-[#e44bd7]">list prices return Nov 1.</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 font-mono-tech" data-testid="launch-countdown">
+          {[
+            [days, 'd'],
+            [hours, 'h'],
+            [mins, 'm'],
+            [secs, 's'],
+          ].map(([v, u]) => (
+            <span
+              key={u as string}
+              className="min-w-[44px] rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-center text-[13px] font-semibold text-white"
+            >
+              {pad(v as number)}
+              <span className="ml-0.5 text-[10px] font-normal text-[#8d8a9e]">{u}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[.07]">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7] transition-[width] duration-700"
+            style={{ width: `${Math.round((sold / total) * 100)}%` }}
+          />
+        </div>
+        <span className="shrink-0 font-mono-tech text-[10.5px] uppercase tracking-[.14em] text-[#8d8a9e]">
+          {remaining} of {total} launch licenses left
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function DealerStore() {
@@ -321,7 +396,7 @@ export default function DealerStore() {
       <div className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="mb-3 flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#e44bd7]">
-            <ShoppingCart className="h-3.5 w-3.5" /> Buy licenses — pay once, own forever
+            <ShoppingCart className="h-3.5 w-3.5" /> Buy licenses — monthly, annual, or own it forever
           </p>
           <h3 className="text-[clamp(1.7rem,2.6vw,2.5rem)] font-light leading-[1.08] tracking-[-0.02em] text-white">
             Dealer license store
@@ -331,15 +406,18 @@ export default function DealerStore() {
           {LAUNCH_OFFER.active ? (
             <span className="text-[#6ee7ef]">{LAUNCH_OFFER.label} — {LAUNCH_OFFER.note} </span>
           ) : null}
-          Every license is a one-time purchase — <span className="text-white">no subscription, no monthly rent, no renewal fees.</span> Start with the free 7-day trial, buy when it has paid for itself. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
+          Start with the free 7-day trial. Then pay the way your cash flow likes: <span className="text-white">monthly $89, cancel anytime</span>, <span className="text-white">annual (save 30%)</span>, or <span className="text-white">one-time lifetime</span> — pay once, never pay again. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
         </p>
       </div>
       <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-2xl border border-white/[.06] bg-white/[.02] px-5 py-3.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
         <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#6ee7ef]" /> Secure SSL checkout</span>
-        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> 30-day money-back guarantee</span>
-        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> Machine-locked licenses</span>
+        <span className="flex items-center gap-2"><Undo2 className="h-3.5 w-3.5 text-[#6ee7ef]" /> 30-day money-back guarantee</span>
+        <span className="flex items-center gap-2"><Lock className="h-3.5 w-3.5 text-[#6ee7ef]" /> Machine-locked licenses</span>
+        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> PayPal protected</span>
         <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> Support on WhatsApp &amp; email</span>
       </div>
+
+      <LaunchBar />
 
       {result ? (
         <div className="rounded-3xl border border-[#6ee7ef]/25 bg-[#0b0a11] p-8 sm:p-10">
@@ -378,6 +456,12 @@ export default function DealerStore() {
               download links are delivered — usually within a few hours.
             </li>
           </ol>
+          {lines.some((l) => isRecurringModel(l.model)) ? (
+            <p className="mb-6 rounded-xl border border-[#78a6ff]/20 bg-[#78a6ff]/[.05] px-4 py-3 text-[13px] text-[#c9d4f2]">
+              Your order includes a monthly or annual plan — it renews automatically and you can
+              cancel or switch to lifetime anytime by replying to the invoice email. No lock-in.
+            </p>
+          ) : null}
           {invoice ? (
             <div
               data-testid="auto-invoice-card"
@@ -567,6 +651,7 @@ export default function DealerStore() {
                       ) : null}
                       <p className="text-[26px] font-light leading-none text-white">
                         {price === 0 ? 'Free' : formatUSD(price)}
+                        <span className="text-[14px] text-[#8d8a9e]">{modelPriceSuffix(sel.model)}</span>
                         {pct > 0 ? (
                           <span className="ml-2 text-[14px] text-[#8d8a9e] line-through">
                             {formatUSD(list)}
@@ -576,7 +661,7 @@ export default function DealerStore() {
                       <p className="mt-1 text-[11.5px] text-[#8d8a9e]">
                         {sel.model === 'trial'
                           ? '7 days · 1 PC · no card needed'
-                          : `${formatUSD(perPcPrice(product, sel.model, sel.pcs))} per PC · one-time payment · yours forever`}
+                          : `${formatUSD(perPcPrice(product, sel.model, sel.pcs))} per PC · ${modelBillingNote(sel.model)}`}
                       </p>
                     </div>
                     <button
@@ -586,6 +671,13 @@ export default function DealerStore() {
                     >
                       <Plus className="h-4 w-4" /> Add
                     </button>
+                  </div>
+                  {/* trust row — right under the buy decision (audit: zero
+                      reassurance at the point of purchase kills conversion) */}
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 pt-1 text-[10.5px] font-medium text-[#8d8a9e]">
+                    <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-[#6ee7ef]" /> Secure payment</span>
+                    <span className="flex items-center gap-1"><Undo2 className="h-3 w-3 text-[#6ee7ef]" /> 30-day money-back</span>
+                    <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3 text-[#6ee7ef]" /> PayPal accepted</span>
                   </div>
                 </div>
               </div>
@@ -597,8 +689,9 @@ export default function DealerStore() {
       {!result ? (
         <p className="mt-5 text-[13px] font-light text-[#8d8a9e]">
           Pick exactly how many PCs you need — 2–4 PCs get 20% off per PC, 5–9 get 40%, and 10 or
-          more get 50%, applied automatically. Running 50+ PCs or need central billing for a whole
-          district? Message us and we will set it up.
+          more get 50%, applied automatically on every billing model. Monthly plans cancel anytime;
+          annual saves 30%; lifetime never bills again. Running 50+ PCs or need central billing for
+          a whole district? Message us and we will set it up.
         </p>
       ) : null}
 

@@ -15,7 +15,7 @@ import {
   type InvoiceData,
   type InvoiceItem,
 } from './invoice';
-import type { ModelId } from './catalog';
+import { isRecurringModel, type ModelId } from './catalog';
 
 export interface AutoOrderLine {
   productId: string;
@@ -39,6 +39,11 @@ export function buildOrderInvoice(input: AutoOrderInput): InvoiceData {
     .map((l) => catalogInvoiceItem(l.productId, l.model, l.pcs, l.qty))
     .filter((i): i is InvoiceItem => i !== null);
 
+  const recurring = input.lines.some((l) => isRecurringModel(l.model));
+  const recurringNote = recurring
+    ? `Monthly plans renew every month and annual plans renew every year until cancelled — reply to this email to cancel or switch to a lifetime license anytime. `
+    : '';
+
   return {
     invoiceNo: invoiceNumberFromRef(input.ref),
     orderRef: input.ref,
@@ -55,6 +60,7 @@ export function buildOrderInvoice(input: AutoOrderInput): InvoiceData {
     keys: [],
     notes:
       (input.notes ? `${input.notes}\n\n` : '') +
+      recurringNote +
       `Pay by bank transfer, Wise, PayPal, or USDT — reply to Connect@3SVerse.com ` +
       `with your payment receipt and order reference ${input.ref}. ` +
       `License keys + download links are delivered right after payment is confirmed. ` +
