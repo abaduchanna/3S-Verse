@@ -1,9 +1,30 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER (REBUILT)
-=====================================================
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v2 (CREDENTIAL)
+===========================================================
 
 Ye wo file hai jo lost ho gayi thi. Ye aap ki Excel/CSV data
 padh kar dashboard (gfhinventorydashboard.netlify.app) par
 upload kar deti hai.
+
+2 MODES (script khud choose karta hai)
+--------------------------------------
+1) CREDENTIAL MODE (secure):
+   Apni Firebase credential JSON file isi folder mein rakho
+   (koi bhi naam chalega, jaise firebase-credentials.json).
+   Script khud dhundh kar usi se login kar ke upload karegi.
+   Fayda: Firebase rules LOCK hon tab bhi chalega.
+
+2) DIRECT MODE (fallback):
+   Credential file na miley to bina login upload karega
+   (tab tak chalega jab tak database rules khule hain).
+
+CREDENTIAL FILE KA KHYAL RAKHNA (BOHAT ZAROORI)
+----------------------------------------------
+- Ye file aap ke Firebase project ki MASTER KEY hai.
+- Kisi ko na do, email/chat/WhatsApp pe paste na karo,
+  GitHub ya kisi aur jagah upload NAHI karna.
+- Sirf apne PC par is folder mein rakhi ho, bas.
+- Agar kabhi leak ho jaye: Firebase Console > Project settings >
+  Service accounts > purani key delete kar do, nayi bana lo.
 
 ISTEMAL (2 tarike)
 ------------------
@@ -15,9 +36,20 @@ ISTEMAL (2 tarike)
 
 PEHLI DAFA
 ----------
-- openpyxl khud install ho jayega (internet chahiye, 10 sec)
+- openpyxl / firebase-admin khud install ho jayenge (internet
+  chahiye, ~20 sec, sirf pehli dafa)
 - Backup lena zaroori: RUN_BACKUP.bat double-click karo,
   ye current dashboard ka poora data JSON file mein save kar deta hai
+
+ADVANCED (optional): RULES LOCK
+-------------------------------
+Jab credential mode 1 dafa chal jaye, to Firebase Console >
+Realtime Database > Rules mein ye laga do taake koi aur aap ka
+data badal na sake (dashboard ko READ sab ke liye chahiye):
+
+  { "rules": { ".read": true, ".write": false } }
+
+Iske baad upload SIRF credential file wale mode se hoga.
 
 ZAROORI BAATEIN
 ---------------
