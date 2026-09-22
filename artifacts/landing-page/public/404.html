@@ -1,22 +1,254 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>3S Verse — Redirecting…</title>
-<script>
-  /* GitHub Pages serves this file for any unknown path. Route friendly
-     shortcuts to their real homes: /invoice -> /#/invoice (Invoice
-     Studio, hash-routed so it stays static-safe). Everything else goes
-     to the landing page. */
-  (function () {
-    var path = location.pathname.replace(/\/+$/, '').toLowerCase();
-    if (path === '/invoice' || path === '/invoicestudio') {
-      location.replace(location.origin + '/#/invoice');
-      return;
+<html lang="en" class="dark" style="color-scheme: dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3S Verse — VidaPay Tools for Wireless Dealers | Front-Office Automation</title>
+    <meta name="description" content="VidaPay workflow tools for wireless dealers: extract incentives, guide device orders and track rebate claims. Start a free 7-day Windows trial." />
+    <meta name="keywords" content="VidaPay tools, VidaPay automation, VidaPay incentive extractor, Total Wireless dealer tools, Total Wireless dealer software, VidaPay rebate filing, wireless dealer software, wireless dealer POS tools, prepaid wireless dealer solutions" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://3sverse.com/" />
+    <meta name="theme-color" content="#060509" />
+
+    <meta property="og:title" content="3S Verse — VidaPay Tools for Wireless Dealers" />
+    <meta property="og:description" content="VidaPay workflow tools for wireless dealers — extract incentives, guide device orders, track rebate claims. Free 7-day Windows trial." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://3sverse.com/" />
+    <meta property="og:site_name" content="3S Verse" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://3sverse.com/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="3S Verse — Software, Systems & Operations" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="3S Verse — VidaPay Tools for Wireless Dealers" />
+    <meta name="twitter:description" content="VidaPay workflow tools for wireless dealers — extract incentives, guide device orders, track rebate claims. Free 7-day Windows trial." />
+    <meta name="twitter:image" content="https://3sverse.com/og-image.jpg" />
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "ProfessionalService",
+          "@id": "https://3sverse.com/#org",
+          "name": "3S Verse",
+          "url": "https://3sverse.com/",
+          "logo": "https://3sverse.com/logo-square.png",
+          "image": "https://3sverse.com/og-image.jpg",
+          "description": "VidaPay dealer tools and a software, systems & operations studio — we build the apps, websites, AI agents, dashboards and automation businesses run on, backed by 13+ years of real operations experience.",
+          "email": "Connect@3SVerse.com",
+          "sameAs": [
+            "https://www.linkedin.com/company/3sverse",
+            "https://www.instagram.com/3s.verse/",
+            "https://www.facebook.com/3sverse/"
+          ],
+          "knowsAbout": [
+            "VidaPay dealer tools",
+            "Wireless dealer automation",
+            "Total Wireless dealer operations",
+            "Web application development",
+            "Process automation",
+            "AI agents",
+            "Data dashboards",
+            "Business systems integration"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://3sverse.com/#website",
+          "url": "https://3sverse.com/",
+          "name": "3S Verse",
+          "publisher": { "@id": "https://3sverse.com/#org" },
+          "inLanguage": "en"
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://3sverse.com/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Do the tools run under my own VidaPay login?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes. Everything runs on your own Windows PC under your own dealer login. Your VidaPay credentials stay on your machine, and each license is machine-locked to the PC you activate it on." }
+            },
+            {
+              "@type": "Question",
+              "name": "I run multiple stores. Will it keep up?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes — all three tools were born inside a real multi-store wireless operation: per-store dashboards, per-store ordering quantities, and bulk claim filing across every branch are the default. Pick exactly how many PCs you need: 2–4 PCs get 10% off per PC and 5–9 get 20%, applied automatically. For 10 or more PCs we quote district pricing with central billing." }
+            },
+            {
+              "@type": "Question",
+              "name": "Is this a subscription?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Only if you want it to be. Monthly is the cancel-anytime plan — $89/mo per tool. Annual is the same software billed yearly at a 44% discount. Lifetime is one payment and it is yours forever — no renewals, ever. Every plan includes every update; pick per tool, mix and match, and switch anytime." }
+            },
+            {
+              "@type": "Question",
+              "name": "What is the difference between the free trial and lifetime?",
+              "acceptedAnswer": { "@type": "Answer", "text": "The trial is the full software, free for 7 days on 1 PC — no card required. Lifetime is the same software with the clock removed: one payment, every future update, and support on WhatsApp and email." }
+            },
+            {
+              "@type": "Question",
+              "name": "What happens when VidaPay updates their portal?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Updates are included with every license, so when the portal moves, the tools move with it. When the portal shows a security or verification step, the tool pauses and hands it to you to approve, then continues instead of freezing." }
+            },
+            {
+              "@type": "Question",
+              "name": "What do I need to run it?",
+              "acceptedAnswer": { "@type": "Answer", "text": "A Windows 10 or 11 PC, your VidaPay dealer login, and Excel for the outputs — install, activate with the key we email you, and run." }
+            },
+            {
+              "@type": "Question",
+              "name": "How do payment and delivery work?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Place the order and an invoice opens in your browser instantly (PDF-ready, emailed to you). Pay by bank transfer, Wise, PayPal, or USDT — license keys plus download links arrive, usually within a few hours." }
+            },
+            {
+              "@type": "Question",
+              "name": "What if it does not work out for my dealership?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Every license carries a 30-day money-back guarantee — if a tool does not do what the site promises on your dealership's data, we refund you within 30 days of delivery." }
+            },
+            {
+              "@type": "Question",
+              "name": "Where does my dealership's data end up?",
+              "acceptedAnswer": { "@type": "Answer", "text": "On your machine. The tools run on your own Windows PC under your own VidaPay login — credentials, portal sessions, and extracted data never leave your machine. There is no 3S Verse server holding your dealership's numbers, and each license is machine-locked to the PC you activate it on." }
+            },
+            {
+              "@type": "Question",
+              "name": "How fast is support, and who answers?",
+              "acceptedAnswer": { "@type": "Answer", "text": "WhatsApp and email, answered by the people who built the tools — same-day on business days (US Central time). If a VidaPay portal update ever breaks something, the fix ships as a normal update, already included with every plan." }
+            }
+          ]
+        },
+        {
+          "@type": "ItemList",
+          "@id": "https://3sverse.com/#products",
+          "name": "VidaPay Dealer Tools",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "item": {
+                "@type": "Product",
+                "name": "VidaPay Incentive Extractor",
+                "description": "IMEI-level incentive & activation extraction for VidaPay dealers — per-store dashboards and one-click Excel output.",
+                "brand": { "@type": "Brand", "name": "3S Verse" },
+                "offers": [
+                  { "@type": "Offer", "price": "899", "priceCurrency": "USD", "description": "Lifetime license — launch offer, 1–9 PCs with volume discounts" },
+                  { "@type": "Offer", "price": "89", "priceCurrency": "USD", "description": "Monthly plan per PC — cancel anytime" }
+                ]
+              }
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "item": {
+                "@type": "Product",
+                "name": "VidaPay Device Ordering",
+                "description": "Guided device ordering with store login management — all branches in one guided submit.",
+                "brand": { "@type": "Brand", "name": "3S Verse" },
+                "offers": [
+                  { "@type": "Offer", "price": "999", "priceCurrency": "USD", "description": "Lifetime license — launch offer, 1–9 PCs with volume discounts" },
+                  { "@type": "Offer", "price": "89", "priceCurrency": "USD", "description": "Monthly plan per PC — cancel anytime" }
+                ]
+              }
+            },
+            {
+              "@type": "ListItem",
+              "position": 3,
+              "item": {
+                "@type": "Product",
+                "name": "VidaPay Rebate Filing",
+                "description": "Bulk rebate claim filing with per-claim status tracking for VidaPay dealers.",
+                "brand": { "@type": "Brand", "name": "3S Verse" },
+                "offers": [
+                  { "@type": "Offer", "price": "1199", "priceCurrency": "USD", "description": "Lifetime license — launch offer, 1–9 PCs with volume discounts" },
+                  { "@type": "Offer", "price": "89", "priceCurrency": "USD", "description": "Monthly plan per PC — cancel anytime" }
+                ]
+              }
+            },
+            {
+              "@type": "ListItem",
+              "position": 4,
+              "item": {
+                "@type": "Product",
+                "name": "VidaPay Full Bundle",
+                "description": "All three tools — Extractor, Device Ordering, and Rebate Filing — under one license.",
+                "brand": { "@type": "Brand", "name": "3S Verse" },
+                "offers": [
+                  { "@type": "Offer", "price": "1499", "priceCurrency": "USD", "description": "Lifetime license — launch offer, 1–9 PCs with volume discounts" },
+                  { "@type": "Offer", "price": "149", "priceCurrency": "USD", "description": "Monthly plan per PC — cancel anytime" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
-    location.replace(location.origin + '/');
-  })();
-</script>
-</head>
-<body></body>
+    </script>
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- Brand fonts are self-hosted via @fontsource (bundled + fingerprinted
+         by Vite) — no third-party render-blocking font requests. -->
+    <script>
+      /* Always land on the hero: on a fresh load or refresh the browser must
+         not restore the previous scroll position (Chrome/Firefox do this on
+         reload) and must not re-anchor to a section hash (#contact, #services,
+         …) left in the URL. In-page hash links keep working after load — this
+         only normalizes the state the page starts in. */
+      (function () {
+        try { history.scrollRestoration = 'manual'; } catch (e) {}
+        /* Friendly shortcuts: /invoice -> Invoice Studio (#/invoice) and the
+           policy/download pages -> their #/ routes. Covers the window where
+           an old SPA-fallback 404.html (a copy of this index.html) is still
+           served from a CDN edge for those paths. */
+        var m = location.pathname.replace(/\/+$/, '').toLowerCase().match(/^\/(invoice|privacy|terms|refund|eula|security|download)$/);
+        if (m) {
+          location.replace(location.origin + '/#/' + m[1]);
+          return;
+        }
+        if (location.hash && !location.hash.startsWith('#/')) {
+          /* "#/…" are app routes (e.g. #/invoice = Invoice Studio) — they
+             must survive; only section anchors (#contact, …) are stripped. */
+          try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        }
+        scrollTo(0, 0);
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>
+      <div style="font-family: sans-serif; max-width: 720px; margin: 48px auto; padding: 0 20px; color: #17121c;">
+        <h1>3S Verse — Software, Systems &amp; Operations</h1>
+        <p>3S Verse builds the systems your business runs on — apps, websites, AI agents, dashboards and workflow automation, built by operators with 13+ years of real operations experience.</p>
+        <h2>What we build</h2>
+        <ul>
+          <li>Websites &amp; web applications</li>
+          <li>Business process automation</li>
+          <li>AI agents &amp; chatbots</li>
+          <li>Operations dashboards &amp; reporting</li>
+          <li>Systems integration &amp; workflow tools</li>
+        </ul>
+        <h2>Contact</h2>
+        <p>Email: <a href="mailto:Connect@3SVerse.com">Connect@3SVerse.com</a><br />
+        LinkedIn: <a href="https://www.linkedin.com/company/3sverse">3S Verse on LinkedIn</a><br />
+        Instagram: <a href="https://www.instagram.com/3s.verse/">@3s.verse on Instagram</a><br />
+        Facebook: <a href="https://www.facebook.com/3sverse/">3S Verse on Facebook</a><br />
+        Web: <a href="https://3sverse.com/">3sverse.com</a></p>
+      </div>
+    </noscript>
+    <div id="root">
+      <!-- instant boot splash (pure inline CSS, replaced by React on mount) -->
+      <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#060509;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:18px;font-family:'Montserrat',system-ui,sans-serif;">
+          <span style="width:10px;height:10px;border-radius:9999px;background:#6ee7ef;box-shadow:0 0 24px #6ee7ef;animation:pf-pulse 1.4s ease-in-out infinite;"></span>
+          <span style="font-size:12px;letter-spacing:.42em;text-transform:uppercase;color:rgba(242,240,250,.55);">3S Verse</span>
+        </div>
+        <style>@keyframes pf-pulse{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}</style>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

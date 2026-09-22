@@ -69,3 +69,9 @@ Thumbs.db
 download/app-builds/
 *.exe
 scripts/workspace-extract*/
+
+# local deliverables & working files (never publish)
+download/
+upload/
+scripts/
+worklog.md

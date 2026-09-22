@@ -28,7 +28,7 @@ export function modelBillingNote(model: ModelId): string {
     case 'monthly':
       return 'per month · cancel anytime';
     case 'annual':
-      return 'per year · save 30% vs monthly';
+      return 'per year · save 44% vs monthly';
     case 'lifetime':
       return 'one-time payment · yours forever';
     default:
@@ -40,6 +40,15 @@ export function modelBillingNote(model: ModelId): string {
 export function isRecurringModel(model: ModelId): boolean {
   return model === 'monthly' || model === 'annual';
 }
+
+/**
+ * Per-PC licensing, explained (audit: per-PC pricing can feel punitive
+ * unless the site explains why it exists). Shown next to the PC picker.
+ */
+export const PER_PC_NOTE =
+  'One PC can run every store you operate — most single-PC dealers need exactly one license. '
+  + 'Extra PCs are for extra workstations (a second office, a colleague\u2019s desk): each seat is a separate '
+  + 'activation with its own license key, support and updates, so volume discounts apply per PC instead.';
 
 export interface ModelOption {
   id: ModelId;
@@ -102,19 +111,19 @@ export interface Product {
 }
 
 /**
- * Launch offer — site-wide introductory discount. Flip `active` to false to
- * end the promotion; UI and emails fall back to list prices automatically.
+ * Launch offer — site-wide introductory discount with a REAL, enforced end
+ * condition (audit: scarcity must be tied to an enforced deadline — no
+ * fabricated "X of Y left" counters; the countdown counts to the fixed
+ * cutoff below and list prices return automatically). Flip `active` to
+ * false to end the promotion early.
  */
 export const LAUNCH_OFFER = {
   active: true,
   label: 'Launch Offer',
-  note: 'Launch pricing for the first 50 dealers — after that, list price.',
+  note: 'Launch pricing ends Oct 31, 2026 — honored to the minute. List prices return Nov 1, no extension.',
   /** ISO deadline for launch pricing — the storefront counts down to it.
    *  Flip `active` to false (or clear endsAt) when the promo ends. */
   endsAt: '2026-10-31T23:59:59-05:00',
-  /** Scarcity counter shown next to the countdown. */
-  launchTotal: 50,
-  launchRemaining: 23,
 } as const;
 
 /**
@@ -162,8 +171,9 @@ export const TRIAL_DOWNLOADS: Record<string, string> = {
   extractor: `${TRIAL_BASE}VidaPay_Incentive_Extractor_TRIAL.exe`,
   ordering: `${TRIAL_BASE}VidaPay_Device_Ordering_TRIAL.exe`,
   rebate: `${TRIAL_BASE}VidaPay_Rebate_Filing_TRIAL.exe`,
-  /* Bundle trial → the release page lists all three trial installers. */
-  bundle: 'https://github.com/abaduchanna/3sverse-downloads/releases/latest',
+  /* Bundle trial → the branded download page lists all three trial
+     installers with live SHA-256 checksums. */
+  bundle: '/#/download',
 };
 
 /** Versionless trial download URL for a product ('' hides its button). */
@@ -196,7 +206,7 @@ export const PAID_DOWNLOAD = {
 export const MODELS: ModelOption[] = [
   { id: 'trial', label: '7-Day Free Trial', note: 'Full features, 7 days, 1 PC — no card needed' },
   { id: 'monthly', label: 'Monthly', note: '$89/mo per tool — cancel anytime' },
-  { id: 'annual', label: 'Annual', note: 'Save 30% vs monthly — every update included' },
+  { id: 'annual', label: 'Annual', note: 'Save 44% vs monthly — every update included' },
   { id: 'lifetime', label: 'Lifetime', note: 'Founding-customer launch price — pay once, yours forever, every update included.' },
 ];
 
@@ -211,7 +221,7 @@ export const PRODUCTS: Product[] = [
       'One-click Excel workbook output',
       'Runs under your own dealer login — portal security checks stay user-controlled',
     ],
-    prices: { trial: 0, monthly: 89, annual: 749, lifetime: 1499 },
+    prices: { trial: 0, monthly: 89, annual: 599, lifetime: 1299 },
     launchPrices: { trial: 0, lifetime: 899 },
   },
   {
@@ -222,9 +232,9 @@ export const PRODUCTS: Product[] = [
       'Store-by-store ordering flow',
       'Built-in store login manager',
       'Portal verification steps pause for your approval — nothing bypasses you',
-      'Runs on a second screen, unattended',
+      'Runs on a second screen with limited supervision',
     ],
-    prices: { trial: 0, monthly: 89, annual: 749, lifetime: 1799 },
+    prices: { trial: 0, monthly: 89, annual: 599, lifetime: 1499 },
     launchPrices: { trial: 0, lifetime: 999 },
   },
   {
@@ -237,7 +247,7 @@ export const PRODUCTS: Product[] = [
       'Store login management built in',
       'Per-claim status tracking',
     ],
-    prices: { trial: 0, monthly: 89, annual: 749, lifetime: 1999 },
+    prices: { trial: 0, monthly: 89, annual: 699, lifetime: 1699 },
     launchPrices: { trial: 0, lifetime: 1199 },
   },
   {
@@ -248,9 +258,9 @@ export const PRODUCTS: Product[] = [
       'Extractor + Ordering + Rebate Filing',
       'One license covers every tool',
       'Priority support',
-      'Everything the dealership needs',
+      'All three 3SVerse VidaPay workflow tools under one license',
     ],
-    prices: { trial: 0, monthly: 149, annual: 1249, lifetime: 3000 },
+    prices: { trial: 0, monthly: 149, annual: 999, lifetime: 2499 },
     launchPrices: { trial: 0, lifetime: 1499 },
   },
 ];

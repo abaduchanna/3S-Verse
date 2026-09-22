@@ -7,6 +7,11 @@ import NotFound from '@/pages/not-found';
    is code-split and fetched on demand. */
 const InvoiceStudio = lazy(() => import('@/pages/InvoiceStudio'));
 const OrderStatusPage = lazy(() => import('@/pages/OrderStatus'));
+/* Policy, security and download pages — same hash-routing pattern so they
+   stay static-safe on GitHub Pages; deep links like /privacy redirect
+   via the inline script in index.html (404.html SPA fallback). */
+const LegalPage = lazy(() => import('@/pages/Legal'));
+const DownloadPage = lazy(() => import('@/pages/DownloadPage'));
 import DealerStore from '@/components/DealerStore';
 // NOTE: /order/:id + /admin routes were removed — they depended on the
 // Netlify server functions, which are dormant since the GitHub Pages deploy.
@@ -27,7 +32,6 @@ import {
   Clock,
   Database,
   Download,
-  Eye,
   Facebook,
   Globe2,
   Instagram,
@@ -424,7 +428,7 @@ const navItems = [
   { label: 'Dealer tools', href: '#tools' },
   { label: 'Guides', href: '#guides' },
   { label: 'FAQ', href: '#faq' },
-  { label: 'Reviews', href: '#reviews' },
+  { label: 'Trust & Guarantees', href: '#reviews' },
 ];
 
 function Nav() {
@@ -432,7 +436,7 @@ function Nav() {
   return (
     <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/[.06] bg-[#060509]/75 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 lg:px-8">
-        <a href="#top" data-testid="link-brand" className="shrink-0">
+        <a href="#top" data-testid="link-brand" aria-label="3S Verse — back to top" className="shrink-0">
           <img src="/logo-240.png" alt="3S Verse" width={240} height={57} className="h-5 w-auto object-contain" />
         </a>
         <nav className="hidden items-center gap-9 md:flex">
@@ -578,14 +582,14 @@ function Hero() {
             </Reveal>
             <Reveal delay={0.16}>
               <p className="mt-8 max-w-xl text-[17px] font-light leading-8 text-[#b9b6c9]">
-                Spreadsheets, copy-paste, end-of-month scrambles — that&apos;s the work we take off your hands. 3S Verse builds the custom software, web &amp; mobile apps, AI agents, live dashboards, and workflow automation modern businesses run on — cutting costs, recovering lost money, and keeping your operation moving around the clock. Behind every build: {YEARS_EXPERIENCE}+ years of real operations experience.
+                3S Verse builds dealer tools, custom applications and workflow automation for businesses that run on spreadsheets, portals and repetitive processes. Start with a 7-day VidaPay tool trial — or bring us the bottleneck your team needs removed.
               </p>
             </Reveal>
             <Reveal delay={0.24}>
               <div className="mt-10 flex flex-wrap items-center gap-4">
-                <BtnWhite href="#contact" testId="button-hero-get-started">Let&apos;s build something</BtnWhite>
-                <a href="#services" data-testid="link-hero-explore" className="group inline-flex items-center gap-2 px-2 py-3 text-[15px] font-medium text-[#d8d5e8] transition-colors hover:text-white">
-                  See what we offer
+                <BtnWhite href="#tools" testId="button-hero-get-started">Start a dealer tool trial</BtnWhite>
+                <a href="#contact" data-testid="link-hero-explore" className="group inline-flex items-center gap-2 px-2 py-3 text-[15px] font-medium text-[#d8d5e8] transition-colors hover:text-white">
+                  Discuss a custom system
                   <ArrowDownRight className="h-4 w-4 text-[#6ee7ef] transition-transform duration-300 group-hover:translate-x-1 group-hover:translate-y-1" />
                 </a>
               </div>
@@ -593,7 +597,7 @@ function Hero() {
             <Reveal delay={0.32}>
               <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/[.07] pt-5 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
                 <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years in real operations</span>
-                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> $265K+ recovered for clients</span>
+                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> $265K+ identified or recovered across prior programs</span>
                 <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#e44bd7]" /> Running in dealerships daily</span>
               </div>
             </Reveal>
@@ -654,10 +658,10 @@ const features = [
   {
     index: '02',
     title: 'Web & mobile apps',
-    description: 'Full-stack web and Android apps that carry real operational weight — internal tools, customer-facing products, everything in between — shipped on schedule and on budget.',
+    description: 'Full-stack web and Android apps that carry real operational weight — internal tools, customer-facing products, everything in between — built to fit the operation you already run.',
     icon: Smartphone,
     color: 'magenta',
-    detail: ['Full-stack web apps', 'Android development', 'On time, on budget'],
+    detail: ['Full-stack web apps', 'Android development', 'Documented delivery scope'],
   },
   {
     index: '03',
@@ -706,7 +710,7 @@ function Services() {
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              One partner across the whole spectrum: a website that sells, apps that run your day, AI that clears the busywork, dashboards that keep score, and automation that never sleeps. Scoped in weeks, not quarters, by people who have actually run these operations.
+              One partner across the whole spectrum: a website that sells, apps that run your day, AI that clears the busywork, dashboards that keep score, and automation that never sleeps. Scoped in weeks, not quarters, by people who have actually run these operations. We specialize in operational software — internal applications, data workflows, reporting systems, AI-assisted processes and dealer tools; marketing websites are available when they support the same operating system or sales journey.
             </p>
           </div>
         </Reveal>
@@ -883,9 +887,9 @@ function StatVisual({ kind }: { kind: 'bars' | 'rings' | 'line' }) {
 
 function Outcomes() {
   const stats = [
-    { value: '$265K+', label: 'recovered in claims & losses', kind: 'bars' as const },
-    { value: '$121K', label: 'vendor savings in one year', kind: 'line' as const },
-    { value: '15%', label: 'inventory turnover lift', kind: 'rings' as const },
+    { value: '$265K+', label: 'identified or recovered across prior operator programs', kind: 'bars' as const },
+    { value: '$100K+', label: 'annual vendor savings — one prior sourcing program', kind: 'line' as const },
+    { value: 'Double-digit', label: 'inventory turnover improvement — a prior program', kind: 'rings' as const },
   ];
   return (
     <section id="outcomes" className="relative overflow-hidden py-28 lg:py-36">
@@ -899,7 +903,7 @@ function Outcomes() {
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
-              No vanity metrics — numbers pulled straight from live deployments: retail operations, distribution, and multi-store programs running on systems we built.
+              Operator-experience figures from 13+ years across retail operations, distribution and multi-store programs — stated as experienced, and published as verified case studies as clients approve them.
             </p>
           </div>
         </Reveal>
@@ -919,7 +923,7 @@ function Outcomes() {
           ))}
         </div>
         <p className="mt-8 max-w-3xl text-[12.5px] font-light leading-5 text-[#8d8a9e]">
-          Aggregate outcomes across 13+ years of operator-led deployments at wireless dealerships, distributors and vendor programs. Figures anonymized — methodology and case detail available on request.
+          These are operator-career outcomes from prior telecom, FMCG and pharmaceutical programs — not 3SVerse client results. Every future client case study publishes with its method, measurement period and verification.
         </p>
       </div>
     </section>
@@ -935,7 +939,7 @@ const TOOLS = [
     id: 'extractor',
     tab: 'VidaPay Incentive Extractor',
     title: 'VidaPay Incentive Extractor',
-    blurb: 'Every rebate, spiff, and incentive pulled straight out of the VidaPay portal into one clean sheet. No screenshots, no retyping, no missed dollars — built for the front office that reconciles VidaPay every week.',
+    blurb: 'Every rebate, spiff, and incentive pulled straight out of the VidaPay portal into one clean sheet. No screenshots, no retyping — built to reduce missed incentives and manual transcription for the front office that reconciles VidaPay every week.',
     chips: [
       { icon: FileSpreadsheet, label: 'Rebate tracking' },
       { icon: ClipboardCheck, label: 'Claim matching' },
@@ -1397,7 +1401,7 @@ function DemoStrip() {
                 </span>
               </span>
               <p className="max-w-[260px] font-mono-tech text-[10px] uppercase tracking-[.2em] leading-5 text-[#8d8a9e]">
-                2-min walkthroughs recording right now — first drop lands on LinkedIn this week
+                Full product demo in production — meanwhile the field guides below walk the exact workflows
               </p>
             </div>
           )}
@@ -1442,7 +1446,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Is this a subscription?',
-    a: 'Only if you want it to be. Monthly is the cancel-anytime plan — $89/mo per tool. Annual is the same software billed yearly at a 30% discount. Lifetime is one payment and it is yours forever — no renewals, ever. Every plan includes every update; pick per tool, mix and match, and switch anytime by replying to your invoice email.',
+    a: 'Only if you want it to be. Monthly is the cancel-anytime plan — $89/mo per tool. Annual is the same software billed yearly at a 44% discount. Lifetime is one payment and it is yours forever — no renewals, ever. Every plan includes every update; pick per tool, mix and match, and switch anytime by replying to your invoice email.',
   },
   {
     q: 'What is the difference between the free trial and lifetime?',
@@ -1462,7 +1466,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'What if it does not work out for my dealership?',
-    a: 'Every license carries a 30-day money-back guarantee. If a tool does not do what this page promises on your dealership’s data, tell us within 30 days of delivery and we refund you — no drama, no forms.',
+    a: 'Every license carries a 30-day money-back guarantee. If a tool does not do what this page promises on your dealership’s data, tell us within 30 days of delivery and we refund you in full — processed within 5 business days. The precise terms live in our refund policy.',
   },
   {
     q: 'Where does my dealership’s data end up?',
@@ -1473,6 +1477,26 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
     a: 'WhatsApp and email, answered by the people who built the tools — same-day on business days (US Central time), next business day worst case. If a VidaPay portal update ever breaks something, the fix ships as a normal update, already included with every plan. You are never billed for fixes.',
   },
 ];
+
+function FaqItem({ q, a, index }: { q: string; a: string; index: number }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div data-testid={`faq-item-${index}`} className="border-b border-white/[.06] last:border-b-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((c) => !c)}
+        className="flex w-full cursor-pointer items-center justify-between gap-6 px-7 py-5 text-left transition-colors hover:bg-white/[.02]"
+      >
+        <span className="text-[15.5px] font-medium leading-6 text-white">{q}</span>
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-[#6ee7ef] transition-transform duration-300 ${open ? 'rotate-45' : ''}`}>
+          <Plus className="h-3.5 w-3.5" />
+        </span>
+      </button>
+      {open && <p className="px-7 pb-6 pr-14 text-[14px] font-light leading-7 text-[#b9b6c9]">{a}</p>}
+    </div>
+  );
+}
 
 function Faq() {
   return (
@@ -1490,15 +1514,7 @@ function Faq() {
         <Reveal delay={0.08}>
           <div className="overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11]">
             {FAQ_ITEMS.map(({ q, a }, i) => (
-              <details key={q} data-testid={`faq-item-${i}`} className="group border-b border-white/[.06] last:border-b-0">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 px-7 py-5 text-left transition-colors hover:bg-white/[.02] [&::-webkit-details-marker]:hidden">
-                  <span className="text-[15.5px] font-medium leading-6 text-white">{q}</span>
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-[#6ee7ef] transition-transform duration-300 group-open:rotate-45">
-                    <Plus className="h-3.5 w-3.5" />
-                  </span>
-                </summary>
-                <p className="px-7 pb-6 pr-14 text-[14px] font-light leading-7 text-[#b9b6c9]">{a}</p>
-              </details>
+              <FaqItem key={q} q={q} a={a} index={i} />
             ))}
           </div>
         </Reveal>
@@ -1548,6 +1564,41 @@ const GUIDES = [
   },
 ];
 
+function GuideCard({ g, index }: { g: (typeof GUIDES)[number]; index: number }) {
+  const Icon = g.icon;
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      data-testid={`guide-${index}`}
+      className={`overflow-hidden rounded-2xl border bg-[#0b0a11] transition-colors duration-300 ${open ? 'border-[#6ee7ef]/25' : 'border-white/[.07] hover:border-white/[.15]'}`}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((c) => !c)}
+        className="flex w-full cursor-pointer items-center gap-4 px-7 py-6 text-left"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[.08] bg-white/[.03]">
+          <Icon className="h-4.5 w-4.5 text-[#6ee7ef]" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-mono-tech text-[9.5px] uppercase tracking-[.18em] text-[#e44bd7]">{g.tag}</span>
+          <span className="mt-1 block text-[17px] font-medium leading-snug text-white md:text-[19px]">{g.title}</span>
+        </span>
+        <span className="hidden shrink-0 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e] sm:block">{g.read}</span>
+        <ArrowDownRight className={`h-5 w-5 shrink-0 text-[#8d8a9e] transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="space-y-4 border-t border-white/[.06] px-7 py-6">
+          {g.body.map((para, k) => (
+            <p key={k} className="max-w-3xl text-[14.5px] font-light leading-7.5 text-[#b9b6c9]">{para}</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Guides() {
   return (
     <section id="guides" className="relative overflow-hidden py-28 lg:py-36">
@@ -1568,29 +1619,9 @@ function Guides() {
         </Reveal>
         <Reveal delay={0.08}>
           <div className="space-y-4">
-            {GUIDES.map((g, i) => {
-              const Icon = g.icon;
-              return (
-                <details key={g.title} data-testid={`guide-${i}`} className="group overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] transition-colors duration-300 open:border-[#6ee7ef]/25 hover:border-white/[.15]">
-                  <summary className="flex cursor-pointer list-none items-center gap-4 px-7 py-6 [&::-webkit-details-marker]:hidden">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[.08] bg-white/[.03]">
-                      <Icon className="h-4.5 w-4.5 text-[#6ee7ef]" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-mono-tech text-[9.5px] uppercase tracking-[.18em] text-[#e44bd7]">{g.tag}</span>
-                      <span className="mt-1 block text-[17px] font-medium leading-snug text-white md:text-[19px]">{g.title}</span>
-                    </span>
-                    <span className="hidden shrink-0 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e] sm:block">{g.read}</span>
-                    <ArrowDownRight className="h-5 w-5 shrink-0 text-[#8d8a9e] transition-transform duration-300 group-open:rotate-180" />
-                  </summary>
-                  <div className="space-y-4 border-t border-white/[.06] px-7 py-6">
-                    {g.body.map((para, k) => (
-                      <p key={k} className="max-w-3xl text-[14.5px] font-light leading-7.5 text-[#b9b6c9]">{para}</p>
-                    ))}
-                  </div>
-                </details>
-              );
-            })}
+            {GUIDES.map((g, i) => (
+              <GuideCard key={g.title} g={g} index={i} />
+            ))}
           </div>
         </Reveal>
       </div>
@@ -1611,7 +1642,7 @@ const TRUST_CARDS = [
   {
     icon: Undo2,
     title: '30-day money-back',
-    text: 'Every purchase carries a full 30-day refund window. If the tool doesn’t fit your dealership, you get your money back — no interrogation.',
+    text: 'A full refund within 30 days of delivery if a tool does not do what this page promises on your dealership’s data — processed within 5 business days. Precise terms in the refund policy.',
   },
   {
     icon: KeyRound,
@@ -1731,7 +1762,7 @@ function Reviews() {
         <Reveal>
           <div className="mb-14 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
-              <Kicker>08 — Reviews &amp; trust</Kicker>
+              <Kicker>08 — Trust &amp; guarantees</Kicker>
               <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
                 No invented praise. <span className="text-[#6ee7ef]">Verified dealers</span> only.
               </h2>
@@ -2273,9 +2304,12 @@ function Contact() {
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </button>
               <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
-                {submitStatus === 'success' ? 'Message sent — we’ll be in touch.' : submitStatus === 'error' ? `${serverNote || 'Couldn’t send'}. Email ${CONTACT_EMAIL} directly.` : 'We reply to every message.'}
+                {submitStatus === 'success' ? 'Message sent — we’ll be in touch.' : submitStatus === 'error' ? `${serverNote || 'Couldn’t send'}. Email ${CONTACT_EMAIL} directly.` : 'We reply within one US Central business day.'}
               </span>
             </div>
+            <p className="mt-5 text-[11.5px] font-light leading-5 text-[#8d8a9e]">
+              By sending you agree to our <a href="#/privacy" data-testid="link-contact-privacy" className="underline decoration-white/30 underline-offset-2 hover:text-white">Privacy Policy</a> — your details are used only to answer this enquiry and are never sold.
+            </p>
           </form>
         </Reveal>
         <Reveal delay={0.16}>
@@ -2292,42 +2326,6 @@ function Contact() {
 }
 
 function Footer() {
-  // Footer visit counter — static hosting has no server, so the count lives
-  // on the free Abacus counter API (CountAPI-compatible). One GET /hit per
-  // browser session (sessionStorage guard), read-only GET /get on revisits
-  // so refreshes never inflate the count. Degrades gracefully — any failure
-  // simply leaves the counter hidden.
-  const [visits, setVisits] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const counted = (() => {
-      try { return window.sessionStorage.getItem('3s-verse-counted') === '1'; } catch { return false; }
-    })();
-    (async () => {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-        let response: Response;
-        try {
-          response = await fetch(
-            `https://abacus.jasoncameron.dev/${counted ? 'get' : 'hit'}/3sversecom/visits`,
-            { method: 'GET', signal: controller.signal },
-          );
-        } finally {
-          clearTimeout(timeoutId);
-        }
-        const payload = (await response.json().catch(() => null)) as { value?: unknown } | null;
-        const count = typeof payload?.value === 'number' && Number.isFinite(payload.value) && payload.value >= 0 ? payload.value : null;
-        if (!cancelled && count !== null) setVisits(count);
-        if (!counted && response.ok) {
-          try { window.sessionStorage.setItem('3s-verse-counted', '1'); } catch { /* storage unavailable */ }
-        }
-      } catch { /* counter is cosmetic — stay hidden */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
   return (
     <footer className="border-t border-white/[.06] bg-[#060509]">
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
@@ -2363,12 +2361,13 @@ function Footer() {
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
           <span>3S Verse {new Date().getFullYear()} © — All rights reserved</span>
-          <div className="flex items-center gap-6">
-            {visits !== null && (
-              <span data-testid="footer-visits" className="inline-flex items-center gap-1.5">
-                <Eye className="h-3.5 w-3.5 text-[#6ee7ef]" />{visits.toLocaleString('en-US')} visitors
-              </span>
-            )}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <a href="#/download" data-testid="link-footer-download" className="transition-colors hover:text-white">Download</a>
+            <a href="#/security" data-testid="link-footer-security" className="transition-colors hover:text-white">Security</a>
+            <a href="#/privacy" data-testid="link-footer-privacy" className="transition-colors hover:text-white">Privacy</a>
+            <a href="#/terms" data-testid="link-footer-terms" className="transition-colors hover:text-white">Terms</a>
+            <a href="#/refund" data-testid="link-footer-refund" className="transition-colors hover:text-white">Refund</a>
+            <a href="#/eula" data-testid="link-footer-eula" className="transition-colors hover:text-white">EULA</a>
             <a href="#/invoice" data-testid="link-footer-invoice" className="transition-colors hover:text-white" title="Invoice Studio (seller)">Invoice</a>
             <a href="#top" data-testid="link-footer-top" className="transition-colors hover:text-white">Back to top ↑</a>
           </div>
@@ -2514,6 +2513,29 @@ function App() {
         </div>
       }>
         <InvoiceStudio />
+      </Suspense>
+    );
+  }
+  const legalMatch = hash.match(/^#\/(privacy|terms|refund|eula|security)$/);
+  if (legalMatch) {
+    return (
+      <Suspense fallback={
+        <div className="grid min-h-screen place-items-center bg-[#060509] text-sm text-white/60" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+          Loading…
+        </div>
+      }>
+        <LegalPage kind={legalMatch[1] as 'privacy' | 'terms' | 'refund' | 'eula' | 'security'} />
+      </Suspense>
+    );
+  }
+  if (hash.startsWith('#/download')) {
+    return (
+      <Suspense fallback={
+        <div className="grid min-h-screen place-items-center bg-[#060509] text-sm text-white/60" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+          Loading…
+        </div>
+      }>
+        <DownloadPage />
       </Suspense>
     );
   }

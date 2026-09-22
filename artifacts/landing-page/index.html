@@ -2,7 +2,7 @@
 <html lang="en" class="dark" style="color-scheme: dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>3S Verse — VidaPay Tools for Wireless Dealers | Front-Office Automation</title>
     <meta name="description" content="VidaPay workflow tools for wireless dealers: extract incentives, guide device orders and track rebate claims. Start a free 7-day Windows trial." />
     <meta name="keywords" content="VidaPay tools, VidaPay automation, VidaPay incentive extractor, Total Wireless dealer tools, Total Wireless dealer software, VidaPay rebate filing, wireless dealer software, wireless dealer POS tools, prepaid wireless dealer solutions" />
@@ -37,7 +37,7 @@
           "url": "https://3sverse.com/",
           "logo": "https://3sverse.com/logo-square.png",
           "image": "https://3sverse.com/og-image.jpg",
-          "description": "VidaPay dealer tools and a software, systems & operations studio — we build the apps, websites, AI agents, dashboards and automation businesses run on, backed by 12+ years of real operations experience.",
+          "description": "VidaPay dealer tools and a software, systems & operations studio — we build the apps, websites, AI agents, dashboards and automation businesses run on, backed by 13+ years of real operations experience.",
           "email": "Connect@3SVerse.com",
           "sameAs": [
             "https://www.linkedin.com/company/3sverse",
@@ -80,7 +80,7 @@
             {
               "@type": "Question",
               "name": "Is this a subscription?",
-              "acceptedAnswer": { "@type": "Answer", "text": "Only if you want it to be. Monthly is the cancel-anytime plan — $89/mo per tool. Annual is the same software billed yearly at a 30% discount. Lifetime is one payment and it is yours forever — no renewals, ever. Every plan includes every update; pick per tool, mix and match, and switch anytime." }
+              "acceptedAnswer": { "@type": "Answer", "text": "Only if you want it to be. Monthly is the cancel-anytime plan — $89/mo per tool. Annual is the same software billed yearly at a 44% discount. Lifetime is one payment and it is yours forever — no renewals, ever. Every plan includes every update; pick per tool, mix and match, and switch anytime." }
             },
             {
               "@type": "Question",
@@ -200,11 +200,13 @@
          only normalizes the state the page starts in. */
       (function () {
         try { history.scrollRestoration = 'manual'; } catch (e) {}
-        /* Friendly shortcut: /invoice -> Invoice Studio (#/invoice). Covers
-           the window where an old SPA-fallback 404.html (a copy of this
-           index.html) is still served from a CDN edge for that path. */
-        if (location.pathname.replace(/\/+$/, '').toLowerCase() === '/invoice') {
-          location.replace(location.origin + '/#/invoice');
+        /* Friendly shortcuts: /invoice -> Invoice Studio (#/invoice) and the
+           policy/download pages -> their #/ routes. Covers the window where
+           an old SPA-fallback 404.html (a copy of this index.html) is still
+           served from a CDN edge for those paths. */
+        var m = location.pathname.replace(/\/+$/, '').toLowerCase().match(/^\/(invoice|privacy|terms|refund|eula|security|download)$/);
+        if (m) {
+          location.replace(location.origin + '/#/' + m[1]);
           return;
         }
         if (location.hash && !location.hash.startsWith('#/')) {
@@ -220,7 +222,7 @@
     <noscript>
       <div style="font-family: sans-serif; max-width: 720px; margin: 48px auto; padding: 0 20px; color: #17121c;">
         <h1>3S Verse — Software, Systems &amp; Operations</h1>
-        <p>3S Verse builds the systems your business runs on — apps, websites, AI agents, dashboards and workflow automation, built by operators with 12+ years of real operations experience.</p>
+        <p>3S Verse builds the systems your business runs on — apps, websites, AI agents, dashboards and workflow automation, built by operators with 13+ years of real operations experience.</p>
         <h2>What we build</h2>
         <ul>
           <li>Websites &amp; web applications</li>

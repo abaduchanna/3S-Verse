@@ -22,6 +22,7 @@ import {
   MODELS,
   PAID_DOWNLOAD,
   PC_MIN,
+  PER_PC_NOTE,
   PRODUCTS,
   TRIAL_DOWNLOAD,
   discountPercent,
@@ -75,13 +76,11 @@ function pill(active: boolean): string {
   ].join(' ');
 }
 
-/* Launch-offer urgency strip — live countdown to the pricing deadline plus
-   the remaining launch-license counter (audit fix: no urgency = forgotten
-   bookmarks). Renders nothing once the deadline passes. */
+/* Launch-offer urgency strip — live countdown to the REAL enforced pricing
+   deadline (audit: scarcity must be tied to an enforced end condition — no
+   fabricated inventory counters). Renders nothing once the deadline passes. */
 function LaunchBar() {
   const endsAt = LAUNCH_OFFER.active ? Date.parse(LAUNCH_OFFER.endsAt) : NaN;
-  const total = LAUNCH_OFFER.launchTotal;
-  const remaining = Math.max(0, Math.min(total, LAUNCH_OFFER.launchRemaining));
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -99,7 +98,6 @@ function LaunchBar() {
   const mins = Math.floor((sec % 3600) / 60);
   const secs = sec % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
-  const sold = Math.max(0, total - remaining);
 
   return (
     <div
@@ -130,17 +128,10 @@ function LaunchBar() {
           ))}
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-3">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[.07]">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7] transition-[width] duration-700"
-            style={{ width: `${Math.round((sold / total) * 100)}%` }}
-          />
-        </div>
-        <span className="shrink-0 font-mono-tech text-[10.5px] uppercase tracking-[.14em] text-[#8d8a9e]">
-          {remaining} of {total} launch licenses left
-        </span>
-      </div>
+      <p className="mt-3 border-t border-white/[.06] pt-3 text-[11.5px] font-light leading-5 text-[#8d8a9e]">
+        {LAUNCH_OFFER.note} Every license also carries the 30-day money-back guarantee —{' '}
+        <a href="#/refund" className="underline decoration-white/30 underline-offset-2 hover:text-white">refund policy</a>.
+      </p>
     </div>
   );
 }
@@ -447,7 +438,7 @@ export default function DealerStore() {
           {LAUNCH_OFFER.active ? (
             <span className="text-[#6ee7ef]">{LAUNCH_OFFER.label} — {LAUNCH_OFFER.note} </span>
           ) : null}
-          Start with the free 7-day trial. Then pay the way your cash flow likes: <span className="text-white">monthly $89, cancel anytime</span>, <span className="text-white">annual (save 30%)</span>, or <span className="text-white">one-time lifetime</span> — founding-customer pricing, pay once. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
+          Start with the free 7-day trial. Then pay the way your cash flow likes: <span className="text-white">monthly $89, cancel anytime</span>, <span className="text-white">annual (save 44%)</span>, or <span className="text-white">one-time lifetime</span> — founding-customer pricing, pay once. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
         </p>
       </div>
       <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-2xl border border-white/[.06] bg-white/[.02] px-5 py-3.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
@@ -459,6 +450,9 @@ export default function DealerStore() {
       </div>
 
       <LaunchBar />
+      <p className="mb-8 -mt-4 max-w-3xl text-[12.5px] font-light leading-5.5 text-[#8d8a9e]">
+        {PER_PC_NOTE}
+      </p>
 
       {/* Paid-customer re-download — order number is checked against the
           license ledger before a FULL build is served. */}
