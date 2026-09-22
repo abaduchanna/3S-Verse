@@ -187,18 +187,18 @@ export const TRIAL_DOWNLOAD = {
 } as const;
 
 /**
- * Paid-customer download gateway (FULL builds). After deploying the
- * Cloudflare Worker download gateway (see the 3sverse-download-gateway
- * README), paste its URL here, e.g. 'https://downloads.3sverse.workers.dev/download'.
- * The worker checks the customer's order number against the license ledger
- * and only then serves the private FULL build — so paid builds are never
- * publicly downloadable. While gatewayUrl is empty, the storefront shows a
- * request fallback instead of the automatic download box (audit F04: honest
- * request language until delivery is truly automatic).
+ * Paid-customer download gateway (FULL builds) — LIVE.
+ * Cloudflare Worker: https://3sverse-downloads.abaduchanna.workers.dev
+ * (source + setup guide: 3sverse-download-gateway/README.md). The worker
+ * checks the customer's order number against the license ledger
+ * (vidapay-license-server → ledger/orders.json) and only then serves the
+ * private FULL build — so paid builds are never publicly downloadable.
+ * If gatewayUrl is ever emptied, the storefront falls back to a request
+ * box instead of the automatic download (audit F04).
  */
 export const PAID_DOWNLOAD = {
-  gatewayUrl: '',
-  label: 'Request your licensed download',
+  gatewayUrl: 'https://3sverse-downloads.abaduchanna.workers.dev/download',
+  label: 'Download your licensed software',
   note: 'Enter the order number from your invoice (3SV-…).',
   contactEmail: 'Connect@3SVerse.com',
 } as const;
