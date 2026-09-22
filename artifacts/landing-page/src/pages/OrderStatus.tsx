@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearch } from 'wouter';
 import { Check, Copy, Download, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
-import { formatUSD, PRODUCTS } from '@/lib/catalog';
+import { PAID_DOWNLOAD, formatUSD, PRODUCTS } from '@/lib/catalog';
 import { downloadsForProduct } from '@/lib/downloads';
 
 interface OrderItem {
@@ -196,14 +196,14 @@ export default function OrderStatus() {
             <p className="mt-2 max-w-2xl text-[13.5px] font-light leading-6 text-[#b9b6c9]">
               These buttons always serve the newest build of each tool — when an
               update ships, come back to this page and re-download for free.
-              The same file covers monthly, annual and lifetime plans; your
-              license key decides the plan. License keys are delivered by email
-              after payment confirmation.
+              Licensed (monthly / annual / lifetime) builds are verified against
+              your order before download; the trial runs 7 days on 1 PC. License
+              keys are delivered by email after payment confirmation.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               {staticOrder.products.flatMap((pid, i) => {
                 const pname = PRODUCTS.find((p) => p.id === pid)?.name ?? pid;
-                return downloadsForProduct(pid).map((d, j) => (
+                return downloadsForProduct(pid, staticOrder.ref).map((d, j) => (
                   <a
                     key={`${pid}-${j}`}
                     href={d.url}
@@ -215,6 +215,15 @@ export default function OrderStatus() {
                 ));
               })}
             </div>
+            {!PAID_DOWNLOAD.gatewayUrl ? (
+              <p className="mt-4 rounded-xl border border-white/10 bg-white/[.03] px-4 py-3 text-[13px] text-[#b9b6c9]">
+                Your licensed build link is being activated — email{' '}
+                <a className="text-[#6ee7ef]" href={`mailto:${PAID_DOWNLOAD.contactEmail}`}>
+                  {PAID_DOWNLOAD.contactEmail}
+                </a>{' '}
+                with your order reference and we send the FULL build right away.
+              </p>
+            ) : null}
             <p className="mt-4 text-[12.5px] text-[#8d8a9e]">
               Bookmark this page (3sverse.com/order/{staticOrder.ref}) — it is
               your permanent re-download link.

@@ -71,7 +71,7 @@ import {
   whatsappLink,
   type DealerReview,
 } from '@/lib/catalog';
-import { downloadsForProduct } from '@/lib/downloads';
+import { trialDownloadUrl } from '@/lib/catalog';
 
 const queryClient = new QueryClient();
 const CONTACT_EMAIL = 'Connect@3SVerse.com';
@@ -1098,11 +1098,11 @@ function Tools() {
                   </div>
                   <div className="mt-8 flex flex-wrap items-center gap-3">
                     <a
-                      href={downloadsForProduct(tool.id)[0]?.url}
+                      href={trialDownloadUrl(tool.id)}
                       data-testid={`button-download-${tool.id}`}
                       className="inline-flex items-center gap-2.5 rounded-xl bg-white px-6 py-3 text-[14.5px] font-semibold text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8]"
                     >
-                      <Download className="h-4 w-4" /> Download latest build (.exe)
+                      <Download className="h-4 w-4" /> Download free trial (.exe)
                     </a>
                     <a
                       href="/order"
