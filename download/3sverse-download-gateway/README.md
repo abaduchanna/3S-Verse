@@ -35,15 +35,41 @@ README.md        this guide
 
 ### 2. Deploy the worker (dashboard, no tools needed)
 
-1. dash.cloudflare.com → **Workers & Pages → Create → Create Worker**.
-2. Name: `3sverse-downloads` → Deploy → **Edit code**.
-3. Delete the boilerplate, paste all of `worker.js`, **Deploy**.
-4. Worker → **Settings → Variables and Secrets**:
-   * Secret `GH_TOKEN` = the token from step 1 (type: Secret).
-   * Variable `OWNER` = `abaduchanna` (type: Text).
-   * Variable `LEDGER_REPO` = `abaduchanna/vidapay-license-server`.
-   * Variable `LEDGER_PATH` = `ledger/orders.json`.
-5. Note your worker URL, e.g. `https://3sverse-downloads.<your-subdomain>.workers.dev`.
+On dash.cloudflare.com you will land on a screen titled **"Create an app —
+Make something new"** with these tiles:
+
+> Connect GitHub · Connect with GitLab · **Start with Hello World!** ·
+> Select a template · Upload your static files · (small link: Continue to Pages)
+
+Do this, in order:
+
+1. Left sidebar → **Workers & Pages** (newer dashboards label it
+   **Compute (Workers)**) → **Create** — you are now on the screen above.
+2. Click the **"Start with Hello World!"** tile.
+   * NOT "Connect GitHub" (that deploys a repository, not a single file).
+   * NOT "Upload your static files" (that serves a static site, not a
+     single script).
+   * NOT "Select a template" (Hello World already IS the template).
+3. Worker name: `3sverse-downloads` → **Deploy**.
+   Cloudflare first deploys a placeholder hello-world script — expected.
+4. On the success screen click **Edit code**.
+5. The online editor opens with boilerplate code
+   (`export default { async fetch(...) ... }`). Click in the editor →
+   **Ctrl+A → Delete** → paste the ENTIRE `worker.js` (open the file in a
+   text editor, select all, copy) → **Deploy** (top right) → confirm.
+6. Back on the worker's page → **Settings → Variables and Secrets → Add**:
+   * Type **Secret** — `GH_TOKEN` = the token from step 1.
+   * Type **Text** — `OWNER` = `abaduchanna`.
+   * Type **Text** — `LEDGER_REPO` = `abaduchanna/vidapay-license-server`.
+   * Type **Text** — `LEDGER_PATH` = `ledger/orders.json`.
+   Save each one (Cloudflare asks to redeploy — accept; redeploying after
+   variables is normal and instant).
+7. Test the worker is live:
+   * `https://3sverse-downloads.<your-subdomain>.workers.dev/` → the
+     "3S Verse — Customer Downloads" info page must appear.
+   * `https://…workers.dev/download?order=3SV-TEST&product=bundle` →
+     must answer **"Order number not found"** (means the ledger check works).
+8. Note the full worker URL — you need it in step 4 below.
 
 ### 3. Register the customer's order
 
