@@ -6,6 +6,7 @@ import NotFound from '@/pages/not-found';
    seller opens it — landing visitors should never pay its JS cost, so it
    is code-split and fetched on demand. */
 const InvoiceStudio = lazy(() => import('@/pages/InvoiceStudio'));
+const OrderStatusPage = lazy(() => import('@/pages/OrderStatus'));
 import DealerStore from '@/components/DealerStore';
 // NOTE: /order/:id + /admin routes were removed — they depended on the
 // Netlify server functions, which are dormant since the GitHub Pages deploy.
@@ -70,6 +71,7 @@ import {
   whatsappLink,
   type DealerReview,
 } from '@/lib/catalog';
+import { downloadsForProduct } from '@/lib/downloads';
 
 const queryClient = new QueryClient();
 const CONTACT_EMAIL = 'Connect@3SVerse.com';
@@ -1094,6 +1096,26 @@ function Tools() {
                       </span>
                     ))}
                   </div>
+                  <div className="mt-8 flex flex-wrap items-center gap-3">
+                    <a
+                      href={downloadsForProduct(tool.id)[0]?.url}
+                      data-testid={`button-download-${tool.id}`}
+                      className="inline-flex items-center gap-2.5 rounded-xl bg-white px-6 py-3 text-[14.5px] font-semibold text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8]"
+                    >
+                      <Download className="h-4 w-4" /> Download latest build (.exe)
+                    </a>
+                    <a
+                      href="/order"
+                      data-testid="link-order-status"
+                      className="text-[13.5px] font-medium text-[#6ee7ef] transition-colors hover:text-white"
+                    >
+                      Already purchased? Free re-download →
+                    </a>
+                  </div>
+                  <p className="mt-3 text-[12.5px] font-light leading-5 text-[#8d8a9e]">
+                    Windows 10/11 · the download always serves the newest build ·
+                    7-day trial built in, activate with your license key.
+                  </p>
                 </div>
                 <div>
                   {tool.visual}
@@ -2456,6 +2478,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/order" component={OrderStatusPage} />
+      <Route path="/order/:id" component={OrderStatusPage} />
       <Route component={NotFound} />
     </Switch>
   );

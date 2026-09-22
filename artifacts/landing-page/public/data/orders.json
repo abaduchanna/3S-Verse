@@ -1,0 +1,5 @@
+{
+  "_how_to_add": "Each entry is keyed by the SHA-256 hash of the customer's order reference (e.g. 3SV-ABC123). To register a sale: run `echo -n '3SV-ABC123' | sha256sum`, paste the hash as the key, and list the product ids the customer owns (extractor / ordering / rebate / bundle). The customer then enters their reference at 3sverse.com/order and gets free re-downloads of exactly those products. Never put names or emails in this file.",
+  "version": 1,
+  "orders": {}
+}

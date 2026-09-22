@@ -456,6 +456,20 @@ export default function DealerStore() {
               download links are delivered — usually within a few hours.
             </li>
           </ol>
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-[#6ee7ef]/20 bg-[#6ee7ef]/[.05] px-4 py-3">
+            <Download className="h-4 w-4 shrink-0 text-[#6ee7ef]" />
+            <p className="text-[13px] leading-5 text-[#c9d4f2]">
+              Save your free re-download link — it always serves the newest
+              build, so future updates cost nothing:
+            </p>
+            <a
+              href={`/order/${result.ref}`}
+              data-testid="link-re-download"
+              className="text-[13px] font-semibold text-[#6ee7ef] underline decoration-[#6ee7ef]/40 underline-offset-2 hover:text-white"
+            >
+              3sverse.com/order/{result.ref}
+            </a>
+          </div>
           {lines.some((l) => isRecurringModel(l.model)) ? (
             <p className="mb-6 rounded-xl border border-[#78a6ff]/20 bg-[#78a6ff]/[.05] px-4 py-3 text-[13px] text-[#c9d4f2]">
               Your order includes a monthly or annual plan — it renews automatically and you can

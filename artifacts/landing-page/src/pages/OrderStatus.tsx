@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearch } from 'wouter';
-import { Check, Copy, Download, Loader2, Mail, ShieldCheck } from 'lucide-react';
-import { formatUSD } from '@/lib/catalog';
+import { Check, Copy, Download, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { formatUSD, PRODUCTS } from '@/lib/catalog';
+import { downloadsForProduct } from '@/lib/downloads';
 
 interface OrderItem {
   productName: string;
@@ -12,6 +13,7 @@ interface OrderItem {
   lineTotal: number;
   licenseKey: string;
   hasKey: boolean;
+  downloadUrl?: string;
 }
 
 interface Order {
@@ -29,6 +31,37 @@ interface Order {
 
 const inputClass =
   'w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-[15px] text-white placeholder:text-[#6d6a80] outline-none focus:border-[#6ee7ef]/60';
+
+interface StaticEntry {
+  products: string[];
+  model?: string;
+}
+
+/** Order references are stored only as SHA-256 hashes in a public JSON
+ * file (the site is static on GitHub Pages), so the registry leaks
+ * nothing — but a customer who knows their exact reference unlocks the
+ * download panel for exactly the products they purchased. */
+async function staticOrderLookup(rawRef: string): Promise<{ ref: string; products: string[] } | null> {
+  const ref = rawRef.trim().toUpperCase();
+  if (!ref) return null;
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}data/orders.json`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { orders?: Record<string, StaticEntry> };
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(ref),
+    );
+    const key = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    const entry = (data.orders || {})[key];
+    if (!entry || !entry.products?.length) return null;
+    return { ref, products: entry.products };
+  } catch {
+    return null;
+  }
+}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -54,6 +87,7 @@ export default function OrderStatus() {
   const params = useParams<{ id: string }>();
   const search = useSearch();
   const [order, setOrder] = useState<Order | null>(null);
+  const [staticOrder, setStaticOrder] = useState<{ ref: string; products: string[] } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [lookupId, setLookupId] = useState('');
@@ -63,20 +97,39 @@ export default function OrderStatus() {
   const load = useCallback(async (id: string, token: string, email: string) => {
     setLoading(true);
     setError('');
+    setStaticOrder(null);
+    // No credentials typed? The order-reference registry still works —
+    // the reference itself is the proof of purchase.
+    if (!token && !email) {
+      const matched = await staticOrderLookup(id);
+      if (matched) {
+        setStaticOrder(matched);
+        setLoading(false);
+        return;
+      }
+      setError('Order not found — check the order reference and try again.');
+      setOrder(null);
+      setLoading(false);
+      return;
+    }
     try {
       const qs = new URLSearchParams({ id });
       if (token) qs.set('t', token);
       if (email) qs.set('e', email);
       const res = await fetch(`/api/order-status?${qs.toString()}`);
       const data = (await res.json()) as { ok: boolean; order?: Order; error?: string };
-      if (!res.ok || !data.ok || !data.order) {
-        setError(data.error ?? 'Order not found.');
-        setOrder(null);
-      } else {
-        setOrder(data.order);
-      }
+      if (!res.ok || !data.ok || !data.order) throw new Error(data.error ?? 'Order not found.');
+      setOrder(data.order);
     } catch {
-      setError('Network error — try again.');
+      // Server mode unavailable (static hosting) — fall back to the
+      // order-reference registry for free re-downloads.
+      const matched = await staticOrderLookup(id);
+      if (matched) {
+        setStaticOrder(matched);
+      } else {
+        setError('Order not found — check the id and link.');
+        setOrder(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -87,7 +140,7 @@ export default function OrderStatus() {
     const qs = new URLSearchParams(search || '');
     const token = (qs.get('t') ?? '').trim();
     const email = (qs.get('e') ?? '').trim();
-    if (id && (token || email)) {
+    if (id) {
       void load(id, token, email);
     } else {
       setLoading(false);
@@ -131,6 +184,41 @@ export default function OrderStatus() {
         {loading ? (
           <div className="mt-10 flex items-center gap-3 text-[#8d8a9e]">
             <Loader2 className="h-5 w-5 animate-spin" /> Loading order…
+          </div>
+        ) : staticOrder ? (
+          <div className="mt-8 rounded-3xl border border-emerald-400/25 bg-emerald-400/[.05] p-6 sm:p-8">
+            <p className="flex items-center gap-2 text-[13px] font-medium uppercase tracking-[.14em] text-emerald-300">
+              <Lock className="h-4 w-4" /> Order verified — {staticOrder.ref}
+            </p>
+            <h2 className="mt-3 text-[clamp(1.4rem,2.2vw,1.9rem)] font-light text-white">
+              Your downloads
+            </h2>
+            <p className="mt-2 max-w-2xl text-[13.5px] font-light leading-6 text-[#b9b6c9]">
+              These buttons always serve the newest build of each tool — when an
+              update ships, come back to this page and re-download for free.
+              The same file covers monthly, annual and lifetime plans; your
+              license key decides the plan. License keys are delivered by email
+              after payment confirmation.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              {staticOrder.products.flatMap((pid, i) => {
+                const pname = PRODUCTS.find((p) => p.id === pid)?.name ?? pid;
+                return downloadsForProduct(pid).map((d, j) => (
+                  <a
+                    key={`${pid}-${j}`}
+                    href={d.url}
+                    data-testid={`button-static-download-${pid}-${j}`}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[14px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                  >
+                    <Download className="h-4 w-4" /> {d.label} — {pname}
+                  </a>
+                ));
+              })}
+            </div>
+            <p className="mt-4 text-[12.5px] text-[#8d8a9e]">
+              Bookmark this page (3sverse.com/order/{staticOrder.ref}) — it is
+              your permanent re-download link.
+            </p>
           </div>
         ) : error ? (
           <div className="mt-8">
@@ -249,7 +337,40 @@ export default function OrderStatus() {
                 <span className="text-[20px] font-light text-white">{formatUSD(order.total)}</span>
               </div>
 
-              {order.status === 'APPROVED' && order.downloadUrl ? (
+              {order.status === 'APPROVED' &&
+              order.items.some((it) => it.downloadUrl) ? (
+                <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[.04] p-5">
+                  <p className="text-[15px] font-semibold text-white">
+                    Your downloads
+                  </p>
+                  <p className="mt-1 text-[13px] text-[#b9b6c9]">
+                    These buttons always serve the newest build — when a tool
+                    is updated, re-download here for free. Same file for
+                    monthly, annual and lifetime plans; your license key
+                    decides the plan.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {order.items
+                      .filter(
+                        (it, index, arr) =>
+                          it.downloadUrl &&
+                          arr.findIndex((x) => x.productName === it.productName) ===
+                            index,
+                      )
+                      .map((it, index) => (
+                        <a
+                          key={index}
+                          href={it.downloadUrl}
+                          data-testid={`button-download-${index}`}
+                          className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[14px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                        >
+                          <Download className="h-4 w-4" />
+                          {it.productName} — latest build (.exe)
+                        </a>
+                      ))}
+                  </div>
+                </div>
+              ) : order.status === 'APPROVED' && order.downloadUrl ? (
                 <a
                   href={order.downloadUrl}
                   className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[15px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"

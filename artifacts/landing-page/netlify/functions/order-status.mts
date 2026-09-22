@@ -12,6 +12,11 @@
 // Zero runtime deps beyond @netlify/blobs.
 
 import { getStore } from "@netlify/blobs";
+import {
+  downloadForProductModel,
+  modelFromLineKey,
+  productIdFromLineKey,
+} from "../../src/lib/downloads";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const MAX_LOOKUPS_PER_WINDOW = 30;
@@ -63,6 +68,8 @@ function maskKey(key: string): string {
 
 interface StoredItem {
   lineKey: string;
+  productId?: string;
+  model?: string;
   productName: string;
   modelLabel: string;
   seatsLabel: string;
@@ -140,6 +147,12 @@ export default async (req: Request): Promise<Response> => {
         lineTotal: it.lineTotal,
         licenseKey: approved ? it.licenseKey : maskKey(it.licenseKey || ""),
         hasKey: Boolean(it.licenseKey),
+        downloadUrl: approved
+          ? (downloadForProductModel(
+              it.productId || productIdFromLineKey(it.lineKey),
+              it.model || modelFromLineKey(it.lineKey),
+            ) || rec.downloadUrl || "")
+          : "",
       })),
     },
   });
