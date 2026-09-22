@@ -619,9 +619,10 @@ export default function InvoiceStudio() {
                 </span>
               </div>
               <p className="mb-3 text-[12.5px] font-light leading-5 text-[#8b87a3]">
-                One-time 5-minute setup — saved in THIS browser only (localStorage), nothing to
-                commit. emailjs.com → add your Gmail service → create a template with “Copy
-                template content” below → paste the three IDs here → send a test.
+                One-time setup — saved in THIS browser only (localStorage), nothing to
+                commit. emailjs.com → add an email service (Connect@3SVerse.com is not
+                Gmail — pick Route 1/2/3 in the EMAILJS_SETUP guide) → create a template
+                with “Copy template content” below → paste the three IDs here → send a test.
               </p>
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                 <input

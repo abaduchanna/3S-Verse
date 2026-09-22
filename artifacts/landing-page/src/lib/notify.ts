@@ -22,8 +22,11 @@
  * SELLER SETUP (one-time, ~5 minutes, full walkthrough in
  * download/3sverse-download-gateway/EMAILJS_SETUP.md):
  *   1. Create a free account at https://www.emailjs.com/
- *   2. Email Services → Add Service → connect Gmail (Connect@3SVerse.com)
- *      → copy the Service ID (service_xxxxxxx).
+ *   2. Email Services → Add Service → connect a SENDER mailbox and copy
+ *      the Service ID (service_xxxxxxx). NOTE: Connect@3SVerse.com is NOT
+ *      a Gmail mailbox (northwestagent-hosted), so pick a route from
+ *      EMAILJS_SETUP.md — Route 1 (free Gmail sender, easiest), Route 2
+ *      (Gmail "Send mail as" alias) or Route 3 (direct SMTP).
  *   3. Email Templates → Create template:
  *        To Email:      {{to_email}}
  *        Reply To:      Connect@3SVerse.com
