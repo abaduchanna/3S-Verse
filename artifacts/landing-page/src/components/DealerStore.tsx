@@ -447,7 +447,7 @@ export default function DealerStore() {
           {LAUNCH_OFFER.active ? (
             <span className="text-[#6ee7ef]">{LAUNCH_OFFER.label} — {LAUNCH_OFFER.note} </span>
           ) : null}
-          Start with the free 7-day trial. Then pay the way your cash flow likes: <span className="text-white">monthly $89, cancel anytime</span>, <span className="text-white">annual (save 30%)</span>, or <span className="text-white">one-time lifetime</span> — pay once, never pay again. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
+          Start with the free 7-day trial. Then pay the way your cash flow likes: <span className="text-white">monthly $89, cancel anytime</span>, <span className="text-white">annual (save 30%)</span>, or <span className="text-white">one-time lifetime</span> — founding-customer pricing, pay once. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
         </p>
       </div>
       <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-2xl border border-white/[.06] bg-white/[.02] px-5 py-3.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
@@ -507,8 +507,8 @@ export default function DealerStore() {
         {paidError ? <p className="mt-2 text-[12.5px] text-amber-300">{paidError}</p> : null}
         {!PAID_DOWNLOAD.gatewayUrl ? (
           <p className="mt-2 text-[12px] text-[#8d8a9e]">
-            Automatic delivery is being configured — the button opens a pre-filled email to{' '}
-            {PAID_DOWNLOAD.contactEmail} and we reply with your download link.
+            Press the button and your email app opens the request to {PAID_DOWNLOAD.contactEmail}{' '}
+            — we verify your order number and reply with your download link, usually within a few hours.
           </p>
         ) : null}
       </div>
@@ -804,7 +804,7 @@ export default function DealerStore() {
                         ? `≈ ${formatUSD(Math.max(1, Math.round(price / 30)))}/day — a fraction of one month’s missed rebates. Cancel anytime.`
                         : sel.model === 'annual'
                           ? `≈ ${formatUSD(Math.max(1, Math.round(price / 365)))}/day — billed once a year, every update included.`
-                          : 'One payment — most dealers recover it from the first month of captured rebates alone.'}
+                          : 'One payment — can pay for itself within the first months of captured rebates; run the ROI calculator above with your own numbers.'}
                     </p>
                   ) : null}
                 </div>
@@ -816,10 +816,10 @@ export default function DealerStore() {
 
       {!result ? (
         <p className="mt-5 text-[13px] font-light text-[#8d8a9e]">
-          Pick exactly how many PCs you need — 2–4 PCs get 20% off per PC, 5–9 get 40%, and 10 or
-          more get 50%, applied automatically on every billing model. Monthly plans cancel anytime;
-          annual saves 30%; lifetime never bills again. Running 50+ PCs or need central billing for
-          a whole district? Message us and we will set it up.
+          Pick exactly how many PCs you need — 2–4 PCs get 10% off per PC and 5–9 get 20%,
+          applied automatically on every billing model. Monthly plans cancel anytime; annual
+          saves 30%; lifetime is a founding-customer option. Need 10 or more PCs, or central
+          billing for a whole district? Message us for a quote and we will set it up.
         </p>
       ) : null}
 

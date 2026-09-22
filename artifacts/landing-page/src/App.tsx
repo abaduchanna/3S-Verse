@@ -918,6 +918,9 @@ function Outcomes() {
             </Reveal>
           ))}
         </div>
+        <p className="mt-8 max-w-3xl text-[12.5px] font-light leading-5 text-[#8d8a9e]">
+          Aggregate outcomes across 13+ years of operator-led deployments at wireless dealerships, distributors and vendor programs. Figures anonymized — methodology and case detail available on request.
+        </p>
       </div>
     </section>
   );
@@ -1146,7 +1149,7 @@ const COMPARE_ROWS: Array<[string, string, string]> = [
   ],
   [
     'Missed money',
-    'Unclaimed rebates quietly expire — $500–$2,000/month for a typical dealer',
+    'Unclaimed rebates quietly expire — $500–$2,000/month a typical dealer can miss',
     'Every eligible claim extracted, filed, and tracked to PAID',
   ],
   [
@@ -1213,7 +1216,7 @@ function Compare() {
             <div className="rounded-3xl border border-[#e44bd7]/25 bg-[#e44bd7]/[.05] p-7">
               <p className="flex items-center gap-2.5 font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#e44bd7]"><X className="h-3.5 w-3.5" /> Before — manual front office</p>
               <ul className="mt-4 space-y-2.5 text-[13.5px] font-light leading-6 text-[#d8d5e8]">
-                <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />$500–$2,000 in missed rebates — per store, every month</li>
+                <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />Scenario range: $500–$2,000 in missed rebates — per store, every month</li>
                 <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />15–30 staff hours a week on screenshots and retyping</li>
                 <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />Claims filed once and forgotten — no status, no proof, no follow-up</li>
               </ul>
@@ -1256,7 +1259,7 @@ function RoiCalculator() {
             What is the manual process <span className="text-[#e44bd7]">costing you?</span>
           </h3>
           <p className="mt-4 max-w-md text-[14px] font-light leading-6 text-[#b9b6c9]">
-            Industry numbers for Total Wireless dealers: $500–$2,000 in unclaimed rebates and spiffs per store every month, plus hours of retyping. Set your reality below — the payback math uses real catalog pricing, volume discounts included.
+            A scenario range based on observed dealer workflows: $500–$2,000 in unclaimed rebates and spiffs per store every month, plus hours of retyping. Set your reality below — the payback math uses real catalog pricing, volume discounts included.
           </p>
           <div className="mt-7 space-y-6">
             <div>
@@ -1267,7 +1270,7 @@ function RoiCalculator() {
               <input
                 type="range"
                 min={1}
-                max={20}
+                max={9}
                 value={stores}
                 onChange={(e) => setStores(Number(e.target.value))}
                 aria-label="Number of stores"
@@ -1296,6 +1299,12 @@ function RoiCalculator() {
                 ))}
               </div>
             </div>
+            <p className="text-[12px] font-light leading-5 text-[#8d8a9e]">
+              Running 10 or more stores? Message us — district pricing with central billing and
+              priority support. Results vary by dealership: the presets are a conservative /
+              typical / upside scenario range, and payback = bundle price ÷ your estimated
+              monthly recovery.
+            </p>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1325,7 +1334,7 @@ function RoiCalculator() {
             data-testid="roi-cta"
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] sm:col-span-2"
           >
-            Pick your licenses in the store <ArrowRight className="h-4 w-4" />
+            Compare plans and licenses <ArrowRight className="h-4 w-4" />
           </a>
         </div>
       </div>
@@ -1429,7 +1438,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'I run multiple stores. Will it keep up?',
-    a: 'That is exactly what they were built for. All three tools were born inside a real multi-store wireless operation — per-store dashboards, per-store ordering quantities, and bulk claim filing across every branch are the default, not an add-on. Pick exactly how many PCs you need when ordering: 2–4 PCs get 20% off per PC, 5–9 get 40%, and 10 or more get 50% off, applied automatically.',
+    a: 'That is exactly what they were built for. All three tools were born inside a real multi-store wireless operation — per-store dashboards, per-store ordering quantities, and bulk claim filing across every branch are the default, not an add-on. Pick exactly how many PCs you need when ordering: 2–4 PCs get 10% off per PC and 5–9 get 20%, applied automatically. For 10 or more PCs we quote district pricing with central billing.',
   },
   {
     q: 'Is this a subscription?',
@@ -1441,7 +1450,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'What happens when VidaPay updates their portal?',
-    a: 'Portals change — that is the reality of the job. Updates are included with every lifetime license, so when the portal moves, the tools move with it. The tools also handle the portal’s human-verification steps automatically instead of freezing mid-run.',
+    a: 'Portals change — that is the reality of the job. Updates are included with every license, so when the portal moves, the tools move with it. When the portal shows a security or verification step, the tool pauses and hands it to you to approve, then continues the run instead of freezing mid-flow.',
   },
   {
     q: 'What do I need to run it?',
@@ -1461,7 +1470,7 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'How fast is support, and who answers?',
-    a: 'WhatsApp and email, answered by the people who built the tools — same-day on business days. If a VidaPay portal update ever breaks something, the fix ships as a normal update, already included with every plan. You are never billed for fixes.',
+    a: 'WhatsApp and email, answered by the people who built the tools — same-day on business days (US Central time), next business day worst case. If a VidaPay portal update ever breaks something, the fix ships as a normal update, already included with every plan. You are never billed for fixes.',
   },
 ];
 
@@ -1534,7 +1543,7 @@ const GUIDES = [
       'Manual VidaPay work doesn’t show up as a line item, which is exactly why it survives every budget review. So price it out. A three-store dealership running screenshots, retyping, and manual claim filing spends roughly fifteen to thirty staff-hours a week on portal busywork. At even a modest loaded labor rate, that’s hundreds of dollars a month in wages doing work a machine should do.',
       'Then add the error tax. Retyped IMEIs get one digit wrong. Screenshots miss the one row that mattered. Claims go in past the window because nobody saw the promo until it ended. Across the industry this shows up as several hundred to a couple thousand dollars a month in rebates and incentives that were earned, owed — and never collected. That is not a rounding error; at the low end it is a staff wage, at the high end it is a store’s rent.',
       'Finally add the focus cost. The owner or office manager doing portal work at 9 PM is not training staff, walking the floor, or opening store number four. Automation’s biggest return is rarely the hours it saves — it’s the decisions the operator finally gets to make because the extraction, ordering, and claim tracking run themselves.',
-      'The payback math is one line: if the tools recover even the low end of the leakage — a few hundred dollars a month — they have paid for themselves inside the first month, and everything after that is recovered margin. Run your own numbers for two minutes in the ROI calculator above and the manual process stops looking free.',
+      'The payback math is one line: if the tools recover even the low end of the leakage — a few hundred dollars a month — they can pay for themselves inside the first month, and everything after that is recovered margin. Run your own numbers for two minutes in the ROI calculator above and the manual process stops looking free.',
     ],
   },
 ];
@@ -1612,7 +1621,7 @@ const TRUST_CARDS = [
   {
     icon: MessageCircle,
     title: 'Human support',
-    text: 'WhatsApp and email, answered by the person who built the tools — usually same business day, next day worst case.',
+    text: 'WhatsApp and email, answered by the person who built the tools — same business day (US Central, business days only), next business day worst case.',
   },
   {
     icon: UserCheck,
@@ -2349,7 +2358,10 @@ function Footer() {
             </div>
           </div>
         </div>
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-white/[.06] pt-7 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+        <p className="mt-10 border-t border-white/[.06] pt-7 text-[11.5px] font-light leading-5 text-[#6f6c80]">
+          3S Verse is an independent software provider and is not affiliated with, endorsed by, or sponsored by VidaPay, T-CETRA, Total Wireless, or their parent companies. Product names and trademarks belong to their respective owners. Use of the tools remains subject to the dealer’s applicable agreements and policies.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
           <span>3S Verse {new Date().getFullYear()} © — All rights reserved</span>
           <div className="flex items-center gap-6">
             {visits !== null && (

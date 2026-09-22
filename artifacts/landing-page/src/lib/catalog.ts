@@ -9,10 +9,11 @@
  */
 
 export type ModelId = 'trial' | 'monthly' | 'annual' | 'lifetime';
-/** How many PCs one license covers — the customer picks any whole number 1–50. */
+/** How many PCs one license covers — self-serve picks 1–9 (audit F09:
+ *  10+ PCs move to the district-quote flow: message us for pricing). */
 export type PcCount = number;
 export const PC_MIN = 1;
-export const PC_MAX = 50;
+export const PC_MAX = 9;
 
 /** Suffix shown after a price for recurring models — '' for one-time. */
 export function modelPriceSuffix(model: ModelId): string {
@@ -27,7 +28,7 @@ export function modelBillingNote(model: ModelId): string {
     case 'monthly':
       return 'per month · cancel anytime';
     case 'annual':
-      return 'per year · 2 months free vs monthly';
+      return 'per year · save 30% vs monthly';
     case 'lifetime':
       return 'one-time payment · yours forever';
     default:
@@ -58,14 +59,14 @@ export interface VolumeTier {
 }
 
 /**
- * Volume ladder — bigger PC counts cost less per PC. The old fixed
- * "5 PC = 3× list" deal is preserved exactly (5 × 0.6 = 3).
+ * Volume ladder — bigger PC counts cost less per PC (audit F09: shallower
+ * tiers so deep discounts are reserved for annual/district contracts; 10+
+ * PCs are quoted through the district flow instead of self-serve).
  * Ordered best-tier-first; pick the first tier whose min the count reaches.
  */
 export const VOLUME_TIERS: VolumeTier[] = [
-  { min: 10, multiplier: 0.5, offPct: 50, label: '50% off per PC' },
-  { min: 5, multiplier: 0.6, offPct: 40, label: '40% off per PC' },
-  { min: 2, multiplier: 0.8, offPct: 20, label: '20% off per PC' },
+  { min: 5, multiplier: 0.8, offPct: 20, label: '20% off per PC' },
+  { min: 2, multiplier: 0.9, offPct: 10, label: '10% off per PC' },
   { min: 1, multiplier: 1, offPct: 0, label: '' },
 ];
 
@@ -182,11 +183,12 @@ export const TRIAL_DOWNLOAD = {
  * The worker checks the customer's order number against the license ledger
  * and only then serves the private FULL build — so paid builds are never
  * publicly downloadable. While gatewayUrl is empty, the storefront shows a
- * mailto fallback instead of the automatic download box.
+ * request fallback instead of the automatic download box (audit F04: honest
+ * request language until delivery is truly automatic).
  */
 export const PAID_DOWNLOAD = {
   gatewayUrl: '',
-  label: 'Download your software (FULL build)',
+  label: 'Request your licensed download',
   note: 'Enter the order number from your invoice (3SV-…).',
   contactEmail: 'Connect@3SVerse.com',
 } as const;
@@ -195,7 +197,7 @@ export const MODELS: ModelOption[] = [
   { id: 'trial', label: '7-Day Free Trial', note: 'Full features, 7 days, 1 PC — no card needed' },
   { id: 'monthly', label: 'Monthly', note: '$89/mo per tool — cancel anytime' },
   { id: 'annual', label: 'Annual', note: 'Save 30% vs monthly — every update included' },
-  { id: 'lifetime', label: 'Lifetime', note: 'Pay once — yours forever, updates included. Never pay again.' },
+  { id: 'lifetime', label: 'Lifetime', note: 'Founding-customer launch price — pay once, yours forever, every update included.' },
 ];
 
 export const PRODUCTS: Product[] = [
@@ -207,7 +209,7 @@ export const PRODUCTS: Product[] = [
       'Per-store incentive dashboards in one run',
       'IMEI + activation detail export',
       'One-click Excel workbook output',
-      'Human-verification handled automatically',
+      'Runs under your own dealer login — portal security checks stay user-controlled',
     ],
     prices: { trial: 0, monthly: 89, annual: 749, lifetime: 1499 },
     launchPrices: { trial: 0, lifetime: 899 },
@@ -219,7 +221,7 @@ export const PRODUCTS: Product[] = [
     features: [
       'Store-by-store ordering flow',
       'Built-in store login manager',
-      'Automatic human-verification handling',
+      'Portal verification steps pause for your approval — nothing bypasses you',
       'Runs on a second screen, unattended',
     ],
     prices: { trial: 0, monthly: 89, annual: 749, lifetime: 1799 },
