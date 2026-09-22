@@ -64,6 +64,11 @@ const ACCENT = '#0e7c8c';
 const ACCENT_SOFT = '#e9f7f9';
 const FONT = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
+/* Brand logo, hosted on the live site so the SAME image renders in the
+   preview, the printed PDF, the standalone HTML file, AND the emailed
+   copy (email clients only load absolute https image URLs). */
+const LOGO_URL = 'https://3sverse.com/logo.png';
+
 function esc(value: string): string {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -217,8 +222,8 @@ export function renderInvoiceBody(data: InvoiceData): string {
   /* header */
   parts.push(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
   <td style="padding:30px 0 22px;">
-    <div style="font-size:21px;font-weight:800;letter-spacing:.14em;color:${INK};">3S VERSE</div>
-    <div style="font-size:11px;color:${MUTED};letter-spacing:.2em;text-transform:uppercase;margin-top:5px;">Dealer Automation Tools</div>
+    <img src="${LOGO_URL}" alt="3S Verse" height="40" width="169" style="height:40px;width:auto;display:block;border:0;outline:none;" />
+    <div style="font-size:11px;color:${MUTED};letter-spacing:.2em;text-transform:uppercase;margin-top:9px;">Dealer Automation Tools</div>
   </td>
   <td style="padding:30px 0 22px;text-align:right;">
     <div style="font-size:23px;font-weight:700;color:${INK};">INVOICE</div>

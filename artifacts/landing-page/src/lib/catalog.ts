@@ -145,16 +145,50 @@ export const VIDEO_DEMO = {
 export const YOUTUBE_URL = '';
 
 /**
- * Free-trial download pack. Paste a Google Drive FOLDER link here (folder,
- * not file — folder links never change, so you can swap in a newer build
- * zip whenever you want without touching the site again). Share the folder
- * as "Anyone with the link — Viewer". Leave url as '' to hide every
- * trial-download button on the storefront.
+ * Free-trial downloads — served from the PUBLIC 3sverse-downloads repo,
+ * which auto-syncs the newest 7-day trial build of each tool every 4 hours
+ * (github.com/abaduchanna/3sverse-downloads → releases/latest). These are
+ * versionless URLs: the same link always delivers the newest build, so
+ * trial users and paid customers re-downloading updates never need a new
+ * link. ONLY trial builds live in that public repo; FULL (paid) builds
+ * stay in the private build repos and are delivered through the
+ * order-number gateway (see PAID_DOWNLOAD below).
  */
+const TRIAL_BASE =
+  'https://github.com/abaduchanna/3sverse-downloads/releases/latest/download/';
+
+export const TRIAL_DOWNLOADS: Record<string, string> = {
+  extractor: `${TRIAL_BASE}VidaPay_Incentive_Extractor_TRIAL.exe`,
+  ordering: `${TRIAL_BASE}VidaPay_Device_Ordering_TRIAL.exe`,
+  rebate: `${TRIAL_BASE}VidaPay_Rebate_Filing_TRIAL.exe`,
+  /* Bundle trial → the release page lists all three trial installers. */
+  bundle: 'https://github.com/abaduchanna/3sverse-downloads/releases/latest',
+};
+
+/** Versionless trial download URL for a product ('' hides its button). */
+export function trialDownloadUrl(productId: string): string {
+  return TRIAL_DOWNLOADS[productId] ?? '';
+}
+
 export const TRIAL_DOWNLOAD = {
-  url: '',
-  label: 'Download trial pack (.zip)',
-  note: 'Windows 10/11 · all trial tools · activation key arrives by email',
+  label: 'Download free trial (.exe)',
+  note: 'Windows 10/11 · 7-day trial · license key arrives by email',
+} as const;
+
+/**
+ * Paid-customer download gateway (FULL builds). After deploying the
+ * Cloudflare Worker download gateway (see the 3sverse-download-gateway
+ * README), paste its URL here, e.g. 'https://downloads.3sverse.workers.dev/download'.
+ * The worker checks the customer's order number against the license ledger
+ * and only then serves the private FULL build — so paid builds are never
+ * publicly downloadable. While gatewayUrl is empty, the storefront shows a
+ * mailto fallback instead of the automatic download box.
+ */
+export const PAID_DOWNLOAD = {
+  gatewayUrl: '',
+  label: 'Download your software (FULL build)',
+  note: 'Enter the order number from your invoice (3SV-…).',
+  contactEmail: 'Connect@3SVerse.com',
 } as const;
 
 export const MODELS: ModelOption[] = [

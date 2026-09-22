@@ -5,6 +5,7 @@ import {
   Copy,
   Download,
   FileText,
+  KeyRound,
   Loader2,
   Lock,
   MailCheck,
@@ -19,6 +20,7 @@ import {
 import {
   LAUNCH_OFFER,
   MODELS,
+  PAID_DOWNLOAD,
   PC_MIN,
   PRODUCTS,
   TRIAL_DOWNLOAD,
@@ -32,6 +34,7 @@ import {
   pcAllowedForModel,
   pcLabel,
   perPcPrice,
+  trialDownloadUrl,
   unitPrice,
   volumeTier,
   type ModelId,
@@ -156,6 +159,11 @@ export default function DealerStore() {
   const [copied, setCopied] = useState(false);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [invoiceEmailed, setInvoiceEmailed] = useState(false);
+  /* Paid-customer re-download box (order-number gated FULL builds). */
+  const [paidRef, setPaidRef] = useState('');
+  const [paidProduct, setPaidProduct] = useState('bundle');
+  const [paidBusy, setPaidBusy] = useState(false);
+  const [paidError, setPaidError] = useState('');
 
   const total = useMemo(
     () =>
@@ -177,6 +185,39 @@ export default function DealerStore() {
       }, 0),
     [lines],
   );
+
+  /* Distinct products in the cart that include a free trial. */
+  const trialProductIds = useMemo(
+    () => Array.from(new Set(lines.filter((l) => l.model === 'trial').map((l) => l.productId))),
+    [lines],
+  );
+
+  /* Paid-customer download: verify the order number through the gateway
+     worker (which checks the license ledger) and stream the FULL build.
+     Without a deployed gateway we fall back to a pre-filled email so the
+     customer is never stranded. */
+  const paidDownload = () => {
+    const ref = paidRef.trim().toUpperCase();
+    if (!ref) {
+      setPaidError('Enter the order number from your invoice (it looks like 3SV-…).');
+      return;
+    }
+    if (!PAID_DOWNLOAD.gatewayUrl) {
+      window.location.href =
+        `mailto:${PAID_DOWNLOAD.contactEmail}` +
+        `?subject=${encodeURIComponent(`Download request — order ${ref}`)}` +
+        `&body=${encodeURIComponent(
+          `Order number: ${ref}\nProduct: ${paidProduct}\n\n` +
+            'Please resend my download link (paid customers get every update free).',
+        )}`;
+      return;
+    }
+    setPaidBusy(true);
+    setPaidError('');
+    const url = `${PAID_DOWNLOAD.gatewayUrl}?order=${encodeURIComponent(ref)}&product=${encodeURIComponent(paidProduct)}`;
+    window.open(url, '_blank', 'noopener');
+    window.setTimeout(() => setPaidBusy(false), 1200);
+  };
 
   const setSelection = (productId: string, patch: Partial<{ model: ModelId; pcs: number }>) => {
     setSelections((prev) => {
@@ -419,6 +460,59 @@ export default function DealerStore() {
 
       <LaunchBar />
 
+      {/* Paid-customer re-download — order number is checked against the
+          license ledger before a FULL build is served. */}
+      <div className="mb-10 rounded-2xl border border-white/[.08] bg-white/[.02] p-5">
+        <p className="mb-1 flex items-center gap-2 text-[14px] font-medium text-white">
+          <KeyRound className="h-4 w-4 text-[#6ee7ef]" /> Already purchased? Re-download your
+          software
+        </p>
+        <p className="mb-4 text-[13px] font-light leading-5 text-[#8d8a9e]">
+          Enter the order number printed on your invoice — we verify your package (1-year or
+          lifetime) before the FULL build downloads. Updates are always free for paying
+          customers.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            className={inputClass + ' sm:max-w-[250px]'}
+            placeholder="Order number — 3SV-…"
+            value={paidRef}
+            onChange={(e) => {
+              setPaidRef(e.target.value);
+              setPaidError('');
+            }}
+          />
+          <select
+            className={inputClass + ' sm:max-w-[260px] [&>option]:bg-[#141320]'}
+            value={paidProduct}
+            onChange={(e) => setPaidProduct(e.target.value)}
+            aria-label="Product to download"
+          >
+            {PRODUCTS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={paidDownload}
+            disabled={paidBusy}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {paidBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {PAID_DOWNLOAD.label}
+          </button>
+        </div>
+        {paidError ? <p className="mt-2 text-[12.5px] text-amber-300">{paidError}</p> : null}
+        {!PAID_DOWNLOAD.gatewayUrl ? (
+          <p className="mt-2 text-[12px] text-[#8d8a9e]">
+            Automatic delivery is being configured — the button opens a pre-filled email to{' '}
+            {PAID_DOWNLOAD.contactEmail} and we reply with your download link.
+          </p>
+        ) : null}
+      </div>
+
       {result ? (
         <div className="rounded-3xl border border-[#6ee7ef]/25 bg-[#0b0a11] p-8 sm:p-10">
           <div className="mb-6 flex items-center gap-3">
@@ -525,23 +619,32 @@ export default function DealerStore() {
               {result.savingsLabel} vs list price.
             </p>
           ) : null}
-          {lines.some((l) => l.model === 'trial') && TRIAL_DOWNLOAD.url ? (
+          {trialProductIds.length > 0 ? (
             <div
               data-testid="trial-download-success"
               className="mb-6 rounded-xl border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.06] p-4"
             >
               <p className="text-[14px] font-medium text-white">Your order includes a free trial.</p>
               <p className="mb-3 mt-1 text-[13px] font-light leading-5 text-[#b9b6c9]">{TRIAL_DOWNLOAD.note}</p>
-              <a
-                href={TRIAL_DOWNLOAD.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
-              >
-                <Download className="h-4 w-4" /> {TRIAL_DOWNLOAD.label}
-              </a>
+              <div className="flex flex-wrap gap-2.5">
+                {trialProductIds.map((pid) => {
+                  const product = PRODUCTS.find((p) => p.id === pid);
+                  return (
+                    <a
+                      key={pid}
+                      href={trialDownloadUrl(pid)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span className="min-w-0">{product ? product.name : 'Trial'} — trial</span>
+                    </a>
+                  );
+                })}
+              </div>
               <p className="mt-2 text-[12px] text-[#8d8a9e]">
-                Enter the 7-day key we email you on first run.
+                The 7-day clock starts on first run — always the newest build, no stale links.
               </p>
             </div>
           ) : null}
@@ -644,9 +747,9 @@ export default function DealerStore() {
                       {nextTier ? ` — ${nextTier.min - sel.pcs} more PC${nextTier.min - sel.pcs === 1 ? '' : 's'} → ${nextTier.offPct}% off per PC` : ''}
                     </p>
                   ) : null}
-                  {sel.model === 'trial' && TRIAL_DOWNLOAD.url ? (
+                  {sel.model === 'trial' && trialDownloadUrl(product.id) ? (
                     <a
-                      href={TRIAL_DOWNLOAD.url}
+                      href={trialDownloadUrl(product.id)}
                       target="_blank"
                       rel="noopener noreferrer"
                       data-testid={`trial-download-${product.id}`}

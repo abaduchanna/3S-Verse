@@ -10,10 +10,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ClipboardCheck,
+  Copy,
+  Dices,
   Download,
   FileText,
+  Mail,
   Plus,
   Printer,
+  Save,
+  Send,
   ShieldCheck,
   Trash2,
   Wand2,
@@ -35,9 +40,32 @@ import {
   type InvoiceItem,
   type InvoiceStatus,
 } from '@/lib/invoice';
+import {
+  emailjsConfigured,
+  emailjsEffectiveConfig,
+  emailjsSaveConfig,
+  emailjsSendTest,
+} from '@/lib/notify';
 
 const DEFAULT_NOTES =
   'License keys activate on first run on the registered PC(s). For support, contact Connect@3sverse.com with your order reference.';
+
+/* Order-number generator alphabet — no I/L/O/0/1 so digits and letters are
+   never confused when a customer reads the ref off their invoice. */
+const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+/* Exact template content to paste into the EmailJS template editor.
+   TRIPLE braces around invoice_html are required — they make EmailJS
+   insert the invoice as raw HTML instead of escaped text. */
+const EMAILJS_TEMPLATE_SUBJECT = 'Invoice {{invoice_no}} — 3S Verse (order {{order_ref}})';
+const EMAILJS_TEMPLATE_CONTENT = `Hi {{customer_name}},
+
+Your 3S Verse invoice is ready — total {{total_label}}.
+Pay within the due window shown on the invoice (bank transfer, Wise, PayPal, or USDT). After payment we deliver your license keys within a few hours.
+
+{{{invoice_html}}}
+
+3S Verse · 3sverse.com`;
 
 const inputClass =
   'w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-2.5 text-[14px] text-white placeholder:text-[#6d6a80] outline-none transition-colors focus:border-[#6ee7ef]/60';
@@ -91,9 +119,20 @@ export default function InvoiceStudio() {
   const [keysText, setKeysText] = useState('');
   const [notes, setNotes] = useState(DEFAULT_NOTES);
   const [flash, setFlash] = useState('');
+  /* EmailJS setup card state — pre-filled from the effective config. */
+  const [emailSvc, setEmailSvc] = useState('');
+  const [emailTpl, setEmailTpl] = useState('');
+  const [emailKey, setEmailKey] = useState('');
+  const [emailTestTo, setEmailTestTo] = useState('');
+  const [emailStatus, setEmailStatus] = useState('');
+  const [emailBusy, setEmailBusy] = useState(false);
 
   useEffect(() => {
     document.title = '3S Verse — Invoice Studio';
+    const cfg = emailjsEffectiveConfig();
+    setEmailSvc(cfg.serviceId);
+    setEmailTpl(cfg.templateId);
+    setEmailKey(cfg.publicKey);
   }, []);
 
   const invoiceNo = invoiceNumberFromRef(orderRef);
@@ -158,6 +197,53 @@ export default function InvoiceStudio() {
   const showFlash = (message: string) => {
     setFlash(message);
     window.setTimeout(() => setFlash(''), 4500);
+  };
+
+  /* Fresh unambiguous order number — invoice no follows automatically. */
+  const generateOrderRef = () => {
+    let suffix = '';
+    for (let i = 0; i < 8; i += 1) {
+      suffix += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
+    }
+    setOrderRef(`3SV-${suffix}`);
+  };
+
+  const saveEmailConfig = () => {
+    emailjsSaveConfig({
+      enabled: Boolean(emailSvc.trim() && emailTpl.trim() && emailKey.trim()),
+      serviceId: emailSvc.trim(),
+      templateId: emailTpl.trim(),
+      publicKey: emailKey.trim(),
+    });
+    setEmailStatus(
+      emailjsConfigured()
+        ? 'Saved in this browser — automatic invoice emails are ACTIVE.'
+        : 'Saved — relay is off until all three IDs are filled.',
+    );
+    window.setTimeout(() => setEmailStatus(''), 5000);
+  };
+
+  const copyTemplateContent = async () => {
+    const text = `Subject: ${EMAILJS_TEMPLATE_SUBJECT}\n\n${EMAILJS_TEMPLATE_CONTENT}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setEmailStatus('Template subject + content copied — paste into the EmailJS template editor.');
+    } catch {
+      setEmailStatus('Clipboard blocked — copy the template text from EMAILJS_SETUP.md instead.');
+    }
+    window.setTimeout(() => setEmailStatus(''), 5000);
+  };
+
+  const sendTest = async () => {
+    setEmailBusy(true);
+    const res = await emailjsSendTest(emailTestTo.trim());
+    setEmailBusy(false);
+    setEmailStatus(
+      res.ok
+        ? `Test email sent to ${emailTestTo.trim()} — check the inbox (and spam).`
+        : `Test failed: ${res.error ?? 'unknown error'}`,
+    );
+    window.setTimeout(() => setEmailStatus(''), 6000);
   };
 
   const printInvoice = () => {
@@ -270,24 +356,34 @@ export default function InvoiceStudio() {
           {/* ---------------- form ---------------- */}
           <section className="rounded-2xl border border-white/10 bg-white/[.03] p-5 md:p-6">
             <div className={labelClass}>Order</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="space-y-3">
+              <div className="flex gap-2">
                 <input
-                  className={inputClass}
+                  className={inputClass + ' min-w-0 flex-1'}
                   placeholder="Order ref — 3SV-…"
                   value={orderRef}
                   onChange={(e) => setOrderRef(e.target.value)}
                 />
-                <div className="mt-1.5 text-[12px] text-[#8b87a3]">
+                <button
+                  type="button"
+                  onClick={generateOrderRef}
+                  title="Generate a fresh order number"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/15 px-3.5 py-2.5 text-[13px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white"
+                >
+                  <Dices className="h-4 w-4" /> Generate
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={dateISO}
+                  onChange={(e) => setDateISO(e.target.value)}
+                />
+                <div className="self-center text-[12px] text-[#8b87a3]">
                   Invoice no: <span className="font-semibold text-[#6ee7ef]">{invoiceNo || '—'}</span> (auto)
                 </div>
               </div>
-              <input
-                type="date"
-                className={inputClass}
-                value={dateISO}
-                onChange={(e) => setDateISO(e.target.value)}
-              />
             </div>
 
             <div className="mt-4 flex items-center gap-2">
@@ -504,6 +600,85 @@ export default function InvoiceStudio() {
                 {flash}
               </div>
             )}
+
+            {/* Email delivery (EmailJS) — browser-local setup, no redeploy.
+                Full walkthrough: download/3sverse-download-gateway/EMAILJS_SETUP.md */}
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/[.02] p-4">
+              <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                <Mail className="h-4 w-4 text-[#6ee7ef]" />
+                <p className="text-[13.5px] font-semibold text-white">Email delivery (EmailJS)</p>
+                <span
+                  className={
+                    'rounded-lg px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[.12em] ' +
+                    (emailjsConfigured()
+                      ? 'bg-emerald-400/10 text-emerald-300'
+                      : 'bg-white/[.06] text-[#8b87a3]')
+                  }
+                >
+                  {emailjsConfigured() ? 'Active' : 'Not configured'}
+                </span>
+              </div>
+              <p className="mb-3 text-[12.5px] font-light leading-5 text-[#8b87a3]">
+                One-time 5-minute setup — saved in THIS browser only (localStorage), nothing to
+                commit. emailjs.com → add your Gmail service → create a template with “Copy
+                template content” below → paste the three IDs here → send a test.
+              </p>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                <input
+                  className={inputClass}
+                  placeholder="Service ID — service_…"
+                  value={emailSvc}
+                  onChange={(e) => setEmailSvc(e.target.value)}
+                />
+                <input
+                  className={inputClass}
+                  placeholder="Template ID — template_…"
+                  value={emailTpl}
+                  onChange={(e) => setEmailTpl(e.target.value)}
+                />
+                <input
+                  className={inputClass}
+                  placeholder="Public Key"
+                  value={emailKey}
+                  onChange={(e) => setEmailKey(e.target.value)}
+                />
+              </div>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={saveEmailConfig}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                >
+                  <Save className="h-4 w-4" /> Save to this browser
+                </button>
+                <button
+                  type="button"
+                  onClick={copyTemplateContent}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-[13px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white"
+                >
+                  <Copy className="h-4 w-4" /> Copy template content
+                </button>
+                <div className="flex min-w-[240px] flex-1 gap-2">
+                  <input
+                    className={inputClass + ' min-w-0 flex-1'}
+                    placeholder="Your email — for the test"
+                    value={emailTestTo}
+                    onChange={(e) => setEmailTestTo(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={sendTest}
+                    disabled={emailBusy || !emailjsConfigured()}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.06] px-4 py-2.5 text-[13px] font-medium text-[#9fe8f2] transition-colors hover:border-[#6ee7ef]/60 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Send className="h-4 w-4" /> Send test
+                  </button>
+                </div>
+              </div>
+              {emailStatus ? (
+                <p className="mt-2.5 text-[12.5px] text-[#9fe8f2]">{emailStatus}</p>
+              ) : null}
+            </div>
           </section>
 
           {/* ---------------- preview ---------------- */}
