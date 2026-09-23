@@ -244,7 +244,7 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   const solid = v === 1 || v === 2;
   const img = (variant: 'dark' | 'light') => (
     <motion.img
-      src={`/shapes/shape-v${v}${variant === 'light' && solid ? '-solid' : ''}.webp${variant === 'light' && solid ? '?v=6' : ''}`}
+      src={`/shapes/shape-v${v}${variant === 'light' && solid ? '-solid' : ''}.webp${variant === 'light' && solid ? '?v=7' : ''}`}
       alt=""
       width={w}
       height={h}
@@ -370,7 +370,7 @@ function BrandCursor() {
         </div>
         <div className="brand-cursor-fade f-ring">
           <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} className="shape-img-dark" />
-          <img src="/shapes/shape-v1-solid.webp?v=6" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
+          <img src="/shapes/shape-v1-solid.webp?v=7" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
         </div>
         <div className="brand-cursor-fade f-orb">
           <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} />
