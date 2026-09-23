@@ -1246,7 +1246,7 @@ function Tools() {
                       <Download className="h-4 w-4" /> Download free trial (.exe)
                     </a>
                     <a
-                      href="/order"
+                      href="#/order"
                       data-testid="link-order-status"
                       className="text-[13.5px] font-medium text-brand-cyan transition-colors hover:text-foreground"
                     >
@@ -2653,6 +2653,20 @@ function App() {
         </div>
       }>
         <DownloadPage />
+      </Suspense>
+    );
+  }
+  // #/order — order tracking / free re-download. Hash-routed like the views
+  // above so it works on GitHub Pages, where a clean /order path would hit
+  // the 404 shim (the shim maps /order -> /#/order).
+  if (hash.startsWith('#/order')) {
+    return (
+      <Suspense fallback={
+        <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+          Loading…
+        </div>
+      }>
+        <OrderStatusPage />
       </Suspense>
     );
   }

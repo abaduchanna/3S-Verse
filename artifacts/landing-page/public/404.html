@@ -200,13 +200,19 @@
          only normalizes the state the page starts in. */
       (function () {
         try { history.scrollRestoration = 'manual'; } catch (e) {}
-        /* Friendly shortcuts: /invoice -> Invoice Studio (#/invoice) and the
-           policy/download pages -> their #/ routes. Covers the window where
-           an old SPA-fallback 404.html (a copy of this index.html) is still
-           served from a CDN edge for those paths. */
-        var m = location.pathname.replace(/\/+$/, '').toLowerCase().match(/^\/(invoice|privacy|terms|refund|eula|security|download)$/);
+        /* GitHub Pages 404 shim (v2): Pages has no SPA fallback, so this file
+           is the landing spot for every unknown path. Friendly shortcuts are
+           mapped onto their hash-routed views (trial -> #/download, order ->
+           #/order), and ANY other unknown path goes back to the landing page
+           instead of sitting on a dead splash screen. */
+        var m = location.pathname.replace(/\/+$/, '').toLowerCase().match(/^\/(invoice|privacy|terms|refund|eula|security|download|order|trial)$/);
         if (m) {
-          location.replace(location.origin + '/#/' + m[1]);
+          var view = m[1] === 'trial' ? 'download' : m[1];
+          location.replace(location.origin + '/#/' + view + location.search);
+          return;
+        }
+        if (location.pathname.replace(/\/+$/, '') !== '') {
+          location.replace(location.origin + '/');
           return;
         }
         if (location.hash && !location.hash.startsWith('#/')) {

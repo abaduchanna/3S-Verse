@@ -231,7 +231,7 @@ function orderEmailHtml(rec: {
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <p>Approve it here after payment: <a href="${SITE_URL}/admin?order=${rec.id}">${SITE_URL}/admin?order=${rec.id}</a></p>
+      <p>Approve it from License Studio (Orders tab — the order appears there live once it is filed to the orders inbox). Order ref: ${rec.id}</p>
     </div>`;
 }
 
