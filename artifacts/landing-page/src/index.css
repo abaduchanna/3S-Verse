@@ -372,3 +372,78 @@ html.bc-active, html.bc-active * { cursor: none !important; }
 html.bc-active input, html.bc-active textarea { cursor: text !important; }
 
 ::selection { background: #e44bd7; color: #0b0a10; }
+
+/* ── Decorative shapes — per-theme variants ─────────────────────────────
+   The originals are dark-canvas renders; `-light` variants (matting bites
+   and baked whites healed, graded to pastel glass — see
+   scripts/make_light_shapes.py) swap in via the html class. Unlayered so
+   it wins over the Tailwind utility layer. */
+.shape-img-light { display: none; }
+html:not(.dark) .shape-img-light { display: block; }
+html:not(.dark) .shape-img-dark { display: none; }
+/* low-opacity background accents need more presence on the white canvas */
+html:not(.dark) .shape-subtle { opacity: .55; }
+
+/* ── Theme wave — 2.5s liquid sweep carrying the light/dark flip ────────
+   Rise (0–1.0s) → hold covered (flip at 1.18s) → tide out (by 2.5s).
+   All transform-only; the overlay is pointer-transparent and mounted once
+   per page (<ThemeWave />). */
+.theme-wave {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+.theme-wave.is-running { visibility: visible; }
+
+/* the sheet: destination-colored wall of water */
+.tw-sheet {
+  position: absolute;
+  inset: 0;
+  transform: translateY(calc(100% + 160px));
+  will-change: transform;
+}
+.theme-wave.is-running .tw-sheet {
+  animation: twCycle 2.5s cubic-bezier(.62, .04, .3, .99) both;
+}
+@keyframes twCycle {
+  /* +160px: clear the tallest crest (150px) so no sliver peeks at rest */
+  0%   { transform: translateY(calc(100% + 160px)); }
+  40%  { transform: translateY(0); }
+  54%  { transform: translateY(0); }
+  100% { transform: translateY(calc(100% + 160px)); }
+}
+.tw-fill { position: absolute; inset: 0; }
+.theme-wave.to-light .tw-fill { background: #fcfbfe; }
+.theme-wave.to-dark  .tw-fill { background: #060509; }
+
+/* crests ride the sheet's top edge (outside its box, clipped by the root);
+   two faint back crests drift one way, the front gradient lip the other */
+.tw-crest {
+  position: absolute;
+  width: 200%;
+  display: flex;
+  will-change: transform;
+}
+.tw-crest svg { width: 50%; height: 100%; flex: none; display: block; }
+.tw-c2 { height: 150px; left: 0;   bottom: calc(100% - 6px); }
+.tw-c1 { height: 120px; left: 0;   bottom: calc(100% - 3px); }
+.tw-cf { height: 96px;  right: 0;  bottom: calc(100% - 1px); }
+.theme-wave.is-running .tw-c2 { animation: twDriftLeft var(--tw-dur, 13s) linear infinite; }
+.theme-wave.is-running .tw-c1 { animation: twDriftLeft var(--tw-dur, 9s) linear infinite; }
+.theme-wave.is-running .tw-cf { animation: twDriftRight var(--tw-dur, 6s) linear infinite; }
+@keyframes twDriftLeft  { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes twDriftRight { from { transform: translateX(0); } to { transform: translateX(50%); } }
+
+/* front crest lip: brand tint at the waterline dissolving into the
+   destination theme's canvas color */
+.theme-wave.to-light .tw-stop-tint { stop-color: rgba(41, 77, 194, .55); }
+.theme-wave.to-light .tw-stop-bg   { stop-color: #fcfbfe; }
+.theme-wave.to-dark  .tw-stop-tint { stop-color: rgba(110, 231, 239, .80); }
+.theme-wave.to-dark  .tw-stop-bg   { stop-color: #060509; }
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-wave { display: none; }
+}

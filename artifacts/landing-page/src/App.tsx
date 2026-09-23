@@ -119,12 +119,44 @@ function currentTheme(): Theme {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 }
 
+/* ── Theme wave — the 2.5s liquid sweep that carries the light/dark flip.
+   A fixed overlay sheet, colored like the DESTINATION theme, rises from
+   below as three drifting wave crests, holds covering the viewport while
+   the theme flips underneath, then sinks back down revealing the new
+   theme. Instant flip for reduced-motion users; clicks during a sweep are
+   ignored (the sheet owns the screen for its 2.5s). */
+const WAVE_MS = 2500;
+const WAVE_FLIP_MS = 1180;
+let twBusy = false;
+
+function runThemeWave(to: Theme, flip: () => void): void {
+  const el = document.querySelector<HTMLElement>('.theme-wave');
+  if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    flip();
+    return;
+  }
+  if (twBusy) return;
+  twBusy = true;
+  el.classList.remove('to-light', 'to-dark');
+  el.classList.remove('is-running');
+  void el.offsetWidth; // restart the CSS cycle cleanly on rapid toggles
+  el.classList.add('is-running', to === 'light' ? 'to-light' : 'to-dark');
+  window.setTimeout(flip, WAVE_FLIP_MS);
+  window.setTimeout(() => {
+    el.classList.remove('is-running');
+    twBusy = false;
+  }, WAVE_MS + 80);
+}
+
 function ThemeToggle({ className = '' }: { className?: string }) {
   const [theme, setTheme] = useState<Theme>(currentTheme);
   const toggle = () => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    applyTheme(next);
+    // Icon + class flip land mid-wave, while the sheet covers the screen.
+    runThemeWave(next, () => {
+      setTheme(next);
+      applyTheme(next);
+    });
   };
   const label = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
   return (
@@ -170,6 +202,25 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
     4: [720, 713],
   };
   const [w, h] = dims[v];
+  /* Both theme variants render and swap via CSS (html.dark). The originals
+     are dark-canvas renders — the `-light` variants are healed (matting
+     bites + baked whites inpainted) and graded to pastel glass for the
+     white canvas; see scripts/make_light_shapes.py. */
+  const renderImg = (variant: 'dark' | 'light') => (
+    <motion.img
+      src={`/shapes/shape-v${v}${variant === 'light' ? '-light' : ''}.webp`}
+      alt=""
+      width={w}
+      height={h}
+      draggable={false}
+      loading={v === 1 ? 'eager' : 'lazy'}
+      fetchPriority={v === 1 ? 'high' : undefined}
+      decoding="async"
+      className={`shape-img shape-img-${variant} h-auto w-full will-change-transform`}
+      animate={spin ? { rotate: 360 * dir } : undefined}
+      transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
+    />
+  );
   return (
     <motion.div
       aria-hidden="true"
@@ -178,19 +229,8 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
       animate={floatY ? { y: [-floatY, floatY, -floatY] } : undefined}
       transition={floatY ? { duration: floatDur, repeat: Infinity, ease: 'easeInOut' } : undefined}
     >
-      <motion.img
-        src={`/shapes/shape-v${v}.webp`}
-        alt=""
-        width={w}
-        height={h}
-        draggable={false}
-        loading={v === 1 ? 'eager' : 'lazy'}
-        fetchPriority={v === 1 ? 'high' : undefined}
-        decoding="async"
-        className="h-auto w-full will-change-transform"
-        animate={spin ? { rotate: 360 * dir } : undefined}
-        transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
-      />
+      {renderImg('dark')}
+      {renderImg('light')}
     </motion.div>
   );
 }
@@ -293,10 +333,57 @@ function BrandCursor() {
           <img src="/logo-240.png" alt="" width={240} height={57} draggable={false} className="select-none" />
         </div>
         <div className="brand-cursor-fade f-ring">
-          <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} />
+          <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} className="shape-img-dark" />
+          <img src="/shapes/shape-v1-light.webp" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
         </div>
         <div className="brand-cursor-fade f-orb">
-          <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} />
+          <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} className="shape-img-dark" />
+          <img src="/shapes/shape-v3-light.webp" alt="" width={640} height={640} draggable={false} className="shape-img-light" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Theme wave overlay — mounted once per page. The sheet is colored by the
+   DESTINATION theme (CSS below); the three crests ride its top edge: two
+   faint back crests drifting one way, a front gradient lip drifting the
+   other. All transform-only, GPU-friendly, pointer-transparent. */
+const TW_WAVE_UP = 'M0 64 Q150 20 300 64 T600 64 T900 64 T1200 64 V122 H0 Z';
+const TW_WAVE_DOWN = 'M0 64 Q150 108 300 64 T600 64 T900 64 T1200 64 V122 H0 Z';
+
+function ThemeWave() {
+  return (
+    <div className="theme-wave" aria-hidden="true">
+      <div className="tw-sheet">
+        <div className="tw-fill" />
+        <div className="tw-crest tw-c2" style={{ '--tw-dur': '13s' } as CSSProperties}>
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none"><path d={TW_WAVE_DOWN} fill="rgba(228,75,215,.10)" /></svg>
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none"><path d={TW_WAVE_DOWN} fill="rgba(228,75,215,.10)" /></svg>
+        </div>
+        <div className="tw-crest tw-c1" style={{ '--tw-dur': '9s' } as CSSProperties}>
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none"><path d={TW_WAVE_UP} fill="rgba(110,231,239,.13)" /></svg>
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none"><path d={TW_WAVE_UP} fill="rgba(110,231,239,.13)" /></svg>
+        </div>
+        <div className="tw-crest tw-cf" style={{ '--tw-dur': '6s' } as CSSProperties}>
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="twgf1" x1="0" y1="0" x2="0" y2="1">
+                <stop className="tw-stop-tint" offset="0" />
+                <stop className="tw-stop-bg" offset="0.82" />
+              </linearGradient>
+            </defs>
+            <path d={TW_WAVE_UP} fill="url(#twgf1)" />
+          </svg>
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="twgf2" x1="0" y1="0" x2="0" y2="1">
+                <stop className="tw-stop-tint" offset="0" />
+                <stop className="tw-stop-bg" offset="0.82" />
+              </linearGradient>
+            </defs>
+            <path d={TW_WAVE_UP} fill="url(#twgf2)" />
+          </svg>
         </div>
       </div>
     </div>
@@ -1657,7 +1744,7 @@ function GuideCard({ g, index }: { g: (typeof GUIDES)[number]; index: number }) 
 function Guides() {
   return (
     <section id="guides" className="relative overflow-hidden py-28 lg:py-36">
-      <Shape v={1} className="pointer-events-none absolute -left-44 top-24 hidden w-[420px] opacity-25 lg:block" spin={90} floatY={10} floatDur={14} />
+      <Shape v={1} className="shape-subtle pointer-events-none absolute -left-44 top-24 hidden w-[420px] opacity-25 lg:block" spin={90} floatY={10} floatDur={14} />
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
         <Reveal>
           <div className="mb-14 flex flex-col justify-between gap-8 md:flex-row md:items-end">
@@ -2294,7 +2381,7 @@ function Contact() {
     <section id="contact" className="relative overflow-hidden py-28 lg:py-40">
       {/* template CTA glow behind the heading */}
       <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-10 h-[380px] w-[680px] -translate-x-1/2 rounded-full bg-[#e44bd7]/[.07] blur-[120px]" />
-      <Shape v={3} spin={140} floatY={12} floatDur={13} className="absolute -right-40 -top-24 hidden w-[460px] opacity-30 lg:block" />
+      <Shape v={3} spin={140} floatY={12} floatDur={13} className="shape-subtle absolute -right-40 -top-24 hidden w-[460px] opacity-30 lg:block" />
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
         <Reveal>
           <div className="mx-auto mb-14 max-w-3xl text-center">
@@ -2514,6 +2601,7 @@ function Home() {
   }, []);
   return (
     <div className="noise min-h-[100dvh] overflow-x-clip bg-background">
+      <ThemeWave />
       <ScrollProgress />
       <Spotlight />
       <ScrollTop />
