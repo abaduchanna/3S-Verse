@@ -341,16 +341,14 @@
   margin: -23px 0 0 -10px;
 }
 .brand-cursor-fade.f-ring img,
-.brand-cursor-fade.f-orb img,
-.brand-cursor-fade .shape-img-light {
+.brand-cursor-fade.f-orb img {
   position: absolute;
   inset: 0;
   height: 100%;
   width: 100%;
   max-width: none;
 }
-.brand-cursor-fade.f-ring img,
-.brand-cursor-fade.f-ring .shape-img-light {
+.brand-cursor-fade.f-ring img {
   animation: bcSpin 10s linear infinite;
   filter: drop-shadow(0 0 10px rgba(110,231,239,.35));
 }
@@ -363,8 +361,7 @@
   width: 42px;
   margin: -21px 0 0 -9px;
 }
-.brand-cursor-fade.f-orb img,
-.brand-cursor-fade.f-orb .shape-img-light {
+.brand-cursor-fade.f-orb img {
   animation: bcSpin 16s linear infinite;
   filter: drop-shadow(0 0 10px rgba(228,75,215,.32)) drop-shadow(0 0 8px rgba(110,231,239,.28));
 }
@@ -376,74 +373,81 @@ html.bc-active input, html.bc-active textarea { cursor: text !important; }
 
 ::selection { background: #e44bd7; color: #0b0a10; }
 
-/* ── Decorative shapes — per-theme variants ─────────────────────────────
-   Dark keeps the original dark-canvas 3D renders. Light uses dedicated
-   renders generated for the white canvas (pastel iridescent glass,
-   matted to transparency — scripts/light_shapes/process.py).
-   Unlayered so it wins over the Tailwind utility layer. */
-.shape-img-light { display: none; }
-html:not(.dark) .shape-img-light { display: block; }
-html:not(.dark) .shape-img-dark { display: none; }
-/* soft brand-tinted lift off the white page */
-html:not(.dark) .shape-img-light {
-  filter: drop-shadow(0 24px 48px rgba(99,102,241,.14)) drop-shadow(0 6px 18px rgba(148,163,184,.10));
+/* ── Decorative shapes — one electric render for BOTH themes ────────────
+   The dark-canvas 3D renders (indigo/cyan/magenta neon light trails) ARE
+   the brand look; the light theme shows the exact same asset — same ring,
+   same colors, every section, by construction. On the white canvas the
+   neon gets a touch of extra saturation + contrast so it reads as
+   electric as it does on the dark surface. Unlayered so it wins over the
+   Tailwind utility layer. */
+html:not(.dark) .shape-img {
+  filter: saturate(1.32) contrast(1.07);
 }
 /* low-opacity background accents need more presence on the white canvas */
 html:not(.dark) .shape-subtle { opacity: .6; }
 
-/* ── Theme wave — 2.5s ripple bursting out of the theme toggle ─────────
-   Origin = the toggle button's center (JS feeds --tw-x/--tw-y). The
-   destination-colored water expands as a clip circle from that exact
-   point (top right), holds covered while the theme flips (1.18s), then
-   drains back into the button. Pointer-transparent, mounted once per
-   page (<ThemeWave />). @property registers the radius so it
-   interpolates (Chrome 85+/Safari 16.4+/Firefox 128+; older browsers
-   get an instant cover, still functional). */
-@property --tw-r {
+/* ── Theme water-swipe — View Transitions reveal from the toggle ────────
+   The NEW theme floods out of the theme toggle button (top right) as a
+   soft-feathered circle of water — the effect from the original 3S Verse
+   site. Origin is fed by JS as --water-x/--water-y (the button's center);
+   2.5s so the wavefront reads as water crossing the page, not a wipe.
+   @property registers the radius so it animates inside the mask gradient
+   (Chrome 85+/Safari 16.4+/Firefox 128+). Browsers with View Transitions
+   but without @property fall back to the clip-path reveal driven in
+   App.tsx; browsers without View Transitions use the color-transition
+   fallback below. */
+@property --water-r {
   syntax: '<length>';
-  initial-value: 0px;
   inherits: false;
-}
-.theme-wave {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  overflow: hidden;
-  pointer-events: none;
-  visibility: hidden;
-  clip-path: circle(var(--tw-r) at var(--tw-x, calc(100% - 120px)) var(--tw-y, 44px));
-}
-.theme-wave.is-running {
-  visibility: visible;
-  animation: twRipple 2.5s cubic-bezier(.62, .04, .3, .99) both;
-}
-@keyframes twRipple {
-  0%   { --tw-r: 0px; }
-  44%  { --tw-r: 165vmax; } /* cover any viewport from the top-right */
-  56%  { --tw-r: 165vmax; }
-  100% { --tw-r: 0px; }     /* drain back into the toggle */
+  initial-value: 0px;
 }
 
-/* the sheet: destination-colored wall of water with a brand glow at the
-   burst point, so the water reads as coming from the button itself */
-.tw-sheet {
-  position: absolute;
-  inset: 0;
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
-.tw-fill { position: absolute; inset: 0; }
-.theme-wave.to-light .tw-fill {
-  background:
-    radial-gradient(circle 540px at var(--tw-x, calc(100% - 120px)) var(--tw-y, 44px),
-      rgba(41, 77, 194, .42), rgba(41, 77, 194, 0) 62%),
-    #fcfbfe;
+
+/* 2.5s — slow, clearly visible flood so the wavefront reads as water
+   crossing the page; the feathered mask keeps the front soft, not a wipe. */
+::view-transition-new(root) {
+  animation: water-front 2.5s cubic-bezier(0.3, 0, 0.15, 1) forwards;
+  mask-image: radial-gradient(
+    circle var(--water-r) at var(--water-x, calc(100% - 120px)) var(--water-y, 44px),
+    black 60%,
+    rgba(0, 0, 0, 0.4) 84%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle var(--water-r) at var(--water-x, calc(100% - 120px)) var(--water-y, 44px),
+    black 60%,
+    rgba(0, 0, 0, 0.4) 84%,
+    transparent 100%
+  );
 }
-.theme-wave.to-dark .tw-fill {
-  background:
-    radial-gradient(circle 540px at var(--tw-x, calc(100% - 120px)) var(--tw-y, 44px),
-      rgba(110, 231, 239, .48), rgba(110, 231, 239, 0) 62%),
-    #060509;
+
+@keyframes water-front {
+  from { --water-r: 0px; }
+  to { --water-r: 170vmax; }
+}
+
+/* The old theme dims and softens as the water passes over it. */
+::view-transition-old(root) {
+  animation: water-out 1.9s ease forwards;
+}
+
+@keyframes water-out {
+  to { filter: brightness(0.92) blur(2px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .theme-wave { display: none; }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* Fallback for browsers without View Transitions: smoothly transition colors. */
+body, header, footer, section {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.3s ease;
 }

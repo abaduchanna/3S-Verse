@@ -119,53 +119,76 @@ function currentTheme(): Theme {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light';
 }
 
-/* ── Theme wave — the 2.5s liquid sweep that carries the light/dark flip.
-   A fixed overlay sheet, colored like the DESTINATION theme, rises from
-   below as three drifting wave crests, holds covering the viewport while
-   the theme flips underneath, then sinks back down revealing the new
-   theme. Instant flip for reduced-motion users; clicks during a sweep are
-   ignored (the sheet owns the screen for its 2.5s). */
-const WAVE_MS = 2500;
-const WAVE_FLIP_MS = 1180;
-let twBusy = false;
-
-function runThemeWave(to: Theme, flip: () => void,
-                      origin?: { x: number; y: number }): void {
-  const el = document.querySelector<HTMLElement>('.theme-wave');
-  if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    flip();
-    return;
-  }
-  if (twBusy) return;
-  twBusy = true;
-  /* The ripple bursts from the toggle button itself (top right): its
-     center is fed in as --tw-x/--tw-y and the clip circle grows from
-     that exact point. */
-  if (origin) {
-    el.style.setProperty('--tw-x', `${Math.round(origin.x)}px`);
-    el.style.setProperty('--tw-y', `${Math.round(origin.y)}px`);
-  }
-  el.classList.remove('to-light', 'to-dark');
-  el.classList.remove('is-running');
-  void el.offsetWidth; // restart the CSS cycle cleanly on rapid toggles
-  el.classList.add('is-running', to === 'light' ? 'to-light' : 'to-dark');
-  window.setTimeout(flip, WAVE_FLIP_MS);
-  window.setTimeout(() => {
-    el.classList.remove('is-running');
-    twBusy = false;
-  }, WAVE_MS + 80);
-}
+/* ── Theme water-swipe — the toggle press floods the NEW theme out of the
+   button as a soft-feathered circle of water (View Transitions API — the
+   effect from the original 3S Verse site, restored). The wavefront is pure
+   CSS (index.css): a 2.5s feathered radial mask expanding from
+   --water-x/--water-y, the exact center of the toggle button (top right).
+   Browsers with View Transitions but without @property get a hard-edged
+   clip-path reveal driven here; browsers without the API (or reduced-motion
+   users) flip instantly. */
+let waterOrigin = { x: 0, y: 0, r: 0 };
 
 function ThemeToggle({ className = '' }: { className?: string }) {
   const [theme, setTheme] = useState<Theme>(currentTheme);
+  useEffect(() => {
+    const root = document.documentElement;
+    // Skip when the class already matches (first mount / external sync).
+    if (root.classList.contains('dark') === (theme === 'dark')) return;
+    const apply = () => applyTheme(theme);
+    const doc = document as Document & {
+      startViewTransition?: (cb: () => void) => {
+        ready?: Promise<void>;
+        finished?: Promise<unknown>;
+      };
+    };
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (doc.startViewTransition && !reducedMotion) {
+      try {
+        const transition = doc.startViewTransition(apply);
+        // Browsers can intentionally skip a transition when another one is
+        // already in progress — expected, must not hit the error overlay.
+        transition.finished?.catch(() => undefined);
+        // @property-capable browsers run the feathered mask wavefront in
+        // CSS (index.css); older ones get this hard-edged clip-path reveal.
+        if (transition.ready && !('CSSPropertyRule' in window)) {
+          transition.ready
+            .then(() =>
+              document.documentElement.animate(
+                {
+                  clipPath: [
+                    `circle(0px at ${waterOrigin.x}px ${waterOrigin.y}px)`,
+                    `circle(${waterOrigin.r}px at ${waterOrigin.x}px ${waterOrigin.y}px)`,
+                  ],
+                },
+                {
+                  duration: 2500,
+                  easing: 'cubic-bezier(0.3, 0, 0.15, 1)',
+                  pseudoElement: '::view-transition-new(root)',
+                },
+              ),
+            )
+            .catch(() => undefined);
+        }
+      } catch {
+        apply();
+      }
+    } else apply();
+  }, [theme]);
   const toggle = (e: MouseEvent<HTMLButtonElement>) => {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark';
     const r = e.currentTarget.getBoundingClientRect();
-    // Icon + class flip land mid-wave, while the sheet covers the screen.
-    runThemeWave(next, () => {
-      setTheme(next);
-      applyTheme(next);
-    }, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    const x = r.left + r.width / 2;
+    const y = r.top + r.height / 2;
+    // The water bursts from the toggle button itself (top right): its
+    // center feeds --water-x/--water-y and the wavefront grows from there.
+    waterOrigin = {
+      x, y,
+      r: Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y)),
+    };
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--water-x', `${Math.round(x)}px`);
+    rootStyle.setProperty('--water-y', `${Math.round(y)}px`);
+    setTheme(theme === 'dark' ? 'light' : 'dark');
   };
   const label = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
   return (
@@ -211,26 +234,10 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
     4: [720, 713],
   };
   const [w, h] = dims[v];
-  /* Both theme variants render and swap via CSS (html.dark). Dark keeps
-     the original dark-canvas 3D render; light uses a dedicated render
-     generated for the white canvas (same geometry language: swirl,
-     torus, orb, segmented sphere — pastel iridescent glass), matted to
-     transparency (scripts/light_shapes/process.py). ?v busts caches. */
-  const renderImg = (variant: 'dark' | 'light') => (
-    <motion.img
-      src={`/shapes/shape-v${v}${variant === 'light' ? '-light' : ''}.webp${variant === 'light' ? '?v=4' : ''}`}
-      alt=""
-      width={w}
-      height={h}
-      draggable={false}
-      loading={v === 1 ? 'eager' : 'lazy'}
-      fetchPriority={v === 1 ? 'high' : undefined}
-      decoding="async"
-      className={`shape-img shape-img-${variant} h-auto w-full will-change-transform`}
-      animate={spin ? { rotate: 360 * dir } : undefined}
-      transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
-    />
-  );
+  /* One electric render for BOTH themes — the dark-canvas 3D renders
+     (indigo/cyan/magenta neon light trails) ARE the brand look, shown
+     as-is on the white canvas too (CSS adds a touch of saturation there).
+     Same ring, same colors, every section — by construction. */
   return (
     <motion.div
       aria-hidden="true"
@@ -239,8 +246,19 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
       animate={floatY ? { y: [-floatY, floatY, -floatY] } : undefined}
       transition={floatY ? { duration: floatDur, repeat: Infinity, ease: 'easeInOut' } : undefined}
     >
-      {renderImg('dark')}
-      {renderImg('light')}
+      <motion.img
+        src={`/shapes/shape-v${v}.webp`}
+        alt=""
+        width={w}
+        height={h}
+        draggable={false}
+        loading={v === 1 ? 'eager' : 'lazy'}
+        fetchPriority={v === 1 ? 'high' : undefined}
+        decoding="async"
+        className="shape-img h-auto w-full will-change-transform"
+        animate={spin ? { rotate: 360 * dir } : undefined}
+        transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
+      />
     </motion.div>
   );
 }
@@ -344,27 +362,10 @@ function BrandCursor() {
         </div>
         <div className="brand-cursor-fade f-ring">
           <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} className="shape-img-dark" />
-          <img src="/shapes/shape-v1-light.webp?v=4" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
         </div>
         <div className="brand-cursor-fade f-orb">
           <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} className="shape-img-dark" />
-          <img src="/shapes/shape-v3-light.webp?v=4" alt="" width={640} height={640} draggable={false} className="shape-img-light" />
         </div>
-      </div>
-    </div>
-  );
-}
-
-/* Theme wave overlay — mounted once per page. A wall of water colored by
-   the DESTINATION theme bursts out of the theme toggle button (top right)
-   as an expanding circular ripple, holds to cover the screen for the
-   theme flip, then drains back into the button. Pointer-transparent. */
-
-function ThemeWave() {
-  return (
-    <div className="theme-wave" aria-hidden="true">
-      <div className="tw-sheet">
-        <div className="tw-fill" />
       </div>
     </div>
   );
@@ -2581,7 +2582,6 @@ function Home() {
   }, []);
   return (
     <div className="noise min-h-[100dvh] overflow-x-clip bg-background">
-      <ThemeWave />
       <ScrollProgress />
       <Spotlight />
       <ScrollTop />
