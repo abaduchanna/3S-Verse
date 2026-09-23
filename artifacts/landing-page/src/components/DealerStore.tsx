@@ -65,14 +65,14 @@ interface OrderResult {
 }
 
 const inputClass =
-  'w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-[15px] text-white placeholder:text-[#6d6a80] outline-none transition-colors focus:border-[#6ee7ef]/60';
+  'w-full rounded-xl border border-border bg-foreground/[.04] px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-brand-cyan/60';
 
 function pill(active: boolean): string {
   return [
     'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all duration-200',
     active
-      ? 'bg-white text-[#0b0a10]'
-      : 'border border-white/15 text-[#d8d5e8] hover:border-white/40 hover:text-white',
+      ? 'border bg-white text-[#0b0a10]'
+      : 'border border-input text-foreground hover:border-foreground/40 hover:text-foreground',
   ].join(' ');
 }
 
@@ -102,13 +102,13 @@ function LaunchBar() {
   return (
     <div
       data-testid="launch-bar"
-      className="mb-8 rounded-2xl border border-[#e44bd7]/25 bg-gradient-to-r from-[#e44bd7]/[.08] via-[#78a6ff]/[.06] to-[#6ee7ef]/[.08] px-5 py-4"
+      className="mb-8 rounded-2xl border border-brand-magenta/25 bg-gradient-to-r from-[#e44bd7]/[.08] via-[#78a6ff]/[.06] to-[#6ee7ef]/[.08] px-5 py-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <div className="flex items-center gap-2.5">
-          <BadgePercent className="h-4 w-4 shrink-0 text-[#e44bd7]" />
-          <p className="text-[13.5px] font-medium text-white">
-            Launch pricing ends Oct 31 — <span className="text-[#e44bd7]">list prices return Nov 1.</span>
+          <BadgePercent className="h-4 w-4 shrink-0 text-brand-magenta" />
+          <p className="text-[13.5px] font-medium text-foreground">
+            Launch pricing ends Oct 31 — <span className="text-brand-magenta">list prices return Nov 1.</span>
           </p>
         </div>
         <div className="flex items-center gap-1.5 font-mono-tech" data-testid="launch-countdown">
@@ -120,17 +120,17 @@ function LaunchBar() {
           ].map(([v, u]) => (
             <span
               key={u as string}
-              className="min-w-[44px] rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-center text-[13px] font-semibold text-white"
+              className="min-w-[44px] rounded-lg border border-border bg-muted px-2 py-1 text-center text-[13px] font-semibold text-foreground"
             >
               {pad(v as number)}
-              <span className="ml-0.5 text-[10px] font-normal text-[#8d8a9e]">{u}</span>
+              <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">{u}</span>
             </span>
           ))}
         </div>
       </div>
-      <p className="mt-3 border-t border-white/[.06] pt-3 text-[11.5px] font-light leading-5 text-[#8d8a9e]">
+      <p className="mt-3 border-t border-border pt-3 text-[12px] font-light leading-5 text-muted-foreground">
         {LAUNCH_OFFER.note} Every license also carries the 30-day money-back guarantee —{' '}
-        <a href="#/refund" className="underline decoration-white/30 underline-offset-2 hover:text-white">refund policy</a>.
+        <a href="#/refund" className="underline decoration-foreground/30 underline-offset-2 hover:text-foreground">refund policy</a>.
       </p>
     </div>
   );
@@ -455,41 +455,41 @@ export default function DealerStore() {
     <div className="mt-16">
       <div className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="mb-3 flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#e44bd7]">
+          <p className="mb-3 flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-brand-magenta">
             <ShoppingCart className="h-3.5 w-3.5" /> Buy licenses — monthly, annual, or own it forever
           </p>
-          <h3 className="text-[clamp(1.7rem,2.6vw,2.5rem)] font-light leading-[1.08] tracking-[-0.02em] text-white">
+          <h3 className="text-[clamp(1.7rem,2.6vw,2.5rem)] font-light leading-[1.08] tracking-[-0.02em] text-foreground">
             Dealer license store
           </h3>
         </div>
-        <p className="max-w-md text-[14px] font-light leading-6 text-[#b9b6c9]">
+        <p className="max-w-md text-[14px] font-light leading-6 text-foreground/75">
           {LAUNCH_OFFER.active ? (
-            <span className="text-[#6ee7ef]">{LAUNCH_OFFER.label} — {LAUNCH_OFFER.note} </span>
+            <span className="text-brand-cyan">{LAUNCH_OFFER.label} — {LAUNCH_OFFER.note} </span>
           ) : null}
-          Start with the free 7-day trial. Then pay the way your cash flow likes: <span className="text-white">monthly $89, cancel anytime</span>, <span className="text-white">annual (save 44%)</span>, or <span className="text-white">one-time lifetime</span> — founding-customer pricing, pay once. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
+          Start with the free 7-day trial. Then pay the way your cash flow likes: <span className="text-foreground">monthly $89, cancel anytime</span>, <span className="text-foreground">annual (save 44%)</span>, or <span className="text-foreground">one-time lifetime</span> — founding-customer pricing, pay once. USD billing — bank transfer, Wise, PayPal, or USDT. Keys are delivered after payment confirmation.
         </p>
       </div>
-      <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-2xl border border-white/[.06] bg-white/[.02] px-5 py-3.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
-        <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#6ee7ef]" /> Secure SSL checkout</span>
-        <span className="flex items-center gap-2"><Undo2 className="h-3.5 w-3.5 text-[#6ee7ef]" /> 30-day money-back guarantee</span>
-        <span className="flex items-center gap-2"><Lock className="h-3.5 w-3.5 text-[#6ee7ef]" /> Machine-locked licenses</span>
-        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> PayPal protected</span>
-        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> Support on WhatsApp &amp; email</span>
+      <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2.5 rounded-2xl border border-border bg-foreground/[.02] px-5 py-3.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-muted-foreground">
+        <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-brand-cyan" /> Secure SSL checkout</span>
+        <span className="flex items-center gap-2"><Undo2 className="h-3.5 w-3.5 text-brand-cyan" /> 30-day money-back guarantee</span>
+        <span className="flex items-center gap-2"><Lock className="h-3.5 w-3.5 text-brand-cyan" /> Machine-locked licenses</span>
+        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-brand-cyan" /> PayPal protected</span>
+        <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-brand-cyan" /> Support on WhatsApp &amp; email</span>
       </div>
 
       <LaunchBar />
-      <p className="mb-8 -mt-4 max-w-3xl text-[12.5px] font-light leading-5.5 text-[#8d8a9e]">
+      <p className="mb-8 -mt-4 max-w-3xl text-[12.5px] font-light leading-5.5 text-muted-foreground">
         {PER_PC_NOTE}
       </p>
 
       {/* Paid-customer re-download — order number is checked against the
           license ledger before a FULL build is served. */}
-      <div className="mb-10 rounded-2xl border border-white/[.08] bg-white/[.02] p-5">
-        <p className="mb-1 flex items-center gap-2 text-[14px] font-medium text-white">
-          <KeyRound className="h-4 w-4 text-[#6ee7ef]" /> Already purchased? Re-download your
+      <div className="mb-10 rounded-2xl border border-border bg-foreground/[.02] p-5">
+        <p className="mb-1 flex items-center gap-2 text-[14px] font-medium text-foreground">
+          <KeyRound className="h-4 w-4 text-brand-cyan" /> Already purchased? Re-download your
           software
         </p>
-        <p className="mb-4 text-[13px] font-light leading-5 text-[#8d8a9e]">
+        <p className="mb-4 text-[13px] font-light leading-5 text-muted-foreground">
           Enter the order number printed on your invoice — we verify your package (1-year or
           lifetime) before the FULL build downloads. Updates are always free for paying
           customers.
@@ -505,7 +505,7 @@ export default function DealerStore() {
             }}
           />
           <select
-            className={inputClass + ' sm:max-w-[260px] [&>option]:bg-[#141320]'}
+            className={inputClass + ' sm:max-w-[260px] [&>option]:bg-card'}
             value={paidProduct}
             onChange={(e) => setPaidProduct(e.target.value)}
             aria-label="Product to download"
@@ -520,15 +520,15 @@ export default function DealerStore() {
             type="button"
             onClick={paidDownload}
             disabled={paidBusy}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-4 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {paidBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {PAID_DOWNLOAD.label}
           </button>
         </div>
-        {paidError ? <p className="mt-2 text-[12.5px] text-amber-300">{paidError}</p> : null}
+        {paidError ? <p className="mt-2 text-[12.5px] text-amber-700 dark:text-amber-300">{paidError}</p> : null}
         {!PAID_DOWNLOAD.gatewayUrl ? (
-          <p className="mt-2 text-[12px] text-[#8d8a9e]">
+          <p className="mt-2 text-[12px] text-muted-foreground">
             Press the button and your email app opens the request to {PAID_DOWNLOAD.contactEmail}{' '}
             — we verify your order number and reply with your download link, usually within a few hours.
           </p>
@@ -536,58 +536,58 @@ export default function DealerStore() {
       </div>
 
       {result ? (
-        <div className="rounded-3xl border border-[#6ee7ef]/25 bg-[#0b0a11] p-8 sm:p-10">
+        <div className="rounded-3xl border border-brand-cyan/25 bg-card p-8 sm:p-10">
           <div className="mb-6 flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#6ee7ef]/15 text-[#6ee7ef]">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#6ee7ef]/15 text-brand-cyan">
               <Check className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-[17px] font-medium text-white">Order placed — {result.ref}</p>
-              <p className="text-[13.5px] text-[#b9b6c9]">
+              <p className="text-[17px] font-medium text-foreground">Order placed — {result.ref}</p>
+              <p className="text-[13.5px] text-foreground/75">
                 Total {result.totalLabel} · your invoice is ready below · a copy of these details
                 was sent to the 3S Verse team.
               </p>
             </div>
           </div>
           {result.viaFallback ? (
-            <p className="mb-6 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-3 text-[13px] text-amber-200/90">
+            <p className="mb-6 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-3 text-[13px] text-amber-700/90 dark:text-amber-700 dark:text-amber-200/90">
               Your email app just opened with the order pre-filled — press send there so the order
               reaches us.
             </p>
           ) : null}
-          <p className="mb-2 text-[13px] font-medium uppercase tracking-[.14em] text-[#8d8a9e]">
+          <p className="mb-2 text-[13px] font-medium uppercase tracking-[.14em] text-muted-foreground">
             What happens next
           </p>
-          <ol className="mb-6 max-w-2xl space-y-2.5 text-[14px] font-light leading-6 text-[#b9b6c9]">
+          <ol className="mb-6 max-w-2xl space-y-2.5 text-[14px] font-light leading-6 text-foreground/75">
             <li className="flex gap-2.5">
-              <span className="font-mono-tech text-[#6ee7ef]">1.</span> Your invoice is ready right
+              <span className="font-mono-tech text-brand-cyan">1.</span> Your invoice is ready right
               here — download it or open the PDF version below (it is also emailed to you).
             </li>
             <li className="flex gap-2.5">
-              <span className="font-mono-tech text-[#6ee7ef]">2.</span> You pay within the due
+              <span className="font-mono-tech text-brand-cyan">2.</span> You pay within the due
               window (bank transfer, Wise, PayPal, or USDT) and share the payment receipt with us.
             </li>
             <li className="flex gap-2.5">
-              <span className="font-mono-tech text-[#6ee7ef]">3.</span> Your license key(s) +
+              <span className="font-mono-tech text-brand-cyan">3.</span> Your license key(s) +
               download links are delivered — usually within a few hours.
             </li>
           </ol>
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-[#6ee7ef]/20 bg-[#6ee7ef]/[.05] px-4 py-3">
-            <Download className="h-4 w-4 shrink-0 text-[#6ee7ef]" />
-            <p className="text-[13px] leading-5 text-[#c9d4f2]">
+          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-brand-cyan/20 bg-[#6ee7ef]/[.05] px-4 py-3">
+            <Download className="h-4 w-4 shrink-0 text-brand-cyan" />
+            <p className="text-[13px] leading-5 text-foreground/90">
               Save your free re-download link — it always serves the newest
               build, so future updates cost nothing:
             </p>
             <a
               href={`/order/${result.ref}`}
               data-testid="link-re-download"
-              className="text-[13px] font-semibold text-[#6ee7ef] underline decoration-[#6ee7ef]/40 underline-offset-2 hover:text-white"
+              className="text-[13px] font-semibold text-brand-cyan underline decoration-brand-cyan/40 underline-offset-2 hover:text-foreground"
             >
               3sverse.com/order/{result.ref}
             </a>
           </div>
           {lines.some((l) => isRecurringModel(l.model)) ? (
-            <p className="mb-6 rounded-xl border border-[#78a6ff]/20 bg-[#78a6ff]/[.05] px-4 py-3 text-[13px] text-[#c9d4f2]">
+            <p className="mb-6 rounded-xl border border-brand-periwinkle/20 bg-[#78a6ff]/[.05] px-4 py-3 text-[13px] text-foreground/90">
               Your order includes a monthly or annual plan — it renews automatically and you can
               cancel or switch to lifetime anytime by replying to the invoice email. No lock-in.
             </p>
@@ -595,20 +595,20 @@ export default function DealerStore() {
           {invoice ? (
             <div
               data-testid="auto-invoice-card"
-              className="mb-6 rounded-xl border border-white/10 bg-white/[.03] p-4"
+              className="mb-6 rounded-xl border border-border bg-foreground/[.03] p-4"
             >
               <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <FileText className="h-4 w-4 text-[#6ee7ef]" />
-                <p className="text-[14px] font-medium text-white">
+                <FileText className="h-4 w-4 text-brand-cyan" />
+                <p className="text-[14px] font-medium text-foreground">
                   Invoice {invoice.invoiceNo} — ready
                 </p>
                 {invoiceEmailed ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#6ee7ef]/10 px-2.5 py-1 text-[12px] font-medium text-[#6ee7ef]">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#6ee7ef]/10 px-2.5 py-1 text-[12px] font-medium text-brand-cyan">
                     <MailCheck className="h-3.5 w-3.5" /> emailed to {invoice.customer.email}
                   </span>
                 ) : null}
               </div>
-              <p className="mb-3 text-[13px] font-light text-[#b9b6c9]">
+              <p className="mb-3 text-[13px] font-light text-foreground/75">
                 Amount due {result.totalLabel}
                 {invoice.validUntil ? ` · pay by ${formatDueLong(invoice.validUntil)}` : ''} — the
                 invoice auto-cancels if unpaid by then.
@@ -617,26 +617,26 @@ export default function DealerStore() {
                 <button
                   type="button"
                   onClick={openInvoicePdf}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                  className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
                 >
                   <Printer className="h-4 w-4" /> Open PDF (new tab)
                 </button>
                 <button
                   type="button"
                   onClick={downloadInvoice}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-[13.5px] font-medium text-white transition-colors hover:border-white/40"
+                  className="inline-flex items-center gap-2 rounded-xl border border-input px-4 py-2.5 text-[13.5px] font-medium text-foreground transition-colors hover:border-foreground/40"
                 >
                   <Download className="h-4 w-4" /> Download invoice
                 </button>
               </div>
-              <p className="mt-2 text-[12px] text-[#8d8a9e]">
+              <p className="mt-2 text-[12px] text-muted-foreground">
                 PDF opens print-ready in a new tab — choose “Save as PDF”. Keep it for your
                 accounts.
               </p>
             </div>
           ) : null}
           {result.savingsLabel ? (
-            <p className="mb-6 flex items-center gap-2 text-[13.5px] text-[#6ee7ef]">
+            <p className="mb-6 flex items-center gap-2 text-[13.5px] text-brand-cyan">
               <BadgePercent className="h-4 w-4" /> Launch offer applied — you save{' '}
               {result.savingsLabel} vs list price.
             </p>
@@ -644,10 +644,10 @@ export default function DealerStore() {
           {trialProductIds.length > 0 ? (
             <div
               data-testid="trial-download-success"
-              className="mb-6 rounded-xl border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.06] p-4"
+              className="mb-6 rounded-xl border border-brand-cyan/30 bg-[#6ee7ef]/[.06] p-4"
             >
-              <p className="text-[14px] font-medium text-white">Your order includes a free trial.</p>
-              <p className="mb-3 mt-1 text-[13px] font-light leading-5 text-[#b9b6c9]">{TRIAL_DOWNLOAD.note}</p>
+              <p className="text-[14px] font-medium text-foreground">Your order includes a free trial.</p>
+              <p className="mb-3 mt-1 text-[13px] font-light leading-5 text-foreground/75">{TRIAL_DOWNLOAD.note}</p>
               <div className="flex flex-wrap gap-2.5">
                 {trialProductIds.map((pid) => {
                   const product = PRODUCTS.find((p) => p.id === pid);
@@ -657,7 +657,7 @@ export default function DealerStore() {
                       href={trialDownloadUrl(pid)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                      className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
                     >
                       <Download className="h-4 w-4" />
                       <span className="min-w-0">{product ? product.name : 'Trial'} — trial</span>
@@ -665,7 +665,7 @@ export default function DealerStore() {
                   );
                 })}
               </div>
-              <p className="mt-2 text-[12px] text-[#8d8a9e]">
+              <p className="mt-2 text-[12px] text-muted-foreground">
                 The 7-day clock starts on first run — always the newest build, no stale links.
               </p>
             </div>
@@ -673,7 +673,7 @@ export default function DealerStore() {
           <button
             type="button"
             onClick={copyOrderSummary}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[14px] font-medium text-white transition-colors hover:border-white/40"
+            className="inline-flex items-center gap-2 rounded-xl border border-input px-5 py-3 text-[14px] font-medium text-foreground transition-colors hover:border-foreground/40"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             {copied ? 'Copied' : 'Copy order summary'}
@@ -691,16 +691,16 @@ export default function DealerStore() {
             return (
               <div
                 key={product.id}
-                className="flex flex-col rounded-3xl border border-white/[.08] bg-[#0b0a11] p-6"
+                className="flex flex-col rounded-3xl border border-border bg-card p-6"
               >
-                <h4 className="text-[16.5px] font-medium leading-snug text-white">{product.name}</h4>
-                <p className="mt-1.5 text-[13px] font-light leading-5 text-[#8d8a9e]">
+                <h4 className="text-[16.5px] font-medium leading-snug text-foreground">{product.name}</h4>
+                <p className="mt-1.5 text-[13px] font-light leading-5 text-muted-foreground">
                   {product.tagline}
                 </p>
                 <ul className="mt-4 flex-1 space-y-2">
                   {product.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-[12.5px] font-light leading-5 text-[#d8d5e8]">
-                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#6ee7ef]" />
+                    <li key={feature} className="flex items-start gap-2 text-[12.5px] font-light leading-5 text-foreground">
+                      <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-cyan" />
                       {feature}
                     </li>
                   ))}
@@ -731,7 +731,7 @@ export default function DealerStore() {
                     </button>
                     <span
                       data-testid={`pcs-value-${product.id}`}
-                      className="min-w-[72px] text-center text-[14px] font-medium text-white"
+                      className="min-w-[72px] text-center text-[14px] font-medium text-foreground"
                     >
                       {pcLabel(sel.pcs)}
                     </span>
@@ -746,7 +746,7 @@ export default function DealerStore() {
                       +
                     </button>
                     {sel.model === 'trial' ? (
-                      <span className="text-[11.5px] text-[#8d8a9e]">trials are 1 PC</span>
+                      <span className="text-[12px] text-muted-foreground">trials are 1 PC</span>
                     ) : (
                       <input
                         type="number"
@@ -755,14 +755,14 @@ export default function DealerStore() {
                         aria-label="Number of PCs"
                         value={sel.pcs}
                         onChange={(e) => setPcs(product.id, Number(e.target.value))}
-                        className="w-[64px] rounded-lg border border-white/10 bg-white/[.04] px-2 py-1.5 text-center text-[13px] text-white outline-none focus:border-[#6ee7ef]/60 [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-[64px] rounded-lg border border-border bg-foreground/[.04] px-2 py-1.5 text-center text-[13px] text-foreground outline-none focus:border-brand-cyan/60 [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     )}
                   </div>
                   {sel.model !== 'trial' ? (
-                    <p className="text-[11.5px] leading-4 text-[#8d8a9e]">
+                    <p className="text-[12px] leading-4 text-muted-foreground">
                       {tier.offPct > 0 ? (
-                        <span className="text-[#6ee7ef]">{tier.label} included</span>
+                        <span className="text-brand-cyan">{tier.label} included</span>
                       ) : (
                         '1 license, runs on as many PCs as you pick'
                       )}
@@ -775,29 +775,29 @@ export default function DealerStore() {
                       target="_blank"
                       rel="noopener noreferrer"
                       data-testid={`trial-download-${product.id}`}
-                      className="flex items-center gap-2 rounded-xl border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.06] px-4 py-2.5 text-[13px] font-medium text-[#9fe8f2] transition-colors hover:border-[#6ee7ef]/60"
+                      className="flex items-center gap-2 rounded-xl border border-brand-cyan/30 bg-[#6ee7ef]/[.06] px-4 py-2.5 text-[13px] font-medium text-brand-cyan transition-colors hover:border-brand-cyan/60"
                     >
                       <Download className="h-4 w-4 shrink-0" />
                       <span className="min-w-0 flex-1">{TRIAL_DOWNLOAD.label}</span>
                     </a>
                   ) : null}
-                  <div className="flex items-end justify-between border-t border-white/[.07] pt-4">
+                  <div className="flex items-end justify-between border-t border-border pt-4">
                     <div>
                       {pct > 0 ? (
-                        <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-md bg-[#6ee7ef]/10 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[.12em] text-[#6ee7ef]">
+                        <p className="mb-1.5 inline-flex items-center gap-1.5 rounded-md bg-[#6ee7ef]/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[.12em] text-brand-cyan">
                           <BadgePercent className="h-3 w-3" /> {LAUNCH_OFFER.label} −{pct}%
                         </p>
                       ) : null}
-                      <p className="text-[26px] font-light leading-none text-white">
+                      <p className="text-[26px] font-light leading-none text-foreground">
                         {price === 0 ? 'Free' : formatUSD(price)}
-                        <span className="text-[14px] text-[#8d8a9e]">{modelPriceSuffix(sel.model)}</span>
+                        <span className="text-[14px] text-muted-foreground">{modelPriceSuffix(sel.model)}</span>
                         {pct > 0 ? (
-                          <span className="ml-2 text-[14px] text-[#8d8a9e] line-through">
+                          <span className="ml-2 text-[14px] text-muted-foreground line-through">
                             {formatUSD(list)}
                           </span>
                         ) : null}
                       </p>
-                      <p className="mt-1 text-[11.5px] text-[#8d8a9e]">
+                      <p className="mt-1 text-[12px] text-muted-foreground">
                         {sel.model === 'trial'
                           ? '7 days · 1 PC · no card needed'
                           : `${formatUSD(perPcPrice(product, sel.model, sel.pcs))} per PC · ${modelBillingNote(sel.model)}`}
@@ -806,22 +806,22 @@ export default function DealerStore() {
                     <button
                       type="button"
                       onClick={() => addLine(product.id)}
-                      className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                      className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
                     >
                       <Plus className="h-4 w-4" /> Add
                     </button>
                   </div>
                   {/* trust row — right under the buy decision (audit: zero
                       reassurance at the point of purchase kills conversion) */}
-                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 pt-1 text-[10.5px] font-medium text-[#8d8a9e]">
-                    <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-[#6ee7ef]" /> Secure payment</span>
-                    <span className="flex items-center gap-1"><Undo2 className="h-3 w-3 text-[#6ee7ef]" /> 30-day money-back</span>
-                    <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3 text-[#6ee7ef]" /> PayPal accepted</span>
+                  <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 pt-1 text-[12px] font-medium text-muted-foreground">
+                    <span className="flex items-center gap-1"><Lock className="h-3 w-3 text-brand-cyan" /> Secure payment</span>
+                    <span className="flex items-center gap-1"><Undo2 className="h-3 w-3 text-brand-cyan" /> 30-day money-back</span>
+                    <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3 text-brand-cyan" /> PayPal accepted</span>
                   </div>
                   {/* value line — audit: dealers compare daily costs, not
                       sticker prices; anchor the price against the leakage */}
                   {sel.model !== 'trial' && price > 0 ? (
-                    <p className="pt-0.5 text-[11px] font-light leading-5 text-[#8d8a9e]" data-testid={`value-line-${product.id}`}>
+                    <p className="pt-0.5 text-[12px] font-light leading-5 text-muted-foreground" data-testid={`value-line-${product.id}`}>
                       {sel.model === 'monthly'
                         ? `≈ ${formatUSD(Math.max(1, Math.round(price / 30)))}/day — a fraction of one month’s missed rebates. Cancel anytime.`
                         : sel.model === 'annual'
@@ -837,7 +837,7 @@ export default function DealerStore() {
       )}
 
       {!result ? (
-        <p className="mt-5 text-[13px] font-light text-[#8d8a9e]">
+        <p className="mt-5 text-[13px] font-light text-muted-foreground">
           Pick exactly how many PCs you need — 2–4 PCs get 10% off per PC and 5–9 get 20%,
           applied automatically on every billing model. Monthly plans cancel anytime; annual
           saves 30%; lifetime is a founding-customer option. Need 10 or more PCs, or central
@@ -848,9 +848,9 @@ export default function DealerStore() {
       {!result && lines.length > 0 ? (
         <form
           onSubmit={submit}
-          className="mt-8 rounded-3xl border border-white/[.08] bg-[#0b0a11] p-6 sm:p-8"
+          className="mt-8 rounded-3xl border border-border bg-card p-6 sm:p-8"
         >
-          <p className="mb-4 text-[13px] font-medium uppercase tracking-[.14em] text-[#8d8a9e]">
+          <p className="mb-4 text-[13px] font-medium uppercase tracking-[.14em] text-muted-foreground">
             Your order
           </p>
           <div className="mb-6 space-y-2">
@@ -860,16 +860,16 @@ export default function DealerStore() {
               return (
                 <div
                   key={`${line.productId}|${line.model}|${line.pcs}`}
-                  className="flex flex-wrap items-center gap-3 rounded-xl border border-white/[.06] bg-white/[.02] px-4 py-3"
+                  className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-foreground/[.02] px-4 py-3"
                 >
-                  <span className="min-w-0 flex-1 text-[14px] text-white">
+                  <span className="min-w-0 flex-1 text-[14px] text-foreground">
                     {product.name}
-                    <span className="ml-2 text-[12px] text-[#8d8a9e]">
+                    <span className="ml-2 text-[12px] text-muted-foreground">
                       {MODELS.find((m) => m.id === line.model)?.label} ·{' '}
                       {pcLabel(line.pcs)}
                     </span>
                   </span>
-                  <span className="font-mono-tech text-[13px] text-[#d8d5e8]">
+                  <span className="font-mono-tech text-[13px] text-foreground">
                     {formatUSD(lineTotal)}
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -877,16 +877,16 @@ export default function DealerStore() {
                       type="button"
                       aria-label="Decrease quantity"
                       onClick={() => changeQty(index, -1)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 text-[#d8d5e8] hover:border-white/40"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-input text-foreground hover:border-foreground/40"
                     >
                       <Minus className="h-3.5 w-3.5" />
                     </button>
-                    <span className="w-6 text-center text-[14px] text-white">{line.qty}</span>
+                    <span className="w-6 text-center text-[14px] text-foreground">{line.qty}</span>
                     <button
                       type="button"
                       aria-label="Increase quantity"
                       onClick={() => changeQty(index, 1)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 text-[#d8d5e8] hover:border-white/40"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-input text-foreground hover:border-foreground/40"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -894,7 +894,7 @@ export default function DealerStore() {
                       type="button"
                       aria-label="Remove item"
                       onClick={() => removeLine(index)}
-                      className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 text-[#e44bd7] hover:border-[#e44bd7]/60"
+                      className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg border border-input text-brand-magenta hover:border-brand-magenta/60"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -904,23 +904,23 @@ export default function DealerStore() {
             })}
             {savings > 0 ? (
               <div className="flex items-center justify-between px-1 pt-1">
-                <span className="flex items-center gap-1.5 text-[13px] text-[#6ee7ef]">
+                <span className="flex items-center gap-1.5 text-[13px] text-brand-cyan">
                   <BadgePercent className="h-3.5 w-3.5" /> {LAUNCH_OFFER.label} — you save
                 </span>
-                <span className="text-[14px] font-medium text-[#6ee7ef]">
+                <span className="text-[14px] font-medium text-brand-cyan">
                   {formatUSD(savings)}
                 </span>
               </div>
             ) : null}
             <div className="flex items-center justify-between px-1 pt-1">
-              <span className="text-[14px] text-[#b9b6c9]">Total (USD)</span>
-              <span className="text-[20px] font-light text-white">{formatUSD(total)}</span>
+              <span className="text-[14px] text-foreground/75">Total (USD)</span>
+              <span className="text-[20px] font-light text-foreground">{formatUSD(total)}</span>
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-[12.5px] font-medium text-[#b9b6c9]">Name *</span>
+              <span className="mb-1.5 block text-[12.5px] font-medium text-foreground/75">Name *</span>
               <input
                 required
                 maxLength={120}
@@ -931,7 +931,7 @@ export default function DealerStore() {
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-[12.5px] font-medium text-[#b9b6c9]">Email *</span>
+              <span className="mb-1.5 block text-[12.5px] font-medium text-foreground/75">Email *</span>
               <input
                 required
                 type="email"
@@ -943,7 +943,7 @@ export default function DealerStore() {
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-[12.5px] font-medium text-[#b9b6c9]">
+              <span className="mb-1.5 block text-[12.5px] font-medium text-foreground/75">
                 Company
               </span>
               <input
@@ -955,7 +955,7 @@ export default function DealerStore() {
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-[12.5px] font-medium text-[#b9b6c9]">
+              <span className="mb-1.5 block text-[12.5px] font-medium text-foreground/75">
                 Telegram / WhatsApp
               </span>
               <input
@@ -967,7 +967,7 @@ export default function DealerStore() {
               />
             </label>
             <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-[12.5px] font-medium text-[#b9b6c9]">Notes</span>
+              <span className="mb-1.5 block text-[12.5px] font-medium text-foreground/75">Notes</span>
               <textarea
                 maxLength={1000}
                 rows={3}
@@ -980,20 +980,20 @@ export default function DealerStore() {
           </div>
 
           {error ? (
-            <p className="mt-4 rounded-xl border border-rose-400/25 bg-rose-400/[.06] px-4 py-3 text-[13.5px] text-rose-200">
+            <p className="mt-4 rounded-xl border border-rose-400/25 bg-rose-400/[.06] px-4 py-3 text-[13.5px] text-rose-700 dark:text-rose-200">
               {error}
             </p>
           ) : null}
 
           <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="flex items-center gap-2 text-[12.5px] text-[#8d8a9e]">
-              <ShieldCheck className="h-4 w-4 text-[#6ee7ef]" />
+            <p className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+              <ShieldCheck className="h-4 w-4 text-brand-cyan" />
               Licenses are machine-locked · keys delivered after payment confirmation
             </p>
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[15px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl border bg-white px-6 py-3 text-[15px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] disabled:opacity-60"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
               {submitting ? 'Placing order…' : `Place order — ${formatUSD(total)}`}

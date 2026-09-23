@@ -46,6 +46,8 @@ import {
   ShieldCheck,
   Smartphone,
   Sparkles,
+  Sun,
+  Moon,
   Workflow,
   X,
   Youtube,
@@ -93,6 +95,51 @@ const EXPERIENCE_START_YEAR = 2013;
 const YEARS_EXPERIENCE = new Date().getFullYear() - EXPERIENCE_START_YEAR;
 
 /* ─────────────────────────── shared bits ─────────────────────────── */
+
+/* ── Theme (light/dark) — default dark, persisted in localStorage.
+   The inline boot script in index.html applies the stored choice before
+   first paint by toggling the `dark` class on <html>; the toggle below
+   keeps React state in sync with that class and writes the choice back. */
+type Theme = 'light' | 'dark';
+const THEME_STORAGE_KEY = '3sv-theme';
+const THEME_COLORS: Record<Theme, string> = { dark: '#060509', light: '#fcfbfe' };
+
+function applyTheme(theme: Theme): void {
+  const root = document.documentElement;
+  root.classList.toggle('dark', theme === 'dark');
+  root.style.colorScheme = theme;
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch { /* private mode — choice stays session-only */ }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEME_COLORS[theme]);
+}
+
+function currentTheme(): Theme {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+}
+
+function ThemeToggle({ className = '' }: { className?: string }) {
+  const [theme, setTheme] = useState<Theme>(currentTheme);
+  const toggle = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    applyTheme(next);
+  };
+  const label = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+  return (
+    <button
+      type="button"
+      data-testid="button-theme-toggle"
+      onClick={toggle}
+      aria-label={label}
+      title={label}
+      className={className}
+    >
+      {theme === 'dark' ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+    </button>
+  );
+}
 
 const reveal: Variants = {
   hidden: { opacity: 0, y: 34, filter: 'blur(6px)' },
@@ -287,7 +334,7 @@ function ScrollTop() {
           exit={{ opacity: 0, y: 16, scale: 0.8 }}
           transition={{ duration: 0.2 }}
           aria-label="Scroll to top"
-          className="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-[#0c0b13]/85 text-[#f2f0fa] shadow-[0_10px_30px_rgba(0,0,0,.5)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"
+          className="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-input bg-card/85 text-foreground shadow-[0_10px_30px_rgba(0,0,0,.18)] dark:shadow-[0_10px_30px_rgba(0,0,0,.5)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-brand-cyan/60 hover:text-brand-cyan"
         >
           <ArrowUp className="h-5 w-5" />
         </motion.button>
@@ -366,7 +413,7 @@ function BtnWhite({ children, href = '#contact', testId, className = '' }: { chi
     <a
       href={href}
       data-testid={testId}
-      className={`group inline-flex items-center justify-center gap-2.5 rounded-xl bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] shadow-[0_10px_30px_rgba(255,255,255,.07)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] hover:shadow-[0_16px_40px_rgba(247,243,232,.13)] ${className}`}
+      className={`group inline-flex items-center justify-center gap-2.5 rounded-xl border bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] shadow-[0_10px_30px_rgba(255,255,255,.07)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] hover:shadow-[0_16px_40px_rgba(247,243,232,.13)] ${className}`}
     >
       {children}
       <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -379,7 +426,7 @@ function BtnGhost({ children, href = '#contact', testId, className = '' }: { chi
     <a
       href={href}
       data-testid={testId}
-      className={`group inline-flex items-center justify-center gap-2.5 rounded-xl border border-white/20 bg-white/[.03] px-6 py-3.5 text-[15px] font-medium tracking-tight text-[#f2f0fa] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#6ee7ef]/70 hover:text-[#6ee7ef] ${className}`}
+      className={`group inline-flex items-center justify-center gap-2.5 rounded-xl border border-input bg-foreground/[.03] px-6 py-3.5 text-[15px] font-medium tracking-tight text-foreground transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-cyan/70 hover:text-brand-cyan ${className}`}
     >
       {children}
     </a>
@@ -389,7 +436,7 @@ function BtnGhost({ children, href = '#contact', testId, className = '' }: { chi
 /* Small uppercase mono kicker used above every section heading. */
 function Kicker({ children, magenta = false }: { children: ReactNode; magenta?: boolean }) {
   return (
-    <div className={`mb-6 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] ${magenta ? 'text-[#e44bd7]' : 'text-[#6ee7ef]'}`}>
+    <div className={`mb-6 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] ${magenta ? 'text-brand-magenta' : 'text-brand-cyan'}`}>
       <span className="h-px w-8 bg-current opacity-60" />
       {children}
     </div>
@@ -408,16 +455,16 @@ const MARQUEE_ITEMS = [
 function Marquee() {
   const items = [...MARQUEE_ITEMS, ...MARQUEE_ITEMS];
   return (
-    <div className="relative overflow-hidden border-y border-white/[.06] bg-[#060509] py-9">
+    <div className="relative overflow-hidden border-y border-border bg-background py-9">
       <div className="flex w-max animate-marquee items-center gap-20">
         {items.map((item, i) => (
-          <span key={i} className="whitespace-nowrap text-[16px] font-medium uppercase tracking-[.24em] text-[#85829a] sm:text-[19px]">
+          <span key={i} className="whitespace-nowrap text-[16px] font-medium uppercase tracking-[.24em] text-muted-foreground sm:text-[19px]">
             {item}
           </span>
         ))}
       </div>
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-36 bg-gradient-to-r from-[#060509] to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-36 bg-gradient-to-l from-[#060509] to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-36 bg-gradient-to-r from-background to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-36 bg-gradient-to-l from-background to-transparent" />
     </div>
   );
 }
@@ -434,7 +481,7 @@ const navItems = [
 function Nav() {
   const [open, setOpen] = useState(false);
   return (
-    <header className="fixed left-0 right-0 top-0 z-40 border-b border-white/[.06] bg-[#060509]/75 backdrop-blur-xl">
+    <header className="fixed left-0 right-0 top-0 z-40 border-b border-border bg-background/75 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <a href="#top" data-testid="link-brand" aria-label="3S Verse — back to top" className="shrink-0">
           <img src="/logo-240.png" alt="3S Verse" width={240} height={57} className="h-5 w-auto object-contain" />
@@ -445,34 +492,42 @@ function Nav() {
               key={item.href}
               href={item.href}
               data-testid={`link-nav-${item.label.toLowerCase().replace(/ /g, '-')}`}
-              className="text-[14px] font-medium text-[#b9b6c9] transition-colors duration-300 hover:text-white"
+              className="text-[14px] font-medium text-foreground/75 transition-colors duration-300 hover:text-foreground"
             >
               {item.label}
             </a>
           ))}
         </nav>
         <div className="hidden items-center gap-3 md:flex">
+          <ThemeToggle className="flex h-10 w-10 items-center justify-center rounded-xl border border-input text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan" />
           <BtnGhost href="#contact" testId="button-nav-contact" className="px-5 py-2.5 text-[14px]">Contact</BtnGhost>
           <BtnWhite href="#contact" testId="button-nav-get-started" className="px-5 py-2.5 text-[14px]">Let&apos;s build</BtnWhite>
         </div>
-        <button
-          data-testid="button-mobile-menu"
-          onClick={() => setOpen(!open)}
-          className="rounded-lg border border-white/15 p-2 text-[#f2f0fa] md:hidden"
-          aria-label={open ? 'Close menu' : 'Open menu'}
-        >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle className="flex h-10 w-10 items-center justify-center rounded-lg border border-input text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan" />
+          <button
+            data-testid="button-mobile-menu"
+            onClick={() => setOpen(!open)}
+            className="rounded-lg border border-input p-2 text-foreground md:hidden"
+            aria-label={open ? 'Close menu' : 'Open menu'}
+          >
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
       <AnimatePresence>
         {open && (
-          <motion.nav initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden border-t border-white/[.06] bg-[#0a0910] px-5 py-4 md:hidden">
+          <motion.nav initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden border-t border-border bg-card px-5 py-4 md:hidden">
             {navItems.map((item) => (
-              <a key={item.href} href={item.href} onClick={() => setOpen(false)} data-testid={`link-mobile-${item.label.toLowerCase().replace(/ /g, '-')}`} className="block border-b border-white/[.06] py-3.5 text-[15px] font-medium text-[#d8d5e8]">
+              <a key={item.href} href={item.href} onClick={() => setOpen(false)} data-testid={`link-mobile-${item.label.toLowerCase().replace(/ /g, '-')}`} className="block border-b border-border py-3.5 text-[15px] font-medium text-foreground">
                 {item.label}
               </a>
             ))}
-            <a href="#contact" onClick={() => setOpen(false)} data-testid="button-mobile-get-started" className="mt-4 block rounded-xl bg-white px-4 py-3 text-center text-[15px] font-semibold text-[#0b0a10]">Let&apos;s build</a>
+            <div className="flex items-center justify-between py-3.5">
+              <span className="font-mono-tech text-[10px] uppercase tracking-[.2em] text-muted-foreground">Theme</span>
+              <ThemeToggle className="flex h-10 w-10 items-center justify-center rounded-lg border border-input text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan" />
+            </div>
+            <a href="#contact" onClick={() => setOpen(false)} data-testid="button-mobile-get-started" className="mt-4 block rounded-xl border bg-white px-4 py-3 text-center text-[15px] font-semibold text-[#0b0a10]">Let&apos;s build</a>
           </motion.nav>
         )}
       </AnimatePresence>
@@ -488,26 +543,26 @@ function OpsPanel() {
       initial={{ opacity: 0, y: 44 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0b0a11]/95 shadow-[0_40px_120px_rgba(0,0,0,.6)]"
+      className="relative overflow-hidden rounded-2xl border border-border bg-card/95 shadow-[0_40px_120px_rgba(0,0,0,.16)] dark:shadow-[0_40px_120px_rgba(0,0,0,.6)]"
     >
-      <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-3.5">
+      <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
         <div className="flex items-center gap-3">
           <img src="/logo-240.png" alt="" width={240} height={57} className="h-3 w-auto opacity-90" />
-          <span className="font-mono-tech text-[10px] tracking-[.22em] text-[#8d8a9e]">OPERATIONS / LIVE</span>
+          <span className="font-mono-tech text-[10px] tracking-[.22em] text-muted-foreground">OPERATIONS / LIVE</span>
         </div>
-        <div className="flex items-center gap-3 font-mono-tech text-[10px] text-[#6ee7ef]">
+        <div className="flex items-center gap-3 font-mono-tech text-[10px] text-brand-cyan">
           <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70] shadow-[0_0_8px_#c7ef70]" /> SYNCED</span>
-          <span className="hidden rounded-md border border-white/10 bg-white/[.04] px-2 py-0.5 text-[#d8d5e8] sm:inline">42ms</span>
+          <span className="hidden rounded-md border border-border bg-foreground/[.04] px-2 py-0.5 text-foreground sm:inline">42ms</span>
         </div>
       </div>
       <div className="grid gap-4 p-5 sm:grid-cols-[1fr_1.2fr]">
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/[.07] bg-white/[.02] p-4">
-            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
-              <span>Throughput</span><span className="text-[#c7ef70]">+12.4%</span>
+          <div className="rounded-xl border border-border bg-foreground/[.02] p-4">
+            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
+              <span>Throughput</span><span className="text-brand-lime">+12.4%</span>
             </div>
             <div className="mt-2 flex items-end justify-between">
-              <strong className="text-[26px] font-light tracking-tight text-white">84.7<span className="text-sm text-[#6ee7ef]">%</span></strong>
+              <strong className="text-[26px] font-light tracking-tight text-foreground">84.7<span className="text-sm text-brand-cyan">%</span></strong>
             </div>
             <div className="mt-3 flex h-14 items-end gap-1">
               {[35, 48, 40, 58, 52, 67, 61, 76, 72, 88, 82, 95].map((height, i) => (
@@ -515,21 +570,21 @@ function OpsPanel() {
               ))}
             </div>
           </div>
-          <div className="rounded-xl border border-white/[.07] bg-white/[.02] p-4">
-            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
-              <span>Queue health</span><span className="rounded border border-[#c7ef70]/30 px-1.5 py-0.5 text-[#c7ef70]">NORMAL</span>
+          <div className="rounded-xl border border-border bg-foreground/[.02] p-4">
+            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
+              <span>Queue health</span><span className="rounded border border-brand-lime/30 px-1.5 py-0.5 text-brand-lime">NORMAL</span>
             </div>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-foreground/[.06]">
               <motion.div initial={{ width: 0 }} animate={{ width: '72%' }} transition={{ delay: 1.1, duration: 1 }} className="h-full rounded-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7]" />
             </div>
-            <div className="mt-3 flex items-center gap-2 font-mono-tech text-[9px] text-[#8d8a9e]">
+            <div className="mt-3 flex items-center gap-2 font-mono-tech text-[9px] text-muted-foreground">
               <Bell className="h-3 w-3 text-[#ff9d66]" /> 2 rules executed automatically
             </div>
           </div>
         </div>
-        <div className="relative rounded-xl border border-white/[.07] bg-white/[.02] p-4">
-          <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
-            <span>Flow map</span><Network className="h-3.5 w-3.5 text-[#e44bd7]" />
+        <div className="relative rounded-xl border border-border bg-foreground/[.02] p-4">
+          <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
+            <span>Flow map</span><Network className="h-3.5 w-3.5 text-brand-magenta" />
           </div>
           <svg viewBox="0 0 210 150" className="mt-2 h-[150px] w-full">
             <path d="M19 85 C48 85 41 42 73 42 S100 112 130 105 149 44 189 44" fill="none" stroke="#6ee7ef" strokeWidth="1.5" strokeDasharray="4 4" opacity=".85" />
@@ -542,8 +597,8 @@ function OpsPanel() {
               </g>
             ))}
           </svg>
-          <div className="flex justify-between border-t border-white/[.06] pt-2.5 font-mono-tech text-[9px] text-[#8d8a9e]">
-            <span>7 active paths</span><span className="text-[#6ee7ef]">0 blocked</span>
+          <div className="flex justify-between border-t border-border pt-2.5 font-mono-tech text-[9px] text-muted-foreground">
+            <span>7 active paths</span><span className="text-brand-cyan">0 blocked</span>
           </div>
         </div>
       </div>
@@ -567,38 +622,38 @@ function Hero() {
         <div className="grid items-center gap-14 lg:grid-cols-[1.12fr_.88fr] lg:gap-10">
           <div className="relative z-10">
             <Reveal>
-              <div className="mb-7 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] text-[#6ee7ef]">
-                <Sparkles className="h-3.5 w-3.5 text-[#e44bd7]" /> Software · Systems · Operations
+              <div className="mb-7 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] text-brand-cyan">
+                <Sparkles className="h-3.5 w-3.5 text-brand-magenta" /> Software · Systems · Operations
               </div>
             </Reveal>
             <Reveal delay={0.08}>
-              <h1 className="text-[clamp(2.4rem,8.5vw,4.6rem)] font-light leading-[1.06] tracking-[-0.03em] text-white">
+              <h1 className="text-[clamp(2.4rem,8.5vw,4.6rem)] font-light leading-[1.06] tracking-[-0.03em] text-foreground">
                 The systems your
                 <br />
                 business runs on —
                 <br />
-                <span className="font-normal text-[#6ee7ef]">built by operators.</span>
+                <span className="font-normal text-brand-cyan">built by operators.</span>
               </h1>
             </Reveal>
             <Reveal delay={0.16}>
-              <p className="mt-8 max-w-xl text-[17px] font-light leading-8 text-[#b9b6c9]">
+              <p className="mt-8 max-w-xl text-[17px] font-light leading-8 text-foreground/75">
                 3S Verse builds dealer tools, custom applications and workflow automation for businesses that run on spreadsheets, portals and repetitive processes. Start with a 7-day VidaPay tool trial — or bring us the bottleneck your team needs removed.
               </p>
             </Reveal>
             <Reveal delay={0.24}>
               <div className="mt-10 flex flex-wrap items-center gap-4">
                 <BtnWhite href="#tools" testId="button-hero-get-started">Start a dealer tool trial</BtnWhite>
-                <a href="#contact" data-testid="link-hero-explore" className="group inline-flex items-center gap-2 px-2 py-3 text-[15px] font-medium text-[#d8d5e8] transition-colors hover:text-white">
+                <a href="#contact" data-testid="link-hero-explore" className="group inline-flex items-center gap-2 px-2 py-3 text-[15px] font-medium text-foreground transition-colors hover:text-foreground">
                   Discuss a custom system
-                  <ArrowDownRight className="h-4 w-4 text-[#6ee7ef] transition-transform duration-300 group-hover:translate-x-1 group-hover:translate-y-1" />
+                  <ArrowDownRight className="h-4 w-4 text-brand-cyan transition-transform duration-300 group-hover:translate-x-1 group-hover:translate-y-1" />
                 </a>
               </div>
             </Reveal>
             <Reveal delay={0.32}>
-              <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-white/[.07] pt-5 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-5 font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                 <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years in real operations</span>
-                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-[#6ee7ef]" /> $265K+ identified or recovered across prior programs</span>
-                <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#e44bd7]" /> Running in dealerships daily</span>
+                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-brand-cyan" /> $265K+ identified or recovered across prior programs</span>
+                <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-brand-magenta" /> Running in dealerships daily</span>
               </div>
             </Reveal>
           </div>
@@ -626,14 +681,14 @@ function IntegrateSection() {
         <div className="relative">
           <Shape v={2} spin={95} dir={-1} floatY={14} floatDur={10} className="w-[340px] opacity-95 sm:w-[440px] lg:-ml-24 lg:w-[560px]" />
         </div>
-        <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
+        <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-foreground/10 to-transparent lg:block" />
         <div className="lg:pl-20">
           <Reveal>
             <Kicker>Power your business</Kicker>
-            <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-              Automation that meets the work <span className="text-[#6ee7ef]">where it happens.</span>
+            <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+              Automation that meets the work <span className="text-brand-cyan">where it happens.</span>
             </h2>
-            <p className="mt-7 max-w-lg text-[16px] font-light leading-8 text-[#b9b6c9]">
+            <p className="mt-7 max-w-lg text-[16px] font-light leading-8 text-foreground/75">
               AI agents that draft, reconcile, and answer for you. Pipelines that move data between the systems you already run. No rip-and-replace, no six-month projects — we plug automation straight into VidaPay portals, spreadsheets, ERPs, and WhatsApp, and it starts saving hours from week one.
             </p>
             <div className="mt-10">
@@ -705,11 +760,11 @@ function Services() {
           <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
               <Kicker>01 — What we offer</Kicker>
-              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                Every system your business needs — <span className="text-[#6ee7ef]">under one roof.</span>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+                Every system your business needs — <span className="text-brand-cyan">under one roof.</span>
               </h2>
             </div>
-            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+            <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
               One partner across the whole spectrum: a website that sells, apps that run your day, AI that clears the busywork, dashboards that keep score, and automation that never sleeps. Scoped in weeks, not quarters, by people who have actually run these operations. We specialize in operational software — internal applications, data workflows, reporting systems, AI-assisted processes and dealer tools; marketing websites are available when they support the same operating system or sales journey.
             </p>
           </div>
@@ -723,25 +778,25 @@ function Services() {
                 <motion.article
                   whileHover={{ y: -6 }}
                   data-testid={`card-service-${feature.index}`}
-                  className="group relative h-full overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] p-8 transition-colors duration-500 hover:border-white/[.16] lg:p-10"
+                  className="group relative h-full overflow-hidden rounded-2xl border border-border bg-card p-8 transition-colors duration-500 hover:border-input lg:p-10"
                 >
                   <div className="absolute right-0 top-0 h-40 w-40 opacity-[.13] transition-opacity duration-500 group-hover:opacity-30" style={{ background: `radial-gradient(circle at top right, ${accent}, transparent 68%)` }} />
                   <div className="flex items-start justify-between">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[.04]" style={{ color: accent }}>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-foreground/[.04]" style={{ color: accent }}>
                       <Icon className="h-5 w-5" />
                     </div>
-                    <span className="font-mono-tech text-[10px] text-[#8d8a9e]/60">{feature.index}</span>
+                    <span className="font-mono-tech text-[10px] text-muted-foreground/60">{feature.index}</span>
                   </div>
-                  <h3 className="mt-12 text-[26px] font-light tracking-[-0.02em] text-white">{feature.title}</h3>
-                  <p className="mt-4 max-w-md text-[14px] font-light leading-7 text-[#b9b6c9]">{feature.description}</p>
+                  <h3 className="mt-12 text-[26px] font-light tracking-[-0.02em] text-foreground">{feature.title}</h3>
+                  <p className="mt-4 max-w-md text-[14px] font-light leading-7 text-foreground/75">{feature.description}</p>
                   <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2.5">
                     {feature.detail.map((item) => (
-                      <span key={item} className="flex items-center gap-2 font-mono-tech text-[9px] uppercase tracking-[.14em] text-[#8d8a9e]">
+                      <span key={item} className="flex items-center gap-2 font-mono-tech text-[9px] uppercase tracking-[.14em] text-muted-foreground">
                         <Check className="h-3 w-3" style={{ color: accent }} /> {item}
                       </span>
                     ))}
                   </div>
-                  <ArrowUpRight className="absolute bottom-9 right-9 h-5 w-5 -translate-x-2 translate-y-2 text-white/20 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:translate-y-0 group-hover:text-[#6ee7ef] group-hover:opacity-100" />
+                  <ArrowUpRight className="absolute bottom-9 right-9 h-5 w-5 -translate-x-2 translate-y-2 text-foreground/20 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:translate-y-0 group-hover:text-brand-cyan group-hover:opacity-100" />
                 </motion.article>
               </Reveal>
             );
@@ -757,10 +812,10 @@ function Services() {
 function HowVisual() {
   return (
     <div className="relative mb-16 lg:mb-20">
-      <div className="relative overflow-hidden rounded-2xl border border-white/[.08] bg-[#0b0a11] p-6 shadow-[0_30px_90px_rgba(0,0,0,.45)] sm:p-8">
-        <div className="flex items-center gap-3 border-b border-white/[.07] pb-4">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[.04] text-[#6ee7ef]"><Workflow className="h-4 w-4" /></span>
-          <span className="text-[15px] font-medium text-white">Automate a workflow</span>
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_30px_90px_rgba(0,0,0,.14)] dark:shadow-[0_30px_90px_rgba(0,0,0,.45)] sm:p-8">
+        <div className="flex items-center gap-3 border-b border-border pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-foreground/[.04] text-brand-cyan"><Workflow className="h-4 w-4" /></span>
+          <span className="text-[15px] font-medium text-foreground">Automate a workflow</span>
         </div>
         <div className="mt-5 space-y-4">
           {[
@@ -769,16 +824,16 @@ function HowVisual() {
             ['Owner', 'Ops team · runs daily'],
           ].map(([label, value], i) => (
             <motion.div key={label} initial={{ opacity: 0, x: -14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 + i * 0.12 }}>
-              <div className="font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">{label}</div>
-              <div className="mt-1.5 rounded-lg border border-white/[.08] bg-white/[.03] px-3.5 py-2.5 text-[13px] text-[#d8d5e8]">{value}</div>
+              <div className="font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">{label}</div>
+              <div className="mt-1.5 rounded-lg border border-border bg-foreground/[.03] px-3.5 py-2.5 text-[13px] text-foreground">{value}</div>
             </motion.div>
           ))}
-          <div className="rounded-lg border border-white/[.08] bg-white/[.03] px-3.5 py-2.5">
-            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
+          <div className="rounded-lg border border-border bg-foreground/[.03] px-3.5 py-2.5">
+            <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
               <span>Status</span>
-              <span className="flex items-center gap-1.5 text-[#c7ef70]"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70] shadow-[0_0_8px_#c7ef70]" /> running</span>
+              <span className="flex items-center gap-1.5 text-brand-lime"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70] shadow-[0_0_8px_#c7ef70]" /> running</span>
             </div>
-            <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/[.06]">
+            <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-foreground/[.06]">
               <motion.div initial={{ width: 0 }} whileInView={{ width: '88%' }} viewport={{ once: true }} transition={{ delay: 0.5, duration: 1.1 }} className="h-full rounded-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7]" />
             </div>
           </div>
@@ -790,17 +845,17 @@ function HowVisual() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ delay: 0.55, duration: 0.7 }}
-        className="absolute -bottom-10 -right-3 w-[240px] rounded-2xl border border-white/[.1] bg-[#0d0c14] p-5 shadow-[0_30px_80px_rgba(0,0,0,.6)] sm:-right-8"
+        className="absolute -bottom-10 -right-3 w-[240px] rounded-2xl border border-border bg-card p-5 shadow-[0_30px_80px_rgba(0,0,0,.16)] dark:shadow-[0_30px_80px_rgba(0,0,0,.6)] sm:-right-8"
       >
-        <div className="text-[14px] font-medium text-white">Results</div>
+        <div className="text-[14px] font-medium text-foreground">Results</div>
         <svg viewBox="0 0 200 90" className="mt-3 w-full">
           <polyline points="0,78 28,66 56,70 84,48 112,52 140,30 168,34 200,14" fill="none" stroke="#6ee7ef" strokeWidth="1.8" strokeLinejoin="round" />
           <polyline points="0,82 28,76 56,72 84,64 112,60 140,50 168,44 200,38" fill="none" stroke="#e44bd7" strokeWidth="1.2" strokeDasharray="3 3" opacity=".7" />
           <line x1="0" y1="88" x2="200" y2="88" stroke="rgba(255,255,255,.12)" strokeWidth="1" />
         </svg>
-        <div className="mt-2 flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.16em] text-[#8d8a9e]">
+        <div className="mt-2 flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.16em] text-muted-foreground">
           <span>hours saved / wk</span>
-          <span className="text-[#c7ef70]">+38%</span>
+          <span className="text-brand-lime">+38%</span>
         </div>
       </motion.div>
     </div>
@@ -820,28 +875,28 @@ function HowItWorks() {
           <div className="lg:pr-16">
             <Reveal>
               <Kicker magenta>02 — How it works</Kicker>
-              <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
+              <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
                 From bottleneck
                 <br />
-                to <span className="text-[#e44bd7]">live system</span>
+                to <span className="text-brand-magenta">live system</span>
                 <br />
                 in three moves.
               </h2>
               <div className="mt-12 space-y-10">
                 {steps.map(([number, title, copy], i) => (
                   <Reveal key={number} delay={i * 0.1}>
-                    <div className="border-l border-white/10 pl-6">
-                      <h3 className="text-[22px] font-light tracking-[-0.01em] text-white transition-colors duration-300 hover:text-[#6ee7ef]">
+                    <div className="border-l border-border pl-6">
+                      <h3 className="text-[22px] font-light tracking-[-0.01em] text-foreground transition-colors duration-300 hover:text-brand-cyan">
                         {number}. {title}
                       </h3>
-                      <p className="mt-2.5 max-w-md text-[14px] font-light leading-7 text-[#b9b6c9]">{copy}</p>
+                      <p className="mt-2.5 max-w-md text-[14px] font-light leading-7 text-foreground/75">{copy}</p>
                     </div>
                   </Reveal>
                 ))}
               </div>
             </Reveal>
           </div>
-          <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-white/10 to-transparent lg:block" />
+          <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-foreground/10 to-transparent lg:block" />
           <div className="lg:pl-16">
             <HowVisual />
           </div>
@@ -858,7 +913,7 @@ function StatVisual({ kind }: { kind: 'bars' | 'rings' | 'line' }) {
     return (
       <div className="flex h-24 items-end justify-center gap-1.5">
         {[30, 44, 38, 56, 50, 68, 62, 82, 76, 95].map((height, i) => (
-          <motion.span key={i} initial={{ height: 0 }} whileInView={{ height: `${height}%` }} viewport={{ once: true }} transition={{ delay: i * 0.05, duration: 0.5 }} className={`w-3 rounded-t-[3px] ${i > 7 ? 'bg-[#e44bd7]' : 'bg-white/[.16]'}`} />
+          <motion.span key={i} initial={{ height: 0 }} whileInView={{ height: `${height}%` }} viewport={{ once: true }} transition={{ delay: i * 0.05, duration: 0.5 }} className={`w-3 rounded-t-[3px] ${i > 7 ? 'bg-[#e44bd7]' : 'bg-foreground/[.16]'}`} />
         ))}
       </div>
     );
@@ -898,11 +953,11 @@ function Outcomes() {
           <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
               <Kicker>03 — Real results</Kicker>
-              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                Builds that <span className="text-[#e44bd7]">recover real money.</span>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+                Builds that <span className="text-brand-magenta">recover real money.</span>
               </h2>
             </div>
-            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+            <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
               Operator-experience figures from 13+ years across retail operations, distribution and multi-store programs — stated as experienced, and published as verified case studies as clients approve them.
             </p>
           </div>
@@ -910,19 +965,19 @@ function Outcomes() {
         <div className="grid gap-4 md:grid-cols-3">
           {stats.map(({ value, label, kind }, i) => (
             <Reveal key={label} delay={i * 0.1}>
-              <div data-testid={`stat-outcome-${i}`} className="group overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] transition-colors duration-500 hover:border-white/[.16]">
+              <div data-testid={`stat-outcome-${i}`} className="group overflow-hidden rounded-2xl border border-border bg-card transition-colors duration-500 hover:border-input">
                 <div className="px-8 pb-2 pt-10">
                   <StatVisual kind={kind} />
                 </div>
-                <div className="border-t border-white/[.06] px-8 py-8 text-center">
-                  <div className="text-[44px] font-light leading-none tracking-[-0.03em] text-white lg:text-[52px]">{value}</div>
-                  <div className="mt-3 font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#8d8a9e]">{label}</div>
+                <div className="border-t border-border px-8 py-8 text-center">
+                  <div className="text-[44px] font-light leading-none tracking-[-0.03em] text-foreground lg:text-[52px]">{value}</div>
+                  <div className="mt-3 font-mono-tech text-[10px] uppercase tracking-[.2em] text-muted-foreground">{label}</div>
                 </div>
               </div>
             </Reveal>
           ))}
         </div>
-        <p className="mt-8 max-w-3xl text-[12.5px] font-light leading-5 text-[#8d8a9e]">
+        <p className="mt-8 max-w-3xl text-[12.5px] font-light leading-5 text-muted-foreground">
           These are operator-career outcomes from prior telecom, FMCG and pharmaceutical programs — not 3SVerse client results. Every future client case study publishes with its method, measurement period and verification.
         </p>
       </div>
@@ -948,9 +1003,9 @@ const TOOLS = [
     ],
     tags: ['Rebates', 'Spiffs', 'Claims', 'One clean sheet'],
     visual: (
-      <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-5">
-        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
-          <span>Incentives · March</span><span className="rounded border border-[#6ee7ef]/30 px-1.5 py-0.5 text-[#6ee7ef]">EXTRACTED</span>
+      <div className="rounded-xl border border-border bg-foreground/[.02] p-5">
+        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
+          <span>Incentives · March</span><span className="rounded border border-brand-cyan/30 px-1.5 py-0.5 text-brand-cyan">EXTRACTED</span>
         </div>
         <div className="mt-4 space-y-2.5">
           {[
@@ -958,15 +1013,15 @@ const TOOLS = [
             ['Activation spiff — row 09', '$615.00'],
             ['Bundle bonus — row 22', '$890.00'],
           ].map(([row, amount], i) => (
-            <motion.div key={row} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-white/[.07] bg-white/[.02] px-3.5 py-2.5">
-              <span className="text-[13px] text-[#d8d5e8]">{row}</span>
-              <span className="font-mono-tech text-[12px] text-[#6ee7ef]">{amount}</span>
+            <motion.div key={row} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-border bg-foreground/[.02] px-3.5 py-2.5">
+              <span className="text-[13px] text-foreground">{row}</span>
+              <span className="font-mono-tech text-[12px] text-brand-cyan">{amount}</span>
             </motion.div>
           ))}
         </div>
-        <div className="mt-4 flex items-center justify-between border-t border-white/[.07] pt-3.5">
-          <span className="font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">Total recovered</span>
-          <span className="text-[20px] font-light tracking-tight text-white">$2,745.00</span>
+        <div className="mt-4 flex items-center justify-between border-t border-border pt-3.5">
+          <span className="font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">Total recovered</span>
+          <span className="text-[20px] font-light tracking-tight text-foreground">$2,745.00</span>
         </div>
       </div>
     ),
@@ -984,9 +1039,9 @@ const TOOLS = [
     ],
     tags: ['Bulk', 'All stores', 'One submit', 'Fewer mistakes'],
     visual: (
-      <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-5">
-        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
-          <span>Order · 45 stores</span><span className="rounded border border-[#e44bd7]/40 px-1.5 py-0.5 text-[#e44bd7]">DRAFT</span>
+      <div className="rounded-xl border border-border bg-foreground/[.02] p-5">
+        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
+          <span>Order · 45 stores</span><span className="rounded border border-brand-magenta/40 px-1.5 py-0.5 text-brand-magenta">DRAFT</span>
         </div>
         <div className="mt-4 space-y-2.5">
           {[
@@ -994,15 +1049,15 @@ const TOOLS = [
             ['Moto G Play', '20 / store'],
             ['iPhone 13', '8 / store'],
           ].map(([device, qty], i) => (
-            <motion.div key={device} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-white/[.07] bg-white/[.02] px-3.5 py-2.5">
-              <span className="text-[13px] text-[#d8d5e8]">{device}</span>
-              <span className="font-mono-tech text-[12px] text-[#e44bd7]">{qty}</span>
+            <motion.div key={device} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-border bg-foreground/[.02] px-3.5 py-2.5">
+              <span className="text-[13px] text-foreground">{device}</span>
+              <span className="font-mono-tech text-[12px] text-brand-magenta">{qty}</span>
             </motion.div>
           ))}
         </div>
-        <div className="mt-4 flex items-center justify-between border-t border-white/[.07] pt-3.5">
-          <span className="font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">1,340 units queued</span>
-          <span className="rounded-lg bg-white px-4 py-1.5 text-[12px] font-semibold text-[#0b0a10]">Submit order</span>
+        <div className="mt-4 flex items-center justify-between border-t border-border pt-3.5">
+          <span className="font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">1,340 units queued</span>
+          <span className="rounded-lg border bg-white px-4 py-1.5 text-[12px] font-semibold text-[#0b0a10]">Submit order</span>
         </div>
       </div>
     ),
@@ -1020,9 +1075,9 @@ const TOOLS = [
     ],
     tags: ['Rebates', 'Bulk', 'Status tracking', 'Validation'],
     visual: (
-      <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-5">
-        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#8d8a9e]">
-          <span>Rebate claims · Batch 12</span><span className="rounded border border-[#6ee7ef]/30 px-1.5 py-0.5 text-[#6ee7ef]">FILED</span>
+      <div className="rounded-xl border border-border bg-foreground/[.02] p-5">
+        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
+          <span>Rebate claims · Batch 12</span><span className="rounded border border-brand-cyan/30 px-1.5 py-0.5 text-brand-cyan">FILED</span>
         </div>
         <div className="mt-4 space-y-2.5">
           {[
@@ -1030,15 +1085,15 @@ const TOOLS = [
             ['Activation spiffs — 41 claims', 'FILED'],
             ['Bundle bonuses — 18 claims', 'QUEUED'],
           ].map(([claim, status], i) => (
-            <motion.div key={claim} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-white/[.07] bg-white/[.02] px-3.5 py-2.5">
-              <span className="text-[13px] text-[#d8d5e8]">{claim}</span>
-              <span className={`font-mono-tech text-[11px] ${status === 'PAID' ? 'text-[#c7ef70]' : status === 'FILED' ? 'text-[#6ee7ef]' : 'text-[#e44bd7]'}`}>{status}</span>
+            <motion.div key={claim} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-border bg-foreground/[.02] px-3.5 py-2.5">
+              <span className="text-[13px] text-foreground">{claim}</span>
+              <span className={`font-mono-tech text-[11px] ${status === 'PAID' ? 'text-brand-lime' : status === 'FILED' ? 'text-brand-cyan' : 'text-brand-magenta'}`}>{status}</span>
             </motion.div>
           ))}
         </div>
-        <div className="mt-4 flex items-center justify-between border-t border-white/[.07] pt-3.5">
-          <span className="font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">83 claims this batch</span>
-          <span className="text-[20px] font-light tracking-tight text-white">$9,140.00</span>
+        <div className="mt-4 flex items-center justify-between border-t border-border pt-3.5">
+          <span className="font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">83 claims this batch</span>
+          <span className="text-[20px] font-light tracking-tight text-foreground">$9,140.00</span>
         </div>
       </div>
     ),
@@ -1056,9 +1111,9 @@ function Tools() {
           <div className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <Kicker magenta>04 — Dealer tools</Kicker>
-              <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">Built for the front office</h2>
+              <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">Built for the front office</h2>
             </div>
-            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+            <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
               Born inside a real multi-store wireless operation — the owner&apos;s back office, not the sales counter. Commissions, ordering, and rebates run on these tools while your reps keep selling.
             </p>
           </div>
@@ -1072,8 +1127,8 @@ function Tools() {
                 onClick={() => setActive(i)}
                 className={`rounded-xl px-5 py-2.5 text-[14px] font-medium transition-all duration-300 ${
                   active === i
-                    ? 'bg-white text-[#0b0a10] shadow-[0_10px_30px_rgba(255,255,255,.08)]'
-                    : 'border border-white/20 text-[#d8d5e8] hover:border-white/50 hover:text-white'
+                    ? 'border bg-white text-[#0b0a10] shadow-[0_10px_30px_rgba(255,255,255,.08)]'
+                    : 'border border-input text-foreground hover:border-foreground/50 hover:text-foreground'
                 }`}
               >
                 {t.tab}
@@ -1082,7 +1137,7 @@ function Tools() {
           </div>
         </Reveal>
         <Reveal delay={0.1}>
-          <div data-testid="panel-tool" className="overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11] p-8 sm:p-12 lg:p-14">
+          <div data-testid="panel-tool" className="overflow-hidden rounded-3xl border border-border bg-card p-8 sm:p-12 lg:p-14">
             <AnimatePresence mode="wait">
               <motion.div
                 key={tool.id}
@@ -1093,12 +1148,12 @@ function Tools() {
                 className="grid items-center gap-12 lg:grid-cols-2"
               >
                 <div>
-                  <h3 className="text-[clamp(1.7rem,2.6vw,2.5rem)] font-light leading-[1.08] tracking-[-0.02em] text-white">{tool.title}</h3>
-                  <p className="mt-5 max-w-lg text-[15px] font-light leading-7 text-[#b9b6c9]">{tool.blurb}</p>
+                  <h3 className="text-[clamp(1.7rem,2.6vw,2.5rem)] font-light leading-[1.08] tracking-[-0.02em] text-foreground">{tool.title}</h3>
+                  <p className="mt-5 max-w-lg text-[15px] font-light leading-7 text-foreground/75">{tool.blurb}</p>
                   <div className="mt-8 grid max-w-md grid-cols-2 gap-x-6 gap-y-4">
                     {tool.chips.map(({ icon: Icon, label }) => (
-                      <span key={label} className="flex items-center gap-3 text-[13.5px] font-light text-[#d8d5e8]">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[.04] text-[#6ee7ef]"><Icon className="h-4 w-4" /></span>
+                      <span key={label} className="flex items-center gap-3 text-[13.5px] font-light text-foreground">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-foreground/[.04] text-brand-cyan"><Icon className="h-4 w-4" /></span>
                         {label}
                       </span>
                     ))}
@@ -1107,19 +1162,19 @@ function Tools() {
                     <a
                       href={trialDownloadUrl(tool.id)}
                       data-testid={`button-download-${tool.id}`}
-                      className="inline-flex items-center gap-2.5 rounded-xl bg-white px-6 py-3 text-[14.5px] font-semibold text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8]"
+                      className="inline-flex items-center gap-2.5 rounded-xl border bg-white px-6 py-3 text-[14.5px] font-semibold text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8]"
                     >
                       <Download className="h-4 w-4" /> Download free trial (.exe)
                     </a>
                     <a
                       href="/order"
                       data-testid="link-order-status"
-                      className="text-[13.5px] font-medium text-[#6ee7ef] transition-colors hover:text-white"
+                      className="text-[13.5px] font-medium text-brand-cyan transition-colors hover:text-foreground"
                     >
                       Already purchased? Free re-download →
                     </a>
                   </div>
-                  <p className="mt-3 text-[12.5px] font-light leading-5 text-[#8d8a9e]">
+                  <p className="mt-3 text-[12.5px] font-light leading-5 text-muted-foreground">
                     Windows 10/11 · the download always serves the newest build ·
                     7-day trial built in, activate with your license key.
                   </p>
@@ -1128,7 +1183,7 @@ function Tools() {
                   {tool.visual}
                   <div className="mt-5 flex flex-wrap gap-2">
                     {tool.tags.map((tag) => (
-                      <span key={tag} className="rounded-md border border-white/10 bg-white/[.04] px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[.16em] text-[#8d8a9e]">{tag}</span>
+                      <span key={tag} className="rounded-md border border-border bg-foreground/[.04] px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[.16em] text-muted-foreground">{tag}</span>
                     ))}
                   </div>
                 </div>
@@ -1181,33 +1236,33 @@ function Compare() {
           <div className="mb-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <Kicker>05 — Manual vs 3S Verse</Kicker>
-              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                The same week, <span className="text-[#6ee7ef]">two ways.</span>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+                The same week, <span className="text-brand-cyan">two ways.</span>
               </h2>
             </div>
-            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+            <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
               Nothing theoretical — this is the exact work your front office does today, before and after the tools take it over.
             </p>
           </div>
         </Reveal>
         <Reveal delay={0.08}>
-          <div className="overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11]">
-            <div className="hidden grid-cols-[1.1fr_1.3fr_1.3fr] border-b border-white/[.07] font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e] md:grid">
+          <div className="overflow-hidden rounded-3xl border border-border bg-card">
+            <div className="hidden grid-cols-[1.1fr_1.3fr_1.3fr] border-b border-border font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground md:grid">
               <div className="px-6 py-4">The work</div>
-              <div className="border-x border-white/[.07] px-6 py-4 text-[#e44bd7]">Manual today</div>
-              <div className="px-6 py-4 text-[#6ee7ef]">With 3S Verse</div>
+              <div className="border-x border-border px-6 py-4 text-brand-magenta">Manual today</div>
+              <div className="px-6 py-4 text-brand-cyan">With 3S Verse</div>
             </div>
             {COMPARE_ROWS.map(([work, before, after], i) => (
               <div
                 key={work}
-                className={`grid gap-3 border-b border-white/[.05] px-6 py-5 last:border-b-0 md:grid-cols-[1.1fr_1.3fr_1.3fr] md:items-center md:gap-0 md:px-0 md:py-0 ${i % 2 ? 'bg-white/[.015]' : ''}`}
+                className={`grid gap-3 border-b border-border px-6 py-5 last:border-b-0 md:grid-cols-[1.1fr_1.3fr_1.3fr] md:items-center md:gap-0 md:px-0 md:py-0 ${i % 2 ? 'bg-foreground/[.015]' : ''}`}
               >
-                <div className="text-[14.5px] font-medium text-white md:border-r-0 md:px-6">{work}</div>
-                <div className="flex items-start gap-2.5 border-white/[.07] text-[13.5px] font-light leading-6 text-[#b9b6c9] md:border-x md:border-b-0 md:px-6 md:py-5">
-                  <X className="mt-0.5 h-4 w-4 shrink-0 text-[#e44bd7]" />{before}
+                <div className="text-[14.5px] font-medium text-foreground md:border-r-0 md:px-6">{work}</div>
+                <div className="flex items-start gap-2.5 border-border text-[13.5px] font-light leading-6 text-foreground/75 md:border-x md:border-b-0 md:px-6 md:py-5">
+                  <X className="mt-0.5 h-4 w-4 shrink-0 text-brand-magenta" />{before}
                 </div>
-                <div className="flex items-start gap-2.5 text-[13.5px] font-light leading-6 text-[#d8d5e8] md:px-6 md:py-5">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#6ee7ef]" />{after}
+                <div className="flex items-start gap-2.5 text-[13.5px] font-light leading-6 text-foreground md:px-6 md:py-5">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-cyan" />{after}
                 </div>
               </div>
             ))}
@@ -1217,17 +1272,17 @@ function Compare() {
           {/* audit fix: show the transformation, not just the table — the
               money the manual process burns vs the same month after */}
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className="rounded-3xl border border-[#e44bd7]/25 bg-[#e44bd7]/[.05] p-7">
-              <p className="flex items-center gap-2.5 font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#e44bd7]"><X className="h-3.5 w-3.5" /> Before — manual front office</p>
-              <ul className="mt-4 space-y-2.5 text-[13.5px] font-light leading-6 text-[#d8d5e8]">
+            <div className="rounded-3xl border border-brand-magenta/25 bg-[#e44bd7]/[.05] p-7">
+              <p className="flex items-center gap-2.5 font-mono-tech text-[10px] uppercase tracking-[.2em] text-brand-magenta"><X className="h-3.5 w-3.5" /> Before — manual front office</p>
+              <ul className="mt-4 space-y-2.5 text-[13.5px] font-light leading-6 text-foreground">
                 <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />Scenario range: $500–$2,000 in missed rebates — per store, every month</li>
                 <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />15–30 staff hours a week on screenshots and retyping</li>
                 <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#e44bd7]" />Claims filed once and forgotten — no status, no proof, no follow-up</li>
               </ul>
             </div>
-            <div className="rounded-3xl border border-[#6ee7ef]/25 bg-[#6ee7ef]/[.05] p-7">
-              <p className="flex items-center gap-2.5 font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#6ee7ef]"><Check className="h-3.5 w-3.5" /> After — the 3S Verse front office</p>
-              <ul className="mt-4 space-y-2.5 text-[13.5px] font-light leading-6 text-[#d8d5e8]">
+            <div className="rounded-3xl border border-brand-cyan/25 bg-[#6ee7ef]/[.05] p-7">
+              <p className="flex items-center gap-2.5 font-mono-tech text-[10px] uppercase tracking-[.2em] text-brand-cyan"><Check className="h-3.5 w-3.5" /> After — the 3S Verse front office</p>
+              <ul className="mt-4 space-y-2.5 text-[13.5px] font-light leading-6 text-foreground">
                 <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#6ee7ef]" />Every eligible claim extracted, filed, and tracked to PAID</li>
                 <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#6ee7ef]" />Minutes per run — every store in one pass, zero retyping</li>
                 <li className="flex gap-2.5"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#6ee7ef]" />A live workbook the whole team trusts — and audited numbers to prove it</li>
@@ -1255,21 +1310,21 @@ function RoiCalculator() {
   const savedYear = Math.max(0, monthlyLoss * 12 - lifetimePrice);
 
   return (
-    <div data-testid="roi-calculator" className="mt-14 rounded-3xl border border-white/[.08] bg-gradient-to-br from-[#0b0a11] via-[#0d0c16] to-[#0b0a11] p-7 sm:p-10">
+    <div data-testid="roi-calculator" className="mt-14 rounded-3xl border border-border bg-gradient-to-br from-card via-card to-card p-7 sm:p-10">
       <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.1fr]">
         <div>
-          <p className="flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#6ee7ef]"><Calculator className="h-3.5 w-3.5" /> ROI calculator</p>
-          <h3 className="mt-3 text-[clamp(1.6rem,2.4vw,2.2rem)] font-light leading-[1.1] tracking-[-0.02em] text-white">
-            What is the manual process <span className="text-[#e44bd7]">costing you?</span>
+          <p className="flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-brand-cyan"><Calculator className="h-3.5 w-3.5" /> ROI calculator</p>
+          <h3 className="mt-3 text-[clamp(1.6rem,2.4vw,2.2rem)] font-light leading-[1.1] tracking-[-0.02em] text-foreground">
+            What is the manual process <span className="text-brand-magenta">costing you?</span>
           </h3>
-          <p className="mt-4 max-w-md text-[14px] font-light leading-6 text-[#b9b6c9]">
+          <p className="mt-4 max-w-md text-[14px] font-light leading-6 text-foreground/75">
             A scenario range based on observed dealer workflows: $500–$2,000 in unclaimed rebates and spiffs per store every month, plus hours of retyping. Set your reality below — the payback math uses real catalog pricing, volume discounts included.
           </p>
           <div className="mt-7 space-y-6">
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[13px] font-medium text-[#b9b6c9]">Stores you run</span>
-                <span className="font-mono-tech text-[15px] font-semibold text-white" data-testid="roi-stores-value">{stores}</span>
+                <span className="text-[13px] font-medium text-foreground/75">Stores you run</span>
+                <span className="font-mono-tech text-[15px] font-semibold text-foreground" data-testid="roi-stores-value">{stores}</span>
               </div>
               <input
                 type="range"
@@ -1279,11 +1334,11 @@ function RoiCalculator() {
                 onChange={(e) => setStores(Number(e.target.value))}
                 aria-label="Number of stores"
                 data-testid="roi-stores-slider"
-                className="w-full accent-[#6ee7ef]"
+                className="w-full accent-brand-cyan"
               />
             </div>
             <div>
-              <span className="mb-2 block text-[13px] font-medium text-[#b9b6c9]">Missed rebates &amp; incentives per store / month</span>
+              <span className="mb-2 block text-[13px] font-medium text-foreground/75">Missed rebates &amp; incentives per store / month</span>
               <div className="flex flex-wrap gap-2">
                 {[
                   { v: 500, label: '$500 — careful' },
@@ -1295,15 +1350,15 @@ function RoiCalculator() {
                     type="button"
                     onClick={() => setLossPerStore(o.v)}
                     className={lossPerStore === o.v
-                      ? 'rounded-lg bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#0b0a10]'
-                      : 'rounded-lg border border-white/15 px-3 py-1.5 text-[12.5px] text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white'}
+                      ? 'rounded-lg border bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#0b0a10]'
+                      : 'rounded-lg border border-input px-3 py-1.5 text-[12.5px] text-foreground transition-colors hover:border-foreground/40 hover:text-foreground'}
                   >
                     {o.label}
                   </button>
                 ))}
               </div>
             </div>
-            <p className="text-[12px] font-light leading-5 text-[#8d8a9e]">
+            <p className="text-[12px] font-light leading-5 text-muted-foreground">
               Running 10 or more stores? Message us — district pricing with central billing and
               priority support. Results vary by dealership: the presets are a conservative /
               typical / upside scenario range, and payback = bundle price ÷ your estimated
@@ -1312,31 +1367,31 @@ function RoiCalculator() {
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[#e44bd7]/25 bg-[#e44bd7]/[.06] p-5">
-            <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#e44bd7]">Losing today</p>
-            <p className="mt-2 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-white" data-testid="roi-monthly-loss">{formatUSD(monthlyLoss)}<span className="text-[14px] text-[#8d8a9e]">/mo</span></p>
-            <p className="mt-2 text-[12px] leading-5 text-[#8d8a9e]">{formatUSD(monthlyLoss * 12)} a year in missed money and wasted hours</p>
+          <div className="rounded-2xl border border-brand-magenta/25 bg-[#e44bd7]/[.06] p-5">
+            <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-brand-magenta">Losing today</p>
+            <p className="mt-2 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-foreground" data-testid="roi-monthly-loss">{formatUSD(monthlyLoss)}<span className="text-[14px] text-muted-foreground">/mo</span></p>
+            <p className="mt-2 text-[12px] leading-5 text-muted-foreground">{formatUSD(monthlyLoss * 12)} a year in missed money and wasted hours</p>
           </div>
-          <div className="rounded-2xl border border-[#6ee7ef]/25 bg-[#6ee7ef]/[.06] p-5">
-            <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#6ee7ef]">Full bundle — {stores} PC{stores === 1 ? '' : 's'}</p>
-            <p className="mt-2 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-white" data-testid="roi-bundle-price">{formatUSD(lifetimePrice)}</p>
-            <p className="mt-2 text-[12px] leading-5 text-[#8d8a9e]">one-time lifetime · or {formatUSD(monthlyPrice)}/mo cancel-anytime</p>
+          <div className="rounded-2xl border border-brand-cyan/25 bg-[#6ee7ef]/[.06] p-5">
+            <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-brand-cyan">Full bundle — {stores} PC{stores === 1 ? '' : 's'}</p>
+            <p className="mt-2 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-foreground" data-testid="roi-bundle-price">{formatUSD(lifetimePrice)}</p>
+            <p className="mt-2 text-[12px] leading-5 text-muted-foreground">one-time lifetime · or {formatUSD(monthlyPrice)}/mo cancel-anytime</p>
           </div>
-          <div className="rounded-2xl border border-white/[.09] bg-white/[.03] p-5 sm:col-span-2">
+          <div className="rounded-2xl border border-border bg-foreground/[.03] p-5 sm:col-span-2">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#6ee7ef]">Payback period</p>
-                <p className="mt-1.5 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-white" data-testid="roi-payback">{paybackDays} days</p>
+                <p className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-brand-cyan">Payback period</p>
+                <p className="mt-1.5 text-[clamp(1.6rem,2.4vw,2.1rem)] font-light leading-none text-foreground" data-testid="roi-payback">{paybackDays} days</p>
               </div>
-              <p className="max-w-[240px] text-[12.5px] leading-5 text-[#b9b6c9]">
-                Then it keeps everything it finds — <span className="text-[#6ee7ef]">{formatUSD(savedYear)}+ net in year one</span> at these settings.
+              <p className="max-w-[240px] text-[12.5px] leading-5 text-foreground/75">
+                Then it keeps everything it finds — <span className="text-brand-cyan">{formatUSD(savedYear)}+ net in year one</span> at these settings.
               </p>
             </div>
           </div>
           <a
             href="#tools"
             data-testid="roi-cta"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] sm:col-span-2"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-5 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] sm:col-span-2"
           >
             Compare plans and licenses <ArrowRight className="h-4 w-4" />
           </a>
@@ -1352,17 +1407,17 @@ function RoiCalculator() {
 function DemoStrip() {
   const wa = whatsappLink();
   return (
-    <div data-testid="demo-strip" className="mt-14 overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11]">
+    <div data-testid="demo-strip" className="mt-14 overflow-hidden rounded-3xl border border-border bg-card">
       <div className="grid items-stretch lg:grid-cols-[1.05fr_1fr]">
         <div className="p-8 sm:p-12">
-          <p className="flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#6ee7ef]"><PlayCircle className="h-3.5 w-3.5" /> {VIDEO_DEMO.kicker}</p>
-          <h3 className="mt-3 text-[clamp(1.6rem,2.4vw,2.2rem)] font-light leading-[1.1] tracking-[-0.02em] text-white">{VIDEO_DEMO.title}</h3>
-          <p className="mt-4 max-w-md text-[14px] font-light leading-7 text-[#b9b6c9]">{VIDEO_DEMO.note}</p>
+          <p className="flex items-center gap-2 font-mono-tech text-[10px] uppercase tracking-[.22em] text-brand-cyan"><PlayCircle className="h-3.5 w-3.5" /> {VIDEO_DEMO.kicker}</p>
+          <h3 className="mt-3 text-[clamp(1.6rem,2.4vw,2.2rem)] font-light leading-[1.1] tracking-[-0.02em] text-foreground">{VIDEO_DEMO.title}</h3>
+          <p className="mt-4 max-w-md text-[14px] font-light leading-7 text-foreground/75">{VIDEO_DEMO.note}</p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <a
               href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Send me the raw tool walkthrough')}`}
               data-testid="demo-cta"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+              className="inline-flex items-center gap-2 rounded-xl border bg-white px-5 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
             >
               <PlayCircle className="h-4 w-4" /> Get the raw walkthrough now
             </a>
@@ -1370,19 +1425,19 @@ function DemoStrip() {
               href={LINKEDIN_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[13.5px] font-medium text-white transition-colors hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"
+              className="inline-flex items-center gap-2 rounded-xl border border-input px-5 py-3 text-[13.5px] font-medium text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan"
             >
               <Linkedin className="h-4 w-4" /> Follow on LinkedIn — demos post there first
             </a>
             {YOUTUBE_URL ? (
-              <a href={YOUTUBE_URL} target="_blank" rel="noopener noreferrer" aria-label="3S Verse on YouTube" className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[13.5px] font-medium text-white transition-colors hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"><Youtube className="h-4 w-4" /> YouTube</a>
+              <a href={YOUTUBE_URL} target="_blank" rel="noopener noreferrer" aria-label="3S Verse on YouTube" className="inline-flex items-center gap-2 rounded-xl border border-input px-5 py-3 text-[13.5px] font-medium text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan"><Youtube className="h-4 w-4" /> YouTube</a>
             ) : null}
             {wa ? (
-              <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-[13.5px] font-medium text-white transition-colors hover:border-[#25d366]/60 hover:text-[#25d366]"><MessageCircle className="h-4 w-4" /> WhatsApp us</a>
+              <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-input px-5 py-3 text-[13.5px] font-medium text-foreground transition-colors hover:border-brand-wa/60 hover:text-brand-wa"><MessageCircle className="h-4 w-4" /> WhatsApp us</a>
             ) : null}
           </div>
         </div>
-        <div className="relative min-h-[280px] border-t border-white/[.07] bg-gradient-to-br from-[#12101d] to-[#0a0912] lg:border-l lg:border-t-0">
+        <div className="relative min-h-[280px] border-t border-border bg-gradient-to-br from-card to-card lg:border-l lg:border-t-0">
           {VIDEO_DEMO.url ? (
             <iframe
               src={VIDEO_DEMO.url}
@@ -1393,14 +1448,14 @@ function DemoStrip() {
             />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 p-10 text-center">
-              <span className="relative flex h-20 w-20 items-center justify-center rounded-full border border-[#6ee7ef]/40 bg-[#6ee7ef]/[.07]">
-                <PlayCircle className="h-9 w-9 text-[#6ee7ef]" />
+              <span className="relative flex h-20 w-20 items-center justify-center rounded-full border border-brand-cyan/40 bg-[#6ee7ef]/[.07]">
+                <PlayCircle className="h-9 w-9 text-brand-cyan" />
                 <span className="absolute -right-1 -top-1 flex h-4 w-4">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#e44bd7] opacity-60" />
-                  <span className="relative inline-flex h-4 w-4 rounded-full border-2 border-[#0b0a11] bg-[#e44bd7]" />
+                  <span className="relative inline-flex h-4 w-4 rounded-full border-2 border-card bg-[#e44bd7]" />
                 </span>
               </span>
-              <p className="max-w-[260px] font-mono-tech text-[10px] uppercase tracking-[.2em] leading-5 text-[#8d8a9e]">
+              <p className="max-w-[260px] font-mono-tech text-[10px] uppercase tracking-[.2em] leading-5 text-muted-foreground">
                 Full product demo in production — meanwhile the field guides below walk the exact workflows
               </p>
             </div>
@@ -1426,7 +1481,7 @@ function WhatsAppFloat() {
       initial={{ opacity: 0, scale: 0.7 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: 1.2, duration: 0.35 }}
-      className="fixed bottom-24 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#25d366] text-white shadow-[0_12px_32px_rgba(37,211,102,.4)] transition-transform duration-300 hover:scale-110"
+      className="fixed bottom-24 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-[#25d366] text-foreground shadow-[0_12px_32px_rgba(37,211,102,.4)] transition-transform duration-300 hover:scale-110"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6" aria-hidden="true">
         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z" />
@@ -1481,19 +1536,19 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
 function FaqItem({ q, a, index }: { q: string; a: string; index: number }) {
   const [open, setOpen] = useState(false);
   return (
-    <div data-testid={`faq-item-${index}`} className="border-b border-white/[.06] last:border-b-0">
+    <div data-testid={`faq-item-${index}`} className="border-b border-border last:border-b-0">
       <button
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((c) => !c)}
-        className="flex w-full cursor-pointer items-center justify-between gap-6 px-7 py-5 text-left transition-colors hover:bg-white/[.02]"
+        className="flex w-full cursor-pointer items-center justify-between gap-6 px-7 py-5 text-left transition-colors hover:bg-foreground/[.02]"
       >
-        <span className="text-[15.5px] font-medium leading-6 text-white">{q}</span>
-        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/15 text-[#6ee7ef] transition-transform duration-300 ${open ? 'rotate-45' : ''}`}>
+        <span className="text-[15.5px] font-medium leading-6 text-foreground">{q}</span>
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-input text-brand-cyan transition-transform duration-300 ${open ? 'rotate-45' : ''}`}>
           <Plus className="h-3.5 w-3.5" />
         </span>
       </button>
-      {open && <p className="px-7 pb-6 pr-14 text-[14px] font-light leading-7 text-[#b9b6c9]">{a}</p>}
+      {open && <p className="px-7 pb-6 pr-14 text-[14px] font-light leading-7 text-foreground/75">{a}</p>}
     </div>
   );
 }
@@ -1506,13 +1561,13 @@ function Faq() {
         <Reveal>
           <div className="mb-12 text-center">
             <Kicker>07 — Straight answers</Kicker>
-            <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-              Questions dealers <span className="text-[#e44bd7]">actually ask.</span>
+            <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+              Questions dealers <span className="text-brand-magenta">actually ask.</span>
             </h2>
           </div>
         </Reveal>
         <Reveal delay={0.08}>
-          <div className="overflow-hidden rounded-3xl border border-white/[.08] bg-[#0b0a11]">
+          <div className="overflow-hidden rounded-3xl border border-border bg-card">
             {FAQ_ITEMS.map(({ q, a }, i) => (
               <FaqItem key={q} q={q} a={a} index={i} />
             ))}
@@ -1570,7 +1625,7 @@ function GuideCard({ g, index }: { g: (typeof GUIDES)[number]; index: number }) 
   return (
     <div
       data-testid={`guide-${index}`}
-      className={`overflow-hidden rounded-2xl border bg-[#0b0a11] transition-colors duration-300 ${open ? 'border-[#6ee7ef]/25' : 'border-white/[.07] hover:border-white/[.15]'}`}
+      className={`overflow-hidden rounded-2xl border bg-card transition-colors duration-300 ${open ? 'border-brand-cyan/25' : 'border-border hover:border-input'}`}
     >
       <button
         type="button"
@@ -1578,20 +1633,20 @@ function GuideCard({ g, index }: { g: (typeof GUIDES)[number]; index: number }) 
         onClick={() => setOpen((c) => !c)}
         className="flex w-full cursor-pointer items-center gap-4 px-7 py-6 text-left"
       >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[.08] bg-white/[.03]">
-          <Icon className="h-4.5 w-4.5 text-[#6ee7ef]" />
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-foreground/[.03]">
+          <Icon className="h-4.5 w-4.5 text-brand-cyan" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-mono-tech text-[9.5px] uppercase tracking-[.18em] text-[#e44bd7]">{g.tag}</span>
-          <span className="mt-1 block text-[17px] font-medium leading-snug text-white md:text-[19px]">{g.title}</span>
+          <span className="block font-mono-tech text-[9.5px] uppercase tracking-[.18em] text-brand-magenta">{g.tag}</span>
+          <span className="mt-1 block text-[17px] font-medium leading-snug text-foreground md:text-[19px]">{g.title}</span>
         </span>
-        <span className="hidden shrink-0 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e] sm:block">{g.read}</span>
-        <ArrowDownRight className={`h-5 w-5 shrink-0 text-[#8d8a9e] transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+        <span className="hidden shrink-0 font-mono-tech text-[10px] uppercase tracking-[.16em] text-muted-foreground sm:block">{g.read}</span>
+        <ArrowDownRight className={`h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="space-y-4 border-t border-white/[.06] px-7 py-6">
+        <div className="space-y-4 border-t border-border px-7 py-6">
           {g.body.map((para, k) => (
-            <p key={k} className="max-w-3xl text-[14.5px] font-light leading-7.5 text-[#b9b6c9]">{para}</p>
+            <p key={k} className="max-w-3xl text-[14.5px] font-light leading-7.5 text-foreground/75">{para}</p>
           ))}
         </div>
       )}
@@ -1608,11 +1663,11 @@ function Guides() {
           <div className="mb-14 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
               <Kicker magenta>06 — Dealer field guides</Kicker>
-              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                Written for the <span className="text-[#6ee7ef]">front office,</span> not the boardroom.
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+                Written for the <span className="text-brand-cyan">front office,</span> not the boardroom.
               </h2>
             </div>
-            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+            <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
               The same playbooks we built the tools around — rebate recovery, incentive capture, and what manual VidaPay work really costs. Free, no email wall.
             </p>
           </div>
@@ -1675,25 +1730,25 @@ const REVIEW_TOOLS = [
 
 function ReviewCard({ review }: { review: DealerReview }) {
   return (
-    <figure data-testid={`review-${review.initials}`} className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] p-8 transition-colors duration-500 hover:border-white/[.16] lg:p-9">
+    <figure data-testid={`review-${review.initials}`} className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-8 transition-colors duration-500 hover:border-input lg:p-9">
       <div>
-        <div className="flex items-center gap-1 text-[#e44bd7]" aria-label={`${review.stars} out of 5 stars`}>
+        <div className="flex items-center gap-1 text-brand-magenta" aria-label={`${review.stars} out of 5 stars`}>
           {Array.from({ length: 5 }).map((_, s) => (
             <Star key={s} className={`h-4 w-4 ${s < review.stars ? 'fill-current' : 'opacity-25'}`} />
           ))}
         </div>
-        <blockquote className="mt-6 text-[15px] font-light leading-8 text-[#c9c6d8]">“{review.quote}”</blockquote>
+        <blockquote className="mt-6 text-[15px] font-light leading-8 text-foreground/85">“{review.quote}”</blockquote>
       </div>
-      <figcaption className="mt-9 flex items-center gap-3.5 border-t border-white/[.07] pt-6">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e44bd7]/40 bg-white/[.04] font-mono-tech text-[11px] text-[#6ee7ef]">{review.initials}</span>
+      <figcaption className="mt-9 flex items-center gap-3.5 border-t border-border pt-6">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-brand-magenta/40 bg-foreground/[.04] font-mono-tech text-[11px] text-brand-cyan">{review.initials}</span>
         <div>
-          <div className="flex items-center gap-1.5 text-[14px] font-medium text-white">
+          <div className="flex items-center gap-1.5 text-[14px] font-medium text-foreground">
             {review.name}
-            <span className="inline-flex items-center gap-1 rounded-md border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.08] px-1.5 py-0.5 font-mono-tech text-[8.5px] uppercase tracking-[.12em] text-[#6ee7ef]" title="License verified against purchase records">
+            <span className="inline-flex items-center gap-1 rounded-md border border-brand-cyan/30 bg-[#6ee7ef]/[.08] px-1.5 py-0.5 font-mono-tech text-[8.5px] uppercase tracking-[.12em] text-brand-cyan" title="License verified against purchase records">
               <ShieldCheck className="h-2.5 w-2.5" /> Verified purchase
             </span>
           </div>
-          <div className="mt-0.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">{review.org} · {review.date}</div>
+          <div className="mt-0.5 font-mono-tech text-[10px] uppercase tracking-[.16em] text-muted-foreground">{review.org} · {review.date}</div>
         </div>
       </figcaption>
     </figure>
@@ -1763,11 +1818,11 @@ function Reviews() {
           <div className="mb-14 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
               <Kicker>08 — Trust &amp; guarantees</Kicker>
-              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                No invented praise. <span className="text-[#6ee7ef]">Verified dealers</span> only.
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+                No invented praise. <span className="text-brand-cyan">Verified dealers</span> only.
               </h2>
             </div>
-            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+            <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
               We publish zero anonymous quotes and zero paid testimonials. Every review below comes from a license holder we can point to in our records.
             </p>
           </div>
@@ -1780,14 +1835,14 @@ function Reviews() {
             {TRUST_CARDS.map((card) => {
               const Icon = card.icon;
               return (
-                <div key={card.title} className="rounded-2xl border border-white/[.07] bg-[#0b0a11] p-6 transition-colors duration-300 hover:border-[#6ee7ef]/25">
+                <div key={card.title} className="rounded-2xl border border-border bg-card p-6 transition-colors duration-300 hover:border-brand-cyan/25">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#6ee7ef]/25 bg-[#6ee7ef]/[.06]">
-                      <Icon className="h-4 w-4 text-[#6ee7ef]" />
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-cyan/25 bg-[#6ee7ef]/[.06]">
+                      <Icon className="h-4 w-4 text-brand-cyan" />
                     </span>
-                    <h3 className="text-[15px] font-medium text-white">{card.title}</h3>
+                    <h3 className="text-[15px] font-medium text-foreground">{card.title}</h3>
                   </div>
-                  <p className="mt-3 text-[13.5px] font-light leading-6.5 text-[#b9b6c9]">{card.text}</p>
+                  <p className="mt-3 text-[13.5px] font-light leading-6.5 text-foreground/75">{card.text}</p>
                 </div>
               );
             })}
@@ -1805,9 +1860,9 @@ function Reviews() {
           </div>
         ) : (
           <Reveal delay={0.06}>
-            <div className="mb-14 rounded-2xl border border-dashed border-white/[.14] bg-white/[.015] p-7 text-center" data-testid="reviews-empty">
-              <p className="text-[15px] font-light leading-7 text-[#b9b6c9]">
-                <span className="font-medium text-white">No published reviews yet.</span>{' '}
+            <div className="mb-14 rounded-2xl border border-dashed border-input bg-foreground/[.015] p-7 text-center" data-testid="reviews-empty">
+              <p className="text-[15px] font-light leading-7 text-foreground/75">
+                <span className="font-medium text-foreground">No published reviews yet.</span>{' '}
                 We would rather show an empty wall than a fake one. The first verified dealer reviews go up here the moment they clear verification — good or bad.
               </p>
             </div>
@@ -1817,22 +1872,22 @@ function Reviews() {
         {/* the review box — submissions land in the 3S Verse inbox, get
             verified against license records, then get published */}
         <Reveal delay={0.08}>
-          <div className="grid gap-10 rounded-3xl border border-white/[.08] bg-[#0b0a11] p-7 shadow-[0_30px_100px_rgba(0,0,0,.5)] sm:p-10 lg:grid-cols-[1fr_1.4fr]">
+          <div className="grid gap-10 rounded-3xl border border-border bg-card p-7 shadow-[0_30px_100px_rgba(0,0,0,.15)] dark:shadow-[0_30px_100px_rgba(0,0,0,.5)] sm:p-10 lg:grid-cols-[1fr_1.4fr]">
             <div>
-              <h3 className="text-[24px] font-light leading-tight tracking-[-0.01em] text-white">Running a tool? <span className="text-[#6ee7ef]">Leave a review.</span></h3>
+              <h3 className="text-[24px] font-light leading-tight tracking-[-0.01em] text-foreground">Running a tool? <span className="text-brand-cyan">Leave a review.</span></h3>
               <ol className="mt-6 space-y-4">
                 {[
                   'Submit the form — takes a minute.',
                   'We verify you against license records (your email is never published).',
                   'Your review goes live with your name, store, and city. Critical reviews publish too.',
                 ].map((step, i) => (
-                  <li key={i} className="flex gap-3.5 text-[14px] font-light leading-6.5 text-[#b9b6c9]">
-                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#e44bd7]/40 font-mono-tech text-[10px] text-[#6ee7ef]">{i + 1}</span>
+                  <li key={i} className="flex gap-3.5 text-[14px] font-light leading-6.5 text-foreground/75">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-brand-magenta/40 font-mono-tech text-[10px] text-brand-cyan">{i + 1}</span>
                     {step}
                   </li>
                 ))}
               </ol>
-              <p className="mt-6 font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
+              <p className="mt-6 font-mono-tech text-[10px] uppercase tracking-[.16em] text-muted-foreground">
                 Verified purchase badge · moderated by a human
               </p>
             </div>
@@ -1842,45 +1897,45 @@ function Reviews() {
                 <input id="review-website" name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => setForm((c) => ({ ...c, website: event.target.value }))} />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                   Name
-                  <input required maxLength={120} value={form.name} onChange={(e) => { setForm((c) => ({ ...c, name: e.target.value })); setStatus('idle'); }} data-testid="input-review-name" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="First and last name" />
+                  <input required maxLength={120} value={form.name} onChange={(e) => { setForm((c) => ({ ...c, name: e.target.value })); setStatus('idle'); }} data-testid="input-review-name" className="mt-2 w-full rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="First and last name" />
                 </label>
-                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
-                  Email <span className="normal-case text-[#8d8a9e]/70">(not published)</span>
-                  <input required maxLength={254} type="email" value={form.email} onChange={(e) => { setForm((c) => ({ ...c, email: e.target.value })); setStatus('idle'); }} data-testid="input-review-email" autoComplete="email" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="Used only for verification" />
+                <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
+                  Email <span className="normal-case text-muted-foreground/70">(not published)</span>
+                  <input required maxLength={254} type="email" value={form.email} onChange={(e) => { setForm((c) => ({ ...c, email: e.target.value })); setStatus('idle'); }} data-testid="input-review-email" autoComplete="email" className="mt-2 w-full rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="Used only for verification" />
                 </label>
-                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                   Store / city
-                  <input required maxLength={160} value={form.store} onChange={(e) => { setForm((c) => ({ ...c, store: e.target.value })); setStatus('idle'); }} data-testid="input-review-store" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="e.g. Total Wireless · Dallas, TX" />
+                  <input required maxLength={160} value={form.store} onChange={(e) => { setForm((c) => ({ ...c, store: e.target.value })); setStatus('idle'); }} data-testid="input-review-store" className="mt-2 w-full rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="e.g. Total Wireless · Dallas, TX" />
                 </label>
-                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+                <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                   Tool you use
-                  <select value={form.tool} onChange={(e) => { setForm((c) => ({ ...c, tool: e.target.value })); setStatus('idle'); }} data-testid="select-review-tool" className="mt-2 w-full appearance-none rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors focus:border-[#6ee7ef]/70">
-                    {REVIEW_TOOLS.map((t) => <option key={t} className="bg-[#0b0a11]">{t}</option>)}
+                  <select value={form.tool} onChange={(e) => { setForm((c) => ({ ...c, tool: e.target.value })); setStatus('idle'); }} data-testid="select-review-tool" className="mt-2 w-full appearance-none rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors focus:border-brand-cyan/70">
+                    {REVIEW_TOOLS.map((t) => <option key={t} className="bg-card">{t}</option>)}
                   </select>
                 </label>
-                <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e] sm:col-span-2">
+                <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground sm:col-span-2">
                   Rating
                   <div className="mt-2 flex gap-2">
                     {[['5', '5 — excellent'], ['4', '4 — good'], ['3', '3 — okay'], ['2', '2 — poor'], ['1', '1 — bad']].map(([v, label]) => (
-                      <button key={v} type="button" onClick={() => setForm((c) => ({ ...c, rating: v }))} data-testid={`review-rating-${v}`} aria-label={label} className={`flex h-10 flex-1 items-center justify-center rounded-xl border font-mono-tech text-[12px] transition-colors ${form.rating === v ? 'border-[#6ee7ef]/70 bg-[#6ee7ef]/10 text-[#6ee7ef]' : 'border-white/[.1] bg-white/[.03] text-[#8d8a9e] hover:border-white/[.25]'}`}>
+                      <button key={v} type="button" onClick={() => setForm((c) => ({ ...c, rating: v }))} data-testid={`review-rating-${v}`} aria-label={label} className={`flex h-10 flex-1 items-center justify-center rounded-xl border font-mono-tech text-[12px] transition-colors ${form.rating === v ? 'border-brand-cyan/70 bg-[#6ee7ef]/10 text-brand-cyan' : 'border-border bg-foreground/[.03] text-muted-foreground hover:border-foreground/25'}`}>
                         {v}★
                       </button>
                     ))}
                   </div>
                 </label>
               </div>
-              <label className="mt-4 block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <label className="mt-4 block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                 Your experience
-                <textarea required maxLength={2000} rows={4} value={form.text} onChange={(e) => { setForm((c) => ({ ...c, text: e.target.value })); setStatus('idle'); }} data-testid="textarea-review-text" className="mt-2 w-full resize-y rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="What did the tool change for your stores? Real numbers beat adjectives." />
+                <textarea required maxLength={2000} rows={4} value={form.text} onChange={(e) => { setForm((c) => ({ ...c, text: e.target.value })); setStatus('idle'); }} data-testid="textarea-review-text" className="mt-2 w-full resize-y rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="What did the tool change for your stores? Real numbers beat adjectives." />
               </label>
               <div className="mt-6 flex flex-wrap items-center gap-4">
-                <button type="submit" disabled={status === 'sending'} data-testid="button-review-submit" className="group inline-flex items-center justify-center gap-2.5 rounded-xl bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] disabled:cursor-wait disabled:opacity-70">
+                <button type="submit" disabled={status === 'sending'} data-testid="button-review-submit" className="group inline-flex items-center justify-center gap-2.5 rounded-xl border bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] disabled:cursor-wait disabled:opacity-70">
                   {status === 'sending' ? 'Sending...' : 'Submit review'}
                   <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </button>
-                <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
+                <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-muted-foreground">
                   {status === 'success' ? 'Review received — thank you. It goes up after verification.' : status === 'error' ? `${note || 'Couldn’t send'}. Email ${CONTACT_EMAIL} directly.` : 'Verified against purchase records before publishing.'}
                 </span>
               </div>
@@ -1964,7 +2019,7 @@ function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
           onClick={onClose}
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-[#060509]/95 p-4 backdrop-blur-md sm:p-8"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-background/95 p-4 backdrop-blur-md sm:p-8"
         >
           <motion.div
             initial={{ opacity: 0, y: 28, scale: 0.96 }}
@@ -1976,8 +2031,8 @@ function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose
           >
             <div className="mb-3 flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <div className="font-mono-tech text-[9px] uppercase tracking-[.25em] text-[#6ee7ef]">{video.tag}</div>
-                <h3 className="mt-1 truncate text-lg font-medium text-white">{video.title}</h3>
+                <div className="font-mono-tech text-[9px] uppercase tracking-[.25em] text-brand-cyan">{video.tag}</div>
+                <h3 className="mt-1 truncate text-lg font-medium text-foreground">{video.title}</h3>
               </div>
               <button
                 ref={closeRef}
@@ -1985,12 +2040,12 @@ function VideoLightbox({ video, onClose }: { video: ProjectVideo | null; onClose
                 onClick={onClose}
                 data-testid="button-video-close"
                 aria-label="Close video"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[.04] text-white transition-all duration-300 hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-input bg-foreground/[.04] text-foreground transition-all duration-300 hover:border-brand-cyan/60 hover:text-brand-cyan"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="aspect-video w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0b0a11] shadow-[0_36px_100px_rgba(0,0,0,.6)]">
+            <div className="aspect-video w-full overflow-hidden rounded-2xl border border-border bg-card shadow-[0_36px_100px_rgba(0,0,0,.16)] dark:shadow-[0_36px_100px_rgba(0,0,0,.6)]">
               {source.kind === 'file' ? (
                 <video key={video.url} src={source.src} controls autoPlay playsInline className="h-full w-full" />
               ) : (
@@ -2022,11 +2077,11 @@ function Work() {
           <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
               <Kicker>See the work</Kicker>
-              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-                Watch the systems <span className="text-[#6ee7ef]">in action.</span>
+              <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+                Watch the systems <span className="text-brand-cyan">in action.</span>
               </h2>
             </div>
-            <p className="max-w-sm text-[15px] font-light leading-7 text-[#b9b6c9]">
+            <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
               Short walk-throughs of real builds — automation pipelines, dashboards, and tools doing their job. Click any card to play.
             </p>
           </div>
@@ -2039,29 +2094,29 @@ function Work() {
                 <motion.article
                   whileHover={{ y: -6 }}
                   data-testid={`video-card-${i}`}
-                  className="group relative overflow-hidden rounded-2xl border border-white/[.07] bg-[#0b0a11] transition-colors duration-500 hover:border-white/[.16]"
+                  className="group relative overflow-hidden rounded-2xl border border-border bg-card transition-colors duration-500 hover:border-input"
                 >
                   <button type="button" onClick={() => setActive(video)} data-testid={`video-play-${i}`} aria-label={`Play video: ${video.title}`} className="block w-full cursor-pointer text-left">
-                    <span className="relative block aspect-video overflow-hidden bg-[#0d0c14]">
+                    <span className="relative block aspect-video overflow-hidden bg-card">
                       {thumb ? (
                         <img src={thumb} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(event) => { event.currentTarget.style.display = 'none'; }} />
                       ) : (
                         <span className="flex h-full w-full items-center justify-center">
-                          <Play className="h-8 w-8 text-[#6ee7ef]/50" />
+                          <Play className="h-8 w-8 text-brand-cyan/50" />
                         </span>
                       )}
-                      <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#060509]/85 via-transparent to-transparent" />
-                      <span className="absolute left-4 top-4 rounded-lg border border-white/15 bg-[#060509]/70 px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[.18em] text-[#6ee7ef] backdrop-blur-sm">{video.tag}</span>
+                      <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/85 via-transparent to-transparent" />
+                      <span className="absolute left-4 top-4 rounded-lg border border-input bg-background/70 px-2.5 py-1 font-mono-tech text-[9px] uppercase tracking-[.18em] text-brand-cyan backdrop-blur-sm">{video.tag}</span>
                       <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
-                        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-white/25 bg-[#060509]/70 text-white backdrop-blur-md transition-all duration-300 group-hover:scale-110 group-hover:border-[#6ee7ef]/70 group-hover:text-[#6ee7ef]">
+                        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-input bg-background/70 text-foreground backdrop-blur-md transition-all duration-300 group-hover:scale-110 group-hover:border-brand-cyan/70 group-hover:text-brand-cyan">
                           <Play className="ml-0.5 h-5 w-5 fill-current" />
                         </span>
                       </span>
                     </span>
                   </button>
                   <div className="p-6 lg:p-7">
-                    <h3 className="text-lg font-medium text-white">{video.title}</h3>
-                    <p className="mt-2 text-[14px] font-light leading-6 text-[#b9b6c9]">{video.blurb}</p>
+                    <h3 className="text-lg font-medium text-foreground">{video.title}</h3>
+                    <p className="mt-2 text-[14px] font-light leading-6 text-foreground/75">{video.blurb}</p>
                   </div>
                 </motion.article>
               </Reveal>
@@ -2243,81 +2298,81 @@ function Contact() {
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
         <Reveal>
           <div className="mx-auto mb-14 max-w-3xl text-center">
-            <div className="mb-6 flex items-center justify-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] text-[#6ee7ef]">
-              <Sparkles className="h-3.5 w-3.5 text-[#e44bd7]" /> Ready when you are
+            <div className="mb-6 flex items-center justify-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] text-brand-cyan">
+              <Sparkles className="h-3.5 w-3.5 text-brand-magenta" /> Ready when you are
             </div>
-            <h2 className="text-[clamp(2.4rem,4.6vw,4rem)] font-light leading-[1.05] tracking-[-0.02em] text-white">
-              Bring us the <span className="text-[#6ee7ef]">bottleneck.</span>
+            <h2 className="text-[clamp(2.4rem,4.6vw,4rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
+              Bring us the <span className="text-brand-cyan">bottleneck.</span>
             </h2>
-            <p className="mx-auto mt-6 max-w-xl text-[16px] font-light leading-8 text-[#b9b6c9]">
+            <p className="mx-auto mt-6 max-w-xl text-[16px] font-light leading-8 text-foreground/75">
               Dealer tools for your front office, a website, an app, an AI agent, or a workflow that should have been automated years ago — two clicks below tells us where the hours go, and we&apos;ll show you how to get them back.
             </p>
           </div>
         </Reveal>
         <Reveal delay={0.1}>
-          <form onSubmit={handleSubmit} data-testid="form-contact" className="relative mx-auto max-w-2xl rounded-3xl border border-white/[.08] bg-[#0b0a11] p-7 shadow-[0_30px_100px_rgba(0,0,0,.5)] sm:p-10">
+          <form onSubmit={handleSubmit} data-testid="form-contact" className="relative mx-auto max-w-2xl rounded-3xl border border-border bg-card p-7 shadow-[0_30px_100px_rgba(0,0,0,.15)] dark:shadow-[0_30px_100px_rgba(0,0,0,.5)] sm:p-10">
             <div aria-hidden="true" className="pointer-events-none absolute -left-[9999px] h-px w-px overflow-hidden">
               <label htmlFor="contact-website">Leave this field empty</label>
               <input id="contact-website" name="website" tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} />
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
-              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                 Name
-                <input required maxLength={120} name="name" value={form.name} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-name" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="Your name" />
+                <input required maxLength={120} name="name" value={form.name} onChange={(event) => { setForm((current) => ({ ...current, name: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-name" className="mt-2 w-full rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="Your name" />
               </label>
-              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                 Email
-                <input required maxLength={254} type="email" name="email" value={form.email} onChange={(event) => { setForm((current) => ({ ...current, email: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-email" autoComplete="email" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="you@company.com" />
+                <input required maxLength={254} type="email" name="email" value={form.email} onChange={(event) => { setForm((current) => ({ ...current, email: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-email" autoComplete="email" className="mt-2 w-full rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="you@company.com" />
               </label>
-              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e] sm:col-span-2">
+              <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground sm:col-span-2">
                 Organization
-                <input required maxLength={160} name="organization" value={form.organization} onChange={(event) => { setForm((current) => ({ ...current, organization: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-organization" className="mt-2 w-full rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="Company or organization" />
+                <input required maxLength={160} name="organization" value={form.organization} onChange={(event) => { setForm((current) => ({ ...current, organization: event.target.value })); setSubmitStatus('idle'); }} data-testid="input-contact-organization" className="mt-2 w-full rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="Company or organization" />
               </label>
-              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                 Locations you run
-                <select name="locations" value={form.locations} onChange={(event) => { setForm((current) => ({ ...current, locations: event.target.value })); setSubmitStatus('idle'); }} data-testid="select-contact-locations" className="mt-2 w-full appearance-none rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors focus:border-[#6ee7ef]/70">
-                  <option className="bg-[#0b0a11]">Just exploring</option>
-                  <option className="bg-[#0b0a11]">1 store</option>
-                  <option className="bg-[#0b0a11]">2–5 stores</option>
-                  <option className="bg-[#0b0a11]">6–15 stores</option>
-                  <option className="bg-[#0b0a11]">16+ stores</option>
+                <select name="locations" value={form.locations} onChange={(event) => { setForm((current) => ({ ...current, locations: event.target.value })); setSubmitStatus('idle'); }} data-testid="select-contact-locations" className="mt-2 w-full appearance-none rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors focus:border-brand-cyan/70">
+                  <option className="bg-card">Just exploring</option>
+                  <option className="bg-card">1 store</option>
+                  <option className="bg-card">2–5 stores</option>
+                  <option className="bg-card">6–15 stores</option>
+                  <option className="bg-card">16+ stores</option>
                 </select>
               </label>
-              <label className="block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+              <label className="block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                 I&apos;m interested in
-                <select name="interest" value={form.interest} onChange={(event) => { setForm((current) => ({ ...current, interest: event.target.value })); setSubmitStatus('idle'); }} data-testid="select-contact-interest" className="mt-2 w-full appearance-none rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors focus:border-[#6ee7ef]/70">
-                  <option className="bg-[#0b0a11]">Dealer tools (Extractor / Ordering / Rebate)</option>
-                  <option className="bg-[#0b0a11]">Custom software / automation</option>
-                  <option className="bg-[#0b0a11]">Website or app</option>
-                  <option className="bg-[#0b0a11]">Something else</option>
+                <select name="interest" value={form.interest} onChange={(event) => { setForm((current) => ({ ...current, interest: event.target.value })); setSubmitStatus('idle'); }} data-testid="select-contact-interest" className="mt-2 w-full appearance-none rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors focus:border-brand-cyan/70">
+                  <option className="bg-card">Dealer tools (Extractor / Ordering / Rebate)</option>
+                  <option className="bg-card">Custom software / automation</option>
+                  <option className="bg-card">Website or app</option>
+                  <option className="bg-card">Something else</option>
                 </select>
               </label>
             </div>
-            <label className="mt-5 block font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+            <label className="mt-5 block font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
               Message
-              <textarea required maxLength={5000} name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y rounded-xl border border-white/[.1] bg-white/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-white outline-none transition-colors placeholder:text-[#8d8a9e]/50 focus:border-[#6ee7ef]/70" placeholder="What should we automate first?" />
+              <textarea required maxLength={5000} name="message" value={form.message} onChange={(event) => { setForm((current) => ({ ...current, message: event.target.value })); setSubmitStatus('idle'); }} data-testid="textarea-contact-message" rows={5} className="mt-2 w-full resize-y rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="What should we automate first?" />
             </label>
             {TURNSTILE_SITE_KEY && <TurnstileWidget key={cfResetCount} onToken={setCfToken} />}
             <div className="mt-7 flex flex-wrap items-center gap-4">
-              <button type="submit" disabled={submitStatus === 'sending'} data-testid="button-contact-submit" className="group inline-flex items-center justify-center gap-2.5 rounded-xl bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] disabled:cursor-wait disabled:opacity-70">
+              <button type="submit" disabled={submitStatus === 'sending'} data-testid="button-contact-submit" className="group inline-flex items-center justify-center gap-2.5 rounded-xl border bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] disabled:cursor-wait disabled:opacity-70">
                 {submitStatus === 'sending' ? 'Sending...' : 'Send message'}
                 <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </button>
-              <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-[#8d8a9e]">
+              <span aria-live="polite" className="font-mono-tech text-[10px] uppercase tracking-[.16em] text-muted-foreground">
                 {submitStatus === 'success' ? 'Message sent — we’ll be in touch.' : submitStatus === 'error' ? `${serverNote || 'Couldn’t send'}. Email ${CONTACT_EMAIL} directly.` : 'We reply within one US Central business day.'}
               </span>
             </div>
-            <p className="mt-5 text-[11.5px] font-light leading-5 text-[#8d8a9e]">
-              By sending you agree to our <a href="#/privacy" data-testid="link-contact-privacy" className="underline decoration-white/30 underline-offset-2 hover:text-white">Privacy Policy</a> — your details are used only to answer this enquiry and are never sold.
+            <p className="mt-5 text-[12.5px] font-light leading-5 text-muted-foreground">
+              By sending you agree to our <a href="#/privacy" data-testid="link-contact-privacy" className="underline decoration-foreground/30 underline-offset-2 hover:text-foreground">Privacy Policy</a> — your details are used only to answer this enquiry and are never sold.
             </p>
           </form>
         </Reveal>
         <Reveal delay={0.16}>
           <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-x-7 gap-y-3" data-testid="contact-socials">
-            <span className="font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#8d8a9e]">Prefer social? Follow the build —</span>
-            <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-contact-linkedin" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-[#c9c6d8] transition-colors hover:text-[#6ee7ef]"><Linkedin className="h-4 w-4" /> LinkedIn</a>
-            <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-[#c9c6d8] transition-colors hover:text-[#e44bd7]"><Instagram className="h-4 w-4" /> Instagram</a>
-            <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-[#c9c6d8] transition-colors hover:text-[#78a6ff]"><Facebook className="h-4 w-4" /> Facebook</a>
+            <span className="font-mono-tech text-[10px] uppercase tracking-[.2em] text-muted-foreground">Prefer social? Follow the build —</span>
+            <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-contact-linkedin" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-cyan"><Linkedin className="h-4 w-4" /> LinkedIn</a>
+            <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-magenta"><Instagram className="h-4 w-4" /> Instagram</a>
+            <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-periwinkle"><Facebook className="h-4 w-4" /> Facebook</a>
           </div>
         </Reveal>
       </div>
@@ -2327,49 +2382,49 @@ function Contact() {
 
 function Footer() {
   return (
-    <footer className="border-t border-white/[.06] bg-[#060509]">
+    <footer className="border-t border-border bg-background">
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm">
             <img src="/logo-240.png" alt="3S Verse" width={240} height={57} className="h-5 w-auto" />
-            <p className="mt-5 text-[14px] font-light leading-7 text-[#b9b6c9]">
+            <p className="mt-5 text-[14px] font-light leading-7 text-foreground/75">
               Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation, built by people who have run the operations themselves.
             </p>
           </div>
           <div className="flex flex-wrap gap-x-14 gap-y-8">
             <div>
-              <div className="font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#8d8a9e]">Explore</div>
+              <div className="font-mono-tech text-[10px] uppercase tracking-[.22em] text-muted-foreground">Explore</div>
               <div className="mt-4 flex flex-col gap-2.5">
                 {navItems.map((item) => (
-                  <a key={item.href} href={item.href} className="text-[14px] font-light text-[#c9c6d8] transition-colors hover:text-[#6ee7ef]">{item.label}</a>
+                  <a key={item.href} href={item.href} className="text-[14px] font-light text-foreground/85 transition-colors hover:text-brand-cyan">{item.label}</a>
                 ))}
               </div>
             </div>
             <div>
-              <div className="font-mono-tech text-[10px] uppercase tracking-[.22em] text-[#8d8a9e]">Follow</div>
+              <div className="font-mono-tech text-[10px] uppercase tracking-[.22em] text-muted-foreground">Follow</div>
               <div className="mt-4 flex items-center gap-4">
-                <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-linkedin" aria-label="3S Verse on LinkedIn" className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#c9c6d8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#6ee7ef]/60 hover:text-[#6ee7ef]"><Linkedin className="h-4 w-4" /></a>
-                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-instagram" aria-label="3S Verse on Instagram" className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#c9c6d8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#e44bd7]/60 hover:text-[#e44bd7]"><Instagram className="h-4 w-4" /></a>
-                <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-facebook" aria-label="3S Verse on Facebook" className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#c9c6d8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#78a6ff]/60 hover:text-[#78a6ff]"><Facebook className="h-4 w-4" /></a>
+                <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-linkedin" aria-label="3S Verse on LinkedIn" className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-foreground/85 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-cyan/60 hover:text-brand-cyan"><Linkedin className="h-4 w-4" /></a>
+                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-instagram" aria-label="3S Verse on Instagram" className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-foreground/85 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-magenta/60 hover:text-brand-magenta"><Instagram className="h-4 w-4" /></a>
+                <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-facebook" aria-label="3S Verse on Facebook" className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-foreground/85 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-periwinkle/60 hover:text-brand-periwinkle"><Facebook className="h-4 w-4" /></a>
               </div>
-              <a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle mt-5 inline-block bg-gradient-to-r from-[#6ee7ef] via-[#78a6ff] to-[#e44bd7] bg-clip-text font-mono-tech text-[11px] tracking-wider text-transparent">{CONTACT_EMAIL}</a>
+              <a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle mt-5 inline-block font-mono-tech text-[12px] tracking-wider text-brand-cyan dark:bg-none dark:bg-gradient-to-r dark:from-[#6ee7ef] dark:via-[#78a6ff] dark:to-[#e44bd7] dark:bg-clip-text dark:text-transparent">{CONTACT_EMAIL}</a>
             </div>
           </div>
         </div>
-        <p className="mt-10 border-t border-white/[.06] pt-7 text-[11.5px] font-light leading-5 text-[#6f6c80]">
+        <p className="mt-10 border-t border-border pt-7 text-[12.5px] font-light leading-5 text-muted-foreground">
           3S Verse is an independent software provider and is not affiliated with, endorsed by, or sponsored by VidaPay, T-CETRA, Total Wireless, or their parent companies. Product names and trademarks belong to their respective owners. Use of the tools remains subject to the dealer’s applicable agreements and policies.
         </p>
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4 font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
           <span>3S Verse {new Date().getFullYear()} © — All rights reserved</span>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <a href="#/download" data-testid="link-footer-download" className="transition-colors hover:text-white">Download</a>
-            <a href="#/security" data-testid="link-footer-security" className="transition-colors hover:text-white">Security</a>
-            <a href="#/privacy" data-testid="link-footer-privacy" className="transition-colors hover:text-white">Privacy</a>
-            <a href="#/terms" data-testid="link-footer-terms" className="transition-colors hover:text-white">Terms</a>
-            <a href="#/refund" data-testid="link-footer-refund" className="transition-colors hover:text-white">Refund</a>
-            <a href="#/eula" data-testid="link-footer-eula" className="transition-colors hover:text-white">EULA</a>
-            <a href="#/invoice" data-testid="link-footer-invoice" className="transition-colors hover:text-white" title="Invoice Studio (seller)">Invoice</a>
-            <a href="#top" data-testid="link-footer-top" className="transition-colors hover:text-white">Back to top ↑</a>
+            <a href="#/download" data-testid="link-footer-download" className="transition-colors hover:text-foreground">Download</a>
+            <a href="#/security" data-testid="link-footer-security" className="transition-colors hover:text-foreground">Security</a>
+            <a href="#/privacy" data-testid="link-footer-privacy" className="transition-colors hover:text-foreground">Privacy</a>
+            <a href="#/terms" data-testid="link-footer-terms" className="transition-colors hover:text-foreground">Terms</a>
+            <a href="#/refund" data-testid="link-footer-refund" className="transition-colors hover:text-foreground">Refund</a>
+            <a href="#/eula" data-testid="link-footer-eula" className="transition-colors hover:text-foreground">EULA</a>
+            <a href="#/invoice" data-testid="link-footer-invoice" className="transition-colors hover:text-foreground" title="Invoice Studio (seller)">Invoice</a>
+            <a href="#top" data-testid="link-footer-top" className="transition-colors hover:text-foreground">Back to top ↑</a>
           </div>
         </div>
       </div>
@@ -2458,7 +2513,7 @@ function Home() {
     return () => { document.removeEventListener('click', onClick); };
   }, []);
   return (
-    <div className="noise min-h-[100dvh] overflow-x-clip bg-[#060509]">
+    <div className="noise min-h-[100dvh] overflow-x-clip bg-background">
       <ScrollProgress />
       <Spotlight />
       <ScrollTop />
@@ -2508,7 +2563,7 @@ function App() {
   if (hash.startsWith('#/invoice')) {
     return (
       <Suspense fallback={
-        <div className="grid min-h-screen place-items-center bg-[#090D26] text-sm text-white/60" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+        <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground" style={{ fontFamily: 'Montserrat, sans-serif' }}>
           Loading Invoice Studio…
         </div>
       }>
@@ -2520,7 +2575,7 @@ function App() {
   if (legalMatch) {
     return (
       <Suspense fallback={
-        <div className="grid min-h-screen place-items-center bg-[#060509] text-sm text-white/60" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+        <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground" style={{ fontFamily: 'Montserrat, sans-serif' }}>
           Loading…
         </div>
       }>
@@ -2531,7 +2586,7 @@ function App() {
   if (hash.startsWith('#/download')) {
     return (
       <Suspense fallback={
-        <div className="grid min-h-screen place-items-center bg-[#060509] text-sm text-white/60" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+        <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground" style={{ fontFamily: 'Montserrat, sans-serif' }}>
           Loading…
         </div>
       }>

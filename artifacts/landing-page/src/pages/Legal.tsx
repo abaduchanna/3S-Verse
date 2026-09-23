@@ -23,8 +23,8 @@ const META: Record<LegalKind, { title: string; kicker: string }> = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-10">
-      <h2 className="text-[20px] font-medium tracking-[-0.01em] text-white">{title}</h2>
-      <div className="mt-3 space-y-3 text-[14.5px] font-light leading-7 text-[#b9b6c9]">{children}</div>
+      <h2 className="text-[20px] font-medium tracking-[-0.01em] text-foreground">{title}</h2>
+      <div className="mt-3 space-y-3 text-[14.5px] font-light leading-7 text-foreground/75">{children}</div>
     </section>
   );
 }
@@ -34,19 +34,19 @@ function Privacy() {
     <>
       <Section title="What we collect">
         <p>
-          <strong className="font-medium text-white">Contact and review forms.</strong> When you submit the contact
+          <strong className="font-medium text-foreground">Contact and review forms.</strong> When you submit the contact
           or dealer-review form, we receive the details you type: name, email, organization, locations, interest,
           message (and for reviews: store/city, tool and rating). Submissions are relayed to our inbox
           ({EMAIL}) by a third-party form-delivery service and used only to answer your enquiry or verify a review.
           We never sell, rent or trade them.
         </p>
         <p>
-          <strong className="font-medium text-white">Orders.</strong> Order details (products, model, PC count,
+          <strong className="font-medium text-foreground">Orders.</strong> Order details (products, model, PC count,
           company, email) are used to generate your invoice and license keys. Invoice documents are assembled in
           your own browser; we receive a copy by email for fulfilment and accounting.
         </p>
         <p>
-          <strong className="font-medium text-white">License activation.</strong> To enforce one-license-per-seat,
+          <strong className="font-medium text-foreground">License activation.</strong> To enforce one-license-per-seat,
           the license ledger stores the license ID, customer name, and — on activation — the machine ID, hostname
           and MAC address of each PC using the license. This is what lets you reinstall on the same PC without
           re-purchase, and lets us release a seat when you change hardware.
@@ -132,7 +132,7 @@ function Terms() {
       </Section>
       <Section title="Contact">
         <p>
-          Questions about these terms: <a className="text-[#6ee7ef] hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a>.
+          Questions about these terms: <a className="text-brand-cyan hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a>.
           We reply within one US Central business day.
         </p>
       </Section>
@@ -145,15 +145,15 @@ function Refund() {
     <>
       <Section title="The guarantee">
         <p>
-          Every license carries a <strong className="font-medium text-white">30-day money-back guarantee</strong>.
+          Every license carries a <strong className="font-medium text-foreground">30-day money-back guarantee</strong>.
           If a tool does not do what this site promises on your dealership&rsquo;s data, tell us within 30 days of
-          delivery and we refund you in full — <strong className="font-medium text-white">processed within 5
+          delivery and we refund you in full — <strong className="font-medium text-foreground">processed within 5
           business days</strong>, back to the original payment method.
         </p>
       </Section>
       <Section title="How to request one">
         <p>
-          Email <a className="text-[#6ee7ef] hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a> (or reply to
+          Email <a className="text-brand-cyan hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a> (or reply to
           your invoice email) with your order number and one line about what fell short. A short call is welcome
           but never required — we do not interrogate refund requests.
         </p>
@@ -267,7 +267,7 @@ function Security() {
       <Section title="Installer integrity">
         <p>
           Every public trial build is served from a controlled GitHub repository and is re-published on a fixed
-          sync schedule. The <a className="text-[#6ee7ef] hover:underline" href="#/download">Download page</a>{' '}
+          sync schedule. The <a className="text-brand-cyan hover:underline" href="#/download">Download page</a>{' '}
           shows the live SHA-256 checksum of each installer straight from that repository — verify the file you
           downloaded against it before running. Paid (FULL) builds are never publicly downloadable; they are
           delivered to paying customers through an order-number-gated request.
@@ -282,7 +282,7 @@ function Security() {
           Updates are included with every plan and ship as normal installers — when the VidaPay portal changes,
           fixes ship to everyone at no charge. If you believe you have found a security issue in our tools,
           website or licensing system, email{' '}
-          <a className="text-[#6ee7ef] hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a> with the details.
+          <a className="text-brand-cyan hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a> with the details.
           We acknowledge within one US Central business day, and we will happily credit responsible reports on
           this page (with your permission).
         </p>
@@ -299,8 +299,8 @@ export default function LegalPage({ kind }: { kind: LegalKind }) {
   }, [kind, meta.title]);
 
   return (
-    <div className="min-h-screen bg-[#060509] text-white">
-      <header className="sticky top-0 z-10 border-b border-white/[.06] bg-[#060509]/85 backdrop-blur-xl">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="sticky top-0 z-10 border-b border-border bg-background/85 backdrop-blur-xl">
         <div className="mx-auto flex h-[64px] max-w-4xl items-center justify-between px-5">
           <a href="#/" aria-label="3S Verse — home" className="flex items-center gap-2.5">
             <img src="/logo-240.png" alt="3S Verse" width={240} height={57} className="h-4 w-auto" />
@@ -308,7 +308,7 @@ export default function LegalPage({ kind }: { kind: LegalKind }) {
           <a
             href="#/"
             data-testid="legal-back"
-            className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-3.5 py-2 text-[12.5px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-xl border border-input px-3.5 py-2 text-[12.5px] font-medium text-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to site
           </a>
@@ -316,12 +316,12 @@ export default function LegalPage({ kind }: { kind: LegalKind }) {
       </header>
 
       <main className="mx-auto max-w-3xl px-5 pb-24 pt-14">
-        <div className="font-mono-tech text-[10px] uppercase tracking-[.3em] text-[#6ee7ef]">{meta.kicker}</div>
+        <div className="font-mono-tech text-[10px] uppercase tracking-[.3em] text-brand-cyan">{meta.kicker}</div>
         <h1 className="mt-4 text-[clamp(2rem,4.5vw,3.2rem)] font-light leading-[1.08] tracking-[-0.02em]">
           {meta.title}
         </h1>
-        <p className="mt-4 font-mono-tech text-[10px] uppercase tracking-[.2em] text-[#8d8a9e]">
-          Last updated {UPDATED} · Questions: <a className="normal-case text-[#6ee7ef] hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a>
+        <p className="mt-4 font-mono-tech text-[10px] uppercase tracking-[.2em] text-muted-foreground">
+          Last updated {UPDATED} · Questions: <a className="normal-case text-brand-cyan hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a>
         </p>
 
         {kind === 'privacy' && <Privacy />}
@@ -330,16 +330,16 @@ export default function LegalPage({ kind }: { kind: LegalKind }) {
         {kind === 'eula' && <Eula />}
         {kind === 'security' && <Security />}
 
-        <div className="mt-14 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-white/[.06] pt-7 font-mono-tech text-[10px] uppercase tracking-[.18em] text-[#8d8a9e]">
-          <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-[#6ee7ef]" /> 3S Verse — operator-built software</span>
-          <a href="#/download" className="transition-colors hover:text-white">Download</a>
-          <a href="#/security" className="transition-colors hover:text-white">Security</a>
-          <a href="#/privacy" className="transition-colors hover:text-white">Privacy</a>
-          <a href="#/terms" className="transition-colors hover:text-white">Terms</a>
-          <a href="#/refund" className="transition-colors hover:text-white">Refund</a>
-          <a href="#/eula" className="transition-colors hover:text-white">EULA</a>
+        <div className="mt-14 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-border pt-7 font-mono-tech text-[10px] uppercase tracking-[.18em] text-muted-foreground">
+          <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-brand-cyan" /> 3S Verse — operator-built software</span>
+          <a href="#/download" className="transition-colors hover:text-foreground">Download</a>
+          <a href="#/security" className="transition-colors hover:text-foreground">Security</a>
+          <a href="#/privacy" className="transition-colors hover:text-foreground">Privacy</a>
+          <a href="#/terms" className="transition-colors hover:text-foreground">Terms</a>
+          <a href="#/refund" className="transition-colors hover:text-foreground">Refund</a>
+          <a href="#/eula" className="transition-colors hover:text-foreground">EULA</a>
         </div>
-        <p className="mt-8 text-[11.5px] font-light leading-5 text-[#6f6c80]">
+        <p className="mt-8 text-[12.5px] font-light leading-5 text-muted-foreground">
           3S Verse is an independent software provider and is not affiliated with, endorsed by, or sponsored by
           VidaPay, T-CETRA, Total Wireless, or their parent companies. Product names and trademarks belong to
           their respective owners.

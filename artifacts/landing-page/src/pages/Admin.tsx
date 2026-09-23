@@ -52,12 +52,12 @@ async function api(body: Record<string, unknown>): Promise<{ status: number; dat
 }
 
 const inputClass =
-  'w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-[15px] text-white placeholder:text-[#6d6a80] outline-none focus:border-[#6ee7ef]/60';
+  'w-full rounded-xl border border-border bg-foreground/[.04] px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground outline-none focus:border-brand-cyan/60';
 
 function statusBadge(status: string): string {
-  if (status === 'APPROVED') return 'border-emerald-400/30 bg-emerald-400/[.08] text-emerald-200';
-  if (status === 'REJECTED') return 'border-rose-400/30 bg-rose-400/[.08] text-rose-200';
-  return 'border-amber-400/30 bg-amber-400/[.08] text-amber-200';
+  if (status === 'APPROVED') return 'border-emerald-400/30 bg-emerald-400/[.08] text-emerald-700 dark:text-emerald-200';
+  if (status === 'REJECTED') return 'border-rose-400/30 bg-rose-400/[.08] text-rose-700 dark:text-rose-200';
+  return 'border-amber-400/30 bg-amber-400/[.08] text-amber-700 dark:text-amber-200';
 }
 
 export default function Admin() {
@@ -183,18 +183,18 @@ export default function Admin() {
 
   if (authed === 'checking') {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-[#060509] text-[#8d8a9e]">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background text-muted-foreground">
         <Loader2 className="mr-3 h-5 w-5 animate-spin" /> Loading admin…
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#060509]">
-      <header className="border-b border-white/[.06]">
+    <div className="min-h-[100dvh] bg-background">
+      <header className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 lg:px-8">
-          <a href="/" className="text-[15px] font-semibold tracking-[.08em] text-white">
-            3S VERSE <span className="ml-2 text-[12px] font-normal text-[#8d8a9e]">dealer console</span>
+          <a href="/" className="text-[15px] font-semibold tracking-[.08em] text-foreground">
+            3S VERSE <span className="ml-2 text-[12px] font-normal text-muted-foreground">dealer console</span>
           </a>
           {authed === 'yes' ? (
             <button
@@ -205,7 +205,7 @@ export default function Admin() {
                 setOrders([]);
                 setSelected(null);
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-[13px] text-[#d8d5e8] hover:border-white/40 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-xl border border-input px-4 py-2 text-[13px] text-foreground hover:border-foreground/40 hover:text-foreground"
             >
               <LogOut className="h-3.5 w-3.5" /> Sign out
             </button>
@@ -215,15 +215,15 @@ export default function Admin() {
 
       <main className="mx-auto max-w-6xl px-5 py-10 lg:px-8">
         {flash ? (
-          <p className="mb-6 rounded-xl border border-[#6ee7ef]/25 bg-[#6ee7ef]/[.06] px-4 py-3 text-[13.5px] text-[#d8d5e8]">
+          <p className="mb-6 rounded-xl border border-brand-cyan/25 bg-[#6ee7ef]/[.06] px-4 py-3 text-[13.5px] text-foreground">
             {flash}
           </p>
         ) : null}
 
         {authed !== 'yes' ? (
-          <form onSubmit={login} className="mx-auto mt-10 max-w-sm rounded-3xl border border-white/[.08] bg-[#0b0a11] p-8">
-            <h1 className="text-[20px] font-light text-white">Dealer console sign-in</h1>
-            <p className="mt-1.5 text-[13px] text-[#8d8a9e]">
+          <form onSubmit={login} className="mx-auto mt-10 max-w-sm rounded-3xl border border-border bg-card p-8">
+            <h1 className="text-[20px] font-light text-foreground">Dealer console sign-in</h1>
+            <p className="mt-1.5 text-[13px] text-muted-foreground">
               Seller access only — approve orders and deliver licenses.
             </p>
             <input
@@ -236,15 +236,15 @@ export default function Admin() {
               aria-label="Admin password"
             />
             {loginError ? (
-              <p className="mt-3 text-[13px] text-rose-300">{loginError}</p>
+              <p className="mt-3 text-[13px] text-rose-700 dark:text-rose-300">{loginError}</p>
             ) : null}
             <button
               type="submit"
-              className="mt-5 w-full rounded-xl bg-white px-6 py-3 text-[15px] font-semibold text-[#0b0a10]"
+              className="mt-5 w-full rounded-xl border bg-white px-6 py-3 text-[15px] font-semibold text-[#0b0a10]"
             >
               Sign in
             </button>
-            <p className="mt-4 text-[12px] leading-5 text-[#6d6a80]">
+            <p className="mt-4 text-[12px] leading-5 text-muted-foreground">
               Set ADMIN_PASSWORD in the Netlify environment variables (Site configuration →
               Environment variables), then redeploy.
             </p>
@@ -253,18 +253,18 @@ export default function Admin() {
           <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
             <section>
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-[16px] font-medium text-white">Orders</h2>
+                <h2 className="text-[16px] font-medium text-foreground">Orders</h2>
                 <button
                   type="button"
                   onClick={() => void loadOrders()}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-3.5 py-2 text-[12.5px] text-[#d8d5e8] hover:border-white/40 hover:text-white"
+                  className="inline-flex items-center gap-2 rounded-xl border border-input px-3.5 py-2 text-[12.5px] text-foreground hover:border-foreground/40 hover:text-foreground"
                 >
                   <RefreshCw className="h-3.5 w-3.5" /> Refresh
                 </button>
               </div>
               <div className="max-h-[70vh] space-y-2 overflow-y-auto pr-1">
                 {orders.length === 0 ? (
-                  <p className="rounded-2xl border border-white/[.08] bg-[#0b0a11] px-4 py-6 text-center text-[13.5px] text-[#8d8a9e]">
+                  <p className="rounded-2xl border border-border bg-card px-4 py-6 text-center text-[13.5px] text-muted-foreground">
                     No orders yet — they appear here the moment a customer checks out.
                   </p>
                 ) : null}
@@ -275,19 +275,19 @@ export default function Admin() {
                     onClick={() => void openOrder(order.id)}
                     className={`w-full rounded-2xl border p-4 text-left transition-colors ${
                       selected?.id === order.id
-                        ? 'border-[#6ee7ef]/40 bg-[#6ee7ef]/[.05]'
-                        : 'border-white/[.08] bg-[#0b0a11] hover:border-white/25'
+                        ? 'border-brand-cyan/40 bg-[#6ee7ef]/[.05]'
+                        : 'border-border bg-card hover:border-foreground/25'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono-tech text-[12.5px] text-[#d8d5e8]">{order.id}</span>
+                      <span className="font-mono-tech text-[12.5px] text-foreground">{order.id}</span>
                       <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${statusBadge(order.status)}`}>
                         {order.status}
                       </span>
                     </div>
-                    <p className="mt-1.5 truncate text-[13.5px] text-white">{order.customerName}</p>
-                    <p className="truncate text-[12px] text-[#8d8a9e]">{order.itemsPreview}</p>
-                    <p className="mt-1 text-[12.5px] text-[#b9b6c9]">
+                    <p className="mt-1.5 truncate text-[13.5px] text-foreground">{order.customerName}</p>
+                    <p className="truncate text-[12px] text-muted-foreground">{order.itemsPreview}</p>
+                    <p className="mt-1 text-[12.5px] text-foreground/75">
                       {formatUSD(order.total)} ·{' '}
                       {new Date(order.createdAt).toLocaleDateString('en-US', {
                         month: 'short',
@@ -301,26 +301,26 @@ export default function Admin() {
 
             <section className="space-y-6">
               {selected ? (
-                <div className="rounded-3xl border border-white/[.08] bg-[#0b0a11] p-6 sm:p-8">
+                <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="font-mono-tech text-[13px] text-[#8d8a9e]">{selected.id}</p>
-                      <p className="mt-1 text-[15px] text-white">
+                      <p className="font-mono-tech text-[13px] text-muted-foreground">{selected.id}</p>
+                      <p className="mt-1 text-[15px] text-foreground">
                         {selected.customer.name}{' '}
-                        <span className="text-[13px] text-[#8d8a9e]">
+                        <span className="text-[13px] text-muted-foreground">
                           &lt;{selected.customer.email}&gt;
                         </span>
                       </p>
                       {selected.customer.company ? (
-                        <p className="text-[12.5px] text-[#8d8a9e]">{selected.customer.company}</p>
+                        <p className="text-[12.5px] text-muted-foreground">{selected.customer.company}</p>
                       ) : null}
                       {selected.customer.messenger ? (
-                        <p className="text-[12.5px] text-[#8d8a9e]">
+                        <p className="text-[12.5px] text-muted-foreground">
                           TG/WA: {selected.customer.messenger}
                         </p>
                       ) : null}
                       {selected.customer.notes ? (
-                        <p className="mt-2 max-w-xl rounded-xl border border-white/[.06] bg-white/[.02] px-3 py-2 text-[12.5px] text-[#b9b6c9]">
+                        <p className="mt-2 max-w-xl rounded-xl border border-border bg-foreground/[.02] px-3 py-2 text-[12.5px] text-foreground/75">
                           {selected.customer.notes}
                         </p>
                       ) : null}
@@ -334,16 +334,16 @@ export default function Admin() {
                     {selected.items.map((item) => (
                       <div
                         key={item.lineKey}
-                        className="rounded-xl border border-white/[.06] bg-white/[.02] px-4 py-3"
+                        className="rounded-xl border border-border bg-foreground/[.02] px-4 py-3"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-[14px] text-white">
+                          <span className="text-[14px] text-foreground">
                             {item.productName}
-                            <span className="ml-2 text-[12px] text-[#8d8a9e]">
+                            <span className="ml-2 text-[12px] text-muted-foreground">
                               {item.modelLabel} · {item.seatsLabel} · ×{item.qty}
                             </span>
                           </span>
-                          <span className="font-mono-tech text-[13px] text-[#d8d5e8]">
+                          <span className="font-mono-tech text-[13px] text-foreground">
                             {formatUSD(item.lineTotal)}
                           </span>
                         </div>
@@ -361,7 +361,7 @@ export default function Admin() {
                   </div>
 
                   <label className="mt-4 block">
-                    <span className="mb-1.5 block text-[12.5px] font-medium text-[#b9b6c9]">
+                    <span className="mb-1.5 block text-[12.5px] font-medium text-foreground/75">
                       Download link (sent to the customer on approval)
                     </span>
                     <input
@@ -377,7 +377,7 @@ export default function Admin() {
                       type="button"
                       disabled={busy === 'approve'}
                       onClick={() => void act('approve', { keys: keyDrafts, downloadUrl: downloadDraft })}
-                      className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[14.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] disabled:opacity-60"
+                      className="inline-flex items-center gap-2 rounded-xl border bg-white px-6 py-3 text-[14.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02] disabled:opacity-60"
                     >
                       {busy === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                       Approve &amp; email keys
@@ -390,7 +390,7 @@ export default function Admin() {
                           reason: window.prompt('Rejection reason (sent to no one — for your records):', '') ?? '',
                         })
                       }
-                      className="rounded-xl border border-rose-400/40 px-5 py-3 text-[14px] text-rose-200 hover:bg-rose-400/[.08] disabled:opacity-60"
+                      className="rounded-xl border border-rose-400/40 px-5 py-3 text-[14px] text-rose-700 dark:text-rose-200 hover:bg-rose-400/[.08] disabled:opacity-60"
                     >
                       Reject
                     </button>
@@ -399,7 +399,7 @@ export default function Admin() {
                         type="button"
                         disabled={busy === 'unapprove'}
                         onClick={() => void act('unapprove')}
-                        className="rounded-xl border border-white/15 px-5 py-3 text-[14px] text-[#d8d5e8] hover:border-white/40 disabled:opacity-60"
+                        className="rounded-xl border border-input px-5 py-3 text-[14px] text-foreground hover:border-foreground/40 disabled:opacity-60"
                       >
                         Move back to pending
                       </button>
@@ -407,14 +407,14 @@ export default function Admin() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-3xl border border-white/[.08] bg-[#0b0a11] p-8 text-[14px] text-[#8d8a9e]">
+                <div className="rounded-3xl border border-border bg-card p-8 text-[14px] text-muted-foreground">
                   Select an order on the left to review payment and deliver license keys.
                 </div>
               )}
 
-              <div className="rounded-3xl border border-white/[.08] bg-[#0b0a11] p-6 sm:p-8">
-                <h3 className="text-[15px] font-medium text-white">Payment instructions</h3>
-                <p className="mt-1 text-[12.5px] text-[#8d8a9e]">
+              <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+                <h3 className="text-[15px] font-medium text-foreground">Payment instructions</h3>
+                <p className="mt-1 text-[12.5px] text-muted-foreground">
                   Shown to customers after checkout and on the order status page. Bank transfer
                   (ACH/wire), Wise, PayPal, USDT — whatever you accept.
                 </p>
@@ -429,7 +429,7 @@ export default function Admin() {
                   type="button"
                   disabled={busy === 'settings'}
                   onClick={() => void saveSettings()}
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/15 px-5 py-2.5 text-[13.5px] text-white hover:border-white/40 disabled:opacity-60"
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl border border-input px-5 py-2.5 text-[13.5px] text-foreground hover:border-foreground/40 disabled:opacity-60"
                 >
                   {busy === 'settings' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {settingsSaved ? 'Saved' : 'Save instructions'}

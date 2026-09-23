@@ -68,13 +68,13 @@ Pay within the due window shown on the invoice (bank transfer, Wise, PayPal, or 
 3S Verse · 3sverse.com`;
 
 const inputClass =
-  'w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-2.5 text-[14px] text-white placeholder:text-[#6d6a80] outline-none transition-colors focus:border-[#6ee7ef]/60';
+  'w-full rounded-xl border border-border bg-foreground/[.04] px-4 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-brand-cyan/60';
 /* Same as inputClass but without w-full — avoids the width conflict when a
    fixed width is layered on top inside flex rows (w-full wins by stylesheet
    order and squeezes the other flex children). */
 const fieldClass =
-  'rounded-xl border border-white/10 bg-white/[.04] px-4 py-2.5 text-[14px] text-white placeholder:text-[#6d6a80] outline-none transition-colors focus:border-[#6ee7ef]/60 [&>option]:bg-[#141320]';
-const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-[.16em] text-[#8b87a3]';
+  'rounded-xl border border-border bg-foreground/[.04] px-4 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-brand-cyan/60 [&>option]:bg-card';
+const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-[.16em] text-muted-foreground';
 
 interface Row {
   productId: string;
@@ -87,8 +87,8 @@ function pill(active: boolean): string {
   return [
     'rounded-lg px-3.5 py-1.5 text-[13px] font-medium transition-all duration-200',
     active
-      ? 'bg-white text-[#0b0a10]'
-      : 'border border-white/15 text-[#d8d5e8] hover:border-white/40 hover:text-white',
+      ? 'border bg-white text-[#0b0a10]'
+      : 'border border-input text-foreground hover:border-foreground/40 hover:text-foreground',
   ].join(' ');
 }
 
@@ -332,21 +332,21 @@ export default function InvoiceStudio() {
   const canSend = items.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#0b0a10] text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">
         {/* header */}
         <header className="mb-7 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="text-[13px] font-semibold uppercase tracking-[.22em] text-[#8b87a3]">3S Verse</div>
+            <div className="text-[13px] font-semibold uppercase tracking-[.22em] text-muted-foreground">3S Verse</div>
             <h1 className="mt-1 text-[26px] font-bold leading-tight">Invoice Studio</h1>
-            <p className="mt-1 text-[14px] text-[#9a96b2]">
+            <p className="mt-1 text-[14px] text-muted-foreground">
               Order details bharo — yehi format customer ko jata hai (PDF · HTML · email).
             </p>
           </div>
           <button
             type="button"
             onClick={fillSample}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-[13px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-xl border border-input px-4 py-2.5 text-[13px] font-medium text-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
           >
             <Wand2 className="h-4 w-4" /> Fill sample
           </button>
@@ -354,7 +354,7 @@ export default function InvoiceStudio() {
 
         <div className="grid gap-6 lg:grid-cols-[430px,1fr]">
           {/* ---------------- form ---------------- */}
-          <section className="rounded-2xl border border-white/10 bg-white/[.03] p-5 md:p-6">
+          <section className="rounded-2xl border border-border bg-foreground/[.03] p-5 md:p-6">
             <div className={labelClass}>Order</div>
             <div className="space-y-3">
               <div className="flex gap-2">
@@ -368,7 +368,7 @@ export default function InvoiceStudio() {
                   type="button"
                   onClick={generateOrderRef}
                   title="Generate a fresh order number"
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/15 px-3.5 py-2.5 text-[13px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-input px-3.5 py-2.5 text-[13px] font-medium text-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
                 >
                   <Dices className="h-4 w-4" /> Generate
                 </button>
@@ -380,8 +380,8 @@ export default function InvoiceStudio() {
                   value={dateISO}
                   onChange={(e) => setDateISO(e.target.value)}
                 />
-                <div className="self-center text-[12px] text-[#8b87a3]">
-                  Invoice no: <span className="font-semibold text-[#6ee7ef]">{invoiceNo || '—'}</span> (auto)
+                <div className="self-center text-[12px] text-muted-foreground">
+                  Invoice no: <span className="font-semibold text-brand-cyan">{invoiceNo || '—'}</span> (auto)
                 </div>
               </div>
             </div>
@@ -431,11 +431,11 @@ export default function InvoiceStudio() {
                   onChange={(e) => setDueDays(Math.max(1, Math.min(60, Number(e.target.value) || INVOICE_DUE_DAYS)))}
                   className={fieldClass + ' w-[76px] text-center'}
                 />
-                <span className="text-[12px] text-[#8b87a3]">days unpaid (expiry shown on invoice)</span>
+                <span className="text-[12px] text-muted-foreground">days unpaid (expiry shown on invoice)</span>
               </div>
             ) : null}
             {refWasCancelled ? (
-              <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-2.5 text-[12.5px] text-amber-200/90">
+              <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-2.5 text-[12.5px] text-amber-700/90 dark:text-amber-700 dark:text-amber-200/90">
                 Warning: is order ref ({orderRef.trim().toUpperCase()}) pe pehle koi invoice CANCEL
                 ho chuki hai — dobara check kar lo.
               </p>
@@ -461,7 +461,7 @@ export default function InvoiceStudio() {
               {rows.map((row, index) => {
                 const product = PRODUCTS.find((p) => p.id === row.productId);
                 return (
-                  <div key={index} className="rounded-xl border border-white/10 bg-white/[.02] p-3">
+                  <div key={index} className="rounded-xl border border-border bg-foreground/[.02] p-3">
                     <div className="flex items-center gap-2">
                       <select
                         className={fieldClass + ' w-full'}
@@ -477,7 +477,7 @@ export default function InvoiceStudio() {
                       <button
                         type="button"
                         onClick={() => removeRow(index)}
-                        className="rounded-lg border border-white/10 p-2 text-[#9a96b2] transition-colors hover:border-red-400/50 hover:text-red-300"
+                        className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:border-red-400/50 hover:text-red-600 dark:hover:text-red-300"
                         aria-label="Remove item"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -520,7 +520,7 @@ export default function InvoiceStudio() {
                       />
                     </div>
                     {product && (
-                      <div className="mt-2 text-[12.5px] text-[#8b87a3]">
+                      <div className="mt-2 text-[12.5px] text-muted-foreground">
                         {formatUSD(catalogInvoiceItem(product.id, row.model, row.pcs, 1)?.unit ?? 0)} per license ({pcLabel(row.pcs)})
                       </div>
                     )}
@@ -530,7 +530,7 @@ export default function InvoiceStudio() {
               <button
                 type="button"
                 onClick={addRow}
-                className="inline-flex items-center gap-2 rounded-xl border border-dashed border-white/20 px-4 py-2.5 text-[13px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white"
+                className="inline-flex items-center gap-2 rounded-xl border border-dashed border-input px-4 py-2.5 text-[13px] font-medium text-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
               >
                 <Plus className="h-4 w-4" /> Add item
               </button>
@@ -552,18 +552,18 @@ export default function InvoiceStudio() {
             />
 
             {/* totals + actions */}
-            <div className="mt-5 rounded-xl border border-white/10 bg-white/[.02] p-4 text-[13.5px]">
-              <div className="flex justify-between text-[#9a96b2]">
+            <div className="mt-5 rounded-xl border border-border bg-foreground/[.02] p-4 text-[13.5px]">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal (list)</span>
                 <span>{formatUSD(totals.listSubtotal)}</span>
               </div>
               {totals.discount > 0 && (
-                <div className="mt-1 flex justify-between text-[#6ee7ef]">
+                <div className="mt-1 flex justify-between text-brand-cyan">
                   <span>Launch Offer discount</span>
                   <span>−{formatUSD(totals.discount)}</span>
                 </div>
               )}
-              <div className="mt-2 flex justify-between border-t border-white/10 pt-2 text-[15px] font-bold">
+              <div className="mt-2 flex justify-between border-t border-border pt-2 text-[15px] font-bold">
                 <span>Total ({status === 'PAID' ? 'paid' : status === 'CANCELLED' ? 'cancelled' : 'due'})</span>
                 <span>{formatUSD(totals.total)}</span>
               </div>
@@ -574,7 +574,7 @@ export default function InvoiceStudio() {
                 type="button"
                 disabled={!canSend}
                 onClick={printInvoice}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-colors hover:bg-[#e8e6f2] disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-4 py-3 text-[13.5px] font-semibold text-[#0b0a10] transition-colors hover:bg-[#e8e6f2] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Printer className="h-4 w-4" /> Print / PDF
               </button>
@@ -582,7 +582,7 @@ export default function InvoiceStudio() {
                 type="button"
                 disabled={!canSend}
                 onClick={downloadHTML}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-[13.5px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-input px-4 py-3 text-[13.5px] font-medium text-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Download className="h-4 w-4" /> HTML file
               </button>
@@ -590,35 +590,35 @@ export default function InvoiceStudio() {
                 type="button"
                 disabled={!canSend}
                 onClick={copyForEmail}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-[13.5px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-input px-4 py-3 text-[13.5px] font-medium text-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <ClipboardCheck className="h-4 w-4" /> Copy for email
               </button>
             </div>
             {flash && (
-              <div className="mt-3 rounded-xl border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.06] px-4 py-2.5 text-[13px] text-[#9fe8f2]">
+              <div className="mt-3 rounded-xl border border-brand-cyan/30 bg-[#6ee7ef]/[.06] px-4 py-2.5 text-[13px] text-brand-cyan">
                 {flash}
               </div>
             )}
 
             {/* Email delivery (EmailJS) — browser-local setup, no redeploy.
                 Full walkthrough: download/3sverse-download-gateway/EMAILJS_SETUP.md */}
-            <div className="mt-5 rounded-xl border border-white/10 bg-white/[.02] p-4">
+            <div className="mt-5 rounded-xl border border-border bg-foreground/[.02] p-4">
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <Mail className="h-4 w-4 text-[#6ee7ef]" />
-                <p className="text-[13.5px] font-semibold text-white">Email delivery (EmailJS)</p>
+                <Mail className="h-4 w-4 text-brand-cyan" />
+                <p className="text-[13.5px] font-semibold text-foreground">Email delivery (EmailJS)</p>
                 <span
                   className={
                     'rounded-lg px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[.12em] ' +
                     (emailjsConfigured()
-                      ? 'bg-emerald-400/10 text-emerald-300'
-                      : 'bg-white/[.06] text-[#8b87a3]')
+                      ? 'bg-emerald-400/10 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-foreground/[.06] text-muted-foreground')
                   }
                 >
                   {emailjsConfigured() ? 'Active' : 'Not configured'}
                 </span>
               </div>
-              <p className="mb-3 text-[12.5px] font-light leading-5 text-[#8b87a3]">
+              <p className="mb-3 text-[12.5px] font-light leading-5 text-muted-foreground">
                 One-time setup — saved in THIS browser only (localStorage), nothing to
                 commit. emailjs.com → add an email service (Connect@3SVerse.com is not
                 Gmail — pick Route 1/2/3 in the EMAILJS_SETUP guide) → create a template
@@ -648,14 +648,14 @@ export default function InvoiceStudio() {
                 <button
                   type="button"
                   onClick={saveEmailConfig}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                  className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-[13px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
                 >
                   <Save className="h-4 w-4" /> Save to this browser
                 </button>
                 <button
                   type="button"
                   onClick={copyTemplateContent}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-[13px] font-medium text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white"
+                  className="inline-flex items-center gap-2 rounded-xl border border-input px-4 py-2.5 text-[13px] font-medium text-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
                 >
                   <Copy className="h-4 w-4" /> Copy template content
                 </button>
@@ -670,14 +670,14 @@ export default function InvoiceStudio() {
                     type="button"
                     onClick={sendTest}
                     disabled={emailBusy || !emailjsConfigured()}
-                    className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-[#6ee7ef]/30 bg-[#6ee7ef]/[.06] px-4 py-2.5 text-[13px] font-medium text-[#9fe8f2] transition-colors hover:border-[#6ee7ef]/60 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-brand-cyan/30 bg-[#6ee7ef]/[.06] px-4 py-2.5 text-[13px] font-medium text-brand-cyan transition-colors hover:border-brand-cyan/60 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Send className="h-4 w-4" /> Send test
                   </button>
                 </div>
               </div>
               {emailStatus ? (
-                <p className="mt-2.5 text-[12.5px] text-[#9fe8f2]">{emailStatus}</p>
+                <p className="mt-2.5 text-[12.5px] text-brand-cyan">{emailStatus}</p>
               ) : null}
             </div>
           </section>
@@ -689,18 +689,18 @@ export default function InvoiceStudio() {
                 <iframe
                   title="Invoice preview"
                   srcDoc={previewDoc}
-                  className="h-[860px] w-full rounded-xl border border-white/10 bg-white shadow-2xl shadow-black/40"
+                  className="h-[860px] w-full rounded-xl border border-border border bg-white shadow-2xl shadow-black/10 dark:shadow-black/40"
                 />
-                <p className="mt-3 flex items-center gap-2 text-[12.5px] text-[#8b87a3]">
-                  <ShieldCheck className="h-4 w-4 text-[#6ee7ef]" />
+                <p className="mt-3 flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 text-brand-cyan" />
                   Live preview — print, HTML download aur email paste teeno se EXACT yehi format customer ko jayega.
                 </p>
               </div>
             ) : (
-              <div className="flex h-[420px] flex-col items-center justify-center rounded-xl border border-dashed border-white/15 text-center">
-                <FileText className="mb-3 h-8 w-8 text-[#6ee7ef]" />
-                <p className="text-[15px] font-medium text-[#d8d5e8]">Invoice preview yahan banega</p>
-                <p className="mt-1 max-w-[340px] text-[13px] text-[#8b87a3]">
+              <div className="flex h-[420px] flex-col items-center justify-center rounded-xl border border-dashed border-input text-center">
+                <FileText className="mb-3 h-8 w-8 text-brand-cyan" />
+                <p className="text-[15px] font-medium text-foreground">Invoice preview yahan banega</p>
+                <p className="mt-1 max-w-[340px] text-[13px] text-muted-foreground">
                   "Add item" se order ki items dalo — ya "Fill sample" dabao takay format foran dekh sako.
                 </p>
               </div>

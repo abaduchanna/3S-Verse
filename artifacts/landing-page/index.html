@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark" style="color-scheme: dark">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,6 +9,24 @@
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://3sverse.com/" />
     <meta name="theme-color" content="#060509" />
+    <script>
+      /* Theme boot — runs BEFORE first paint so the stored light/dark choice
+         never flashes. Default: dark. Persisted in localStorage['3sv-theme']. */
+      (function () {
+        var t = 'dark';
+        try {
+          var stored = localStorage.getItem('3sv-theme');
+          if (stored === 'light' || stored === 'dark') t = stored;
+        } catch (e) { /* private mode — stay dark */ }
+        var el = document.documentElement;
+        el.classList.toggle('dark', t === 'dark');
+        el.style.colorScheme = t;
+        el.style.setProperty('--boot-splash-bg', t === 'dark' ? '#060509' : '#fcfbfe');
+        el.style.setProperty('--boot-splash-fg', t === 'dark' ? 'rgba(242,240,250,.55)' : 'rgba(26,24,37,.6)');
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', t === 'dark' ? '#060509' : '#fcfbfe');
+      })();
+    </script>
 
     <meta property="og:title" content="3S Verse — VidaPay Tools for Wireless Dealers" />
     <meta property="og:description" content="VidaPay workflow tools for wireless dealers — extract incentives, guide device orders, track rebate claims. Free 7-day Windows trial." />
@@ -241,10 +259,10 @@
     </noscript>
     <div id="root">
       <!-- instant boot splash (pure inline CSS, replaced by React on mount) -->
-      <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#060509;">
+      <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--boot-splash-bg,#060509);">
         <div style="display:flex;flex-direction:column;align-items:center;gap:18px;font-family:'Montserrat',system-ui,sans-serif;">
           <span style="width:10px;height:10px;border-radius:9999px;background:#6ee7ef;box-shadow:0 0 24px #6ee7ef;animation:pf-pulse 1.4s ease-in-out infinite;"></span>
-          <span style="font-size:12px;letter-spacing:.42em;text-transform:uppercase;color:rgba(242,240,250,.55);">3S Verse</span>
+          <span style="font-size:12px;letter-spacing:.42em;text-transform:uppercase;color:var(--boot-splash-fg,rgba(242,240,250,.55));">3S Verse</span>
         </div>
         <style>@keyframes pf-pulse{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}</style>
       </div>

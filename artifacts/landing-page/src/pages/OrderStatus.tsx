@@ -30,7 +30,7 @@ interface Order {
 }
 
 const inputClass =
-  'w-full rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-[15px] text-white placeholder:text-[#6d6a80] outline-none focus:border-[#6ee7ef]/60';
+  'w-full rounded-xl border border-border bg-foreground/[.04] px-4 py-3 text-[15px] text-foreground placeholder:text-muted-foreground outline-none focus:border-brand-cyan/60';
 
 interface StaticEntry {
   products: string[];
@@ -65,9 +65,9 @@ async function staticOrderLookup(rawRef: string): Promise<{ ref: string; product
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    PENDING: 'border-amber-400/30 bg-amber-400/[.08] text-amber-200',
-    APPROVED: 'border-emerald-400/30 bg-emerald-400/[.08] text-emerald-200',
-    REJECTED: 'border-rose-400/30 bg-rose-400/[.08] text-rose-200',
+    PENDING: 'border-amber-400/30 bg-amber-400/[.08] text-amber-700 dark:text-amber-200',
+    APPROVED: 'border-emerald-400/30 bg-emerald-400/[.08] text-emerald-700 dark:text-emerald-200',
+    REJECTED: 'border-rose-400/30 bg-rose-400/[.08] text-rose-700 dark:text-rose-200',
   };
   const label: Record<string, string> = {
     PENDING: 'Awaiting payment confirmation',
@@ -158,15 +158,15 @@ export default function OrderStatus() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#060509]">
-      <header className="border-b border-white/[.06]">
+    <div className="min-h-[100dvh] bg-background">
+      <header className="border-b border-border">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 lg:px-8">
-          <a href="/" className="text-[15px] font-semibold tracking-[.08em] text-white">
+          <a href="/" className="text-[15px] font-semibold tracking-[.08em] text-foreground">
             3S VERSE
           </a>
           <a
             href="/#tools"
-            className="rounded-xl border border-white/15 px-4 py-2 text-[13.5px] text-[#d8d5e8] transition-colors hover:border-white/40 hover:text-white"
+            className="rounded-xl border border-input px-4 py-2 text-[13.5px] text-foreground transition-colors hover:border-foreground/40 hover:text-foreground"
           >
             Dealer tools
           </a>
@@ -174,26 +174,26 @@ export default function OrderStatus() {
       </header>
 
       <main className="mx-auto max-w-5xl px-5 py-12 lg:px-8">
-        <h1 className="text-[clamp(1.8rem,3vw,2.6rem)] font-light tracking-[-0.02em] text-white">
+        <h1 className="text-[clamp(1.8rem,3vw,2.6rem)] font-light tracking-[-0.02em] text-foreground">
           Order status
         </h1>
-        <p className="mt-2 text-[14px] font-light text-[#b9b6c9]">
+        <p className="mt-2 text-[14px] font-light text-foreground/75">
           License keys appear here as soon as your payment is confirmed.
         </p>
 
         {loading ? (
-          <div className="mt-10 flex items-center gap-3 text-[#8d8a9e]">
+          <div className="mt-10 flex items-center gap-3 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" /> Loading order…
           </div>
         ) : staticOrder ? (
           <div className="mt-8 rounded-3xl border border-emerald-400/25 bg-emerald-400/[.05] p-6 sm:p-8">
-            <p className="flex items-center gap-2 text-[13px] font-medium uppercase tracking-[.14em] text-emerald-300">
+            <p className="flex items-center gap-2 text-[13px] font-medium uppercase tracking-[.14em] text-emerald-700 dark:text-emerald-300">
               <Lock className="h-4 w-4" /> Order verified — {staticOrder.ref}
             </p>
-            <h2 className="mt-3 text-[clamp(1.4rem,2.2vw,1.9rem)] font-light text-white">
+            <h2 className="mt-3 text-[clamp(1.4rem,2.2vw,1.9rem)] font-light text-foreground">
               Your downloads
             </h2>
-            <p className="mt-2 max-w-2xl text-[13.5px] font-light leading-6 text-[#b9b6c9]">
+            <p className="mt-2 max-w-2xl text-[13.5px] font-light leading-6 text-foreground/75">
               These buttons always serve the newest build of each tool — when an
               update ships, come back to this page and re-download for free.
               Licensed (monthly / annual / lifetime) builds are verified against
@@ -208,7 +208,7 @@ export default function OrderStatus() {
                     key={`${pid}-${j}`}
                     href={d.url}
                     data-testid={`button-static-download-${pid}-${j}`}
-                    className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[14px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                    className="inline-flex items-center gap-2 rounded-xl border bg-white px-5 py-3 text-[14px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
                   >
                     <Download className="h-4 w-4" /> {d.label} — {pname}
                   </a>
@@ -216,22 +216,22 @@ export default function OrderStatus() {
               })}
             </div>
             {!PAID_DOWNLOAD.gatewayUrl ? (
-              <p className="mt-4 rounded-xl border border-white/10 bg-white/[.03] px-4 py-3 text-[13px] text-[#b9b6c9]">
+              <p className="mt-4 rounded-xl border border-border bg-foreground/[.03] px-4 py-3 text-[13px] text-foreground/75">
                 Your licensed build link is being activated — email{' '}
-                <a className="text-[#6ee7ef]" href={`mailto:${PAID_DOWNLOAD.contactEmail}`}>
+                <a className="text-brand-cyan" href={`mailto:${PAID_DOWNLOAD.contactEmail}`}>
                   {PAID_DOWNLOAD.contactEmail}
                 </a>{' '}
                 with your order reference and we send the FULL build right away.
               </p>
             ) : null}
-            <p className="mt-4 text-[12.5px] text-[#8d8a9e]">
+            <p className="mt-4 text-[12.5px] text-muted-foreground">
               Bookmark this page (3sverse.com/order/{staticOrder.ref}) — it is
               your permanent re-download link.
             </p>
           </div>
         ) : error ? (
           <div className="mt-8">
-            <p className="rounded-xl border border-rose-400/25 bg-rose-400/[.06] px-4 py-3 text-[13.5px] text-rose-200">
+            <p className="rounded-xl border border-rose-400/25 bg-rose-400/[.06] px-4 py-3 text-[13.5px] text-rose-700 dark:text-rose-200">
               {error}
             </p>
             <form
@@ -260,7 +260,7 @@ export default function OrderStatus() {
               />
               <button
                 type="submit"
-                className="rounded-xl bg-white px-6 py-3 text-[14.5px] font-semibold text-[#0b0a10] sm:col-span-2"
+                className="rounded-xl border bg-white px-6 py-3 text-[14.5px] font-semibold text-[#0b0a10] sm:col-span-2"
               >
                 Find my order
               </button>
@@ -268,11 +268,11 @@ export default function OrderStatus() {
           </div>
         ) : order ? (
           <div className="mt-8 space-y-6">
-            <div className="rounded-3xl border border-white/[.08] bg-[#0b0a11] p-6 sm:p-8">
+            <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="font-mono-tech text-[13px] text-[#8d8a9e]">{order.id}</p>
-                  <p className="mt-1 text-[13px] text-[#b9b6c9]">
+                  <p className="font-mono-tech text-[13px] text-muted-foreground">{order.id}</p>
+                  <p className="mt-1 text-[13px] text-foreground/75">
                     Placed {new Date(order.createdAt).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'short',
@@ -285,7 +285,7 @@ export default function OrderStatus() {
               </div>
 
               {order.status === 'REJECTED' && order.rejectionReason ? (
-                <p className="mt-4 rounded-xl border border-rose-400/25 bg-rose-400/[.06] px-4 py-3 text-[13.5px] text-rose-200">
+                <p className="mt-4 rounded-xl border border-rose-400/25 bg-rose-400/[.06] px-4 py-3 text-[13.5px] text-rose-700 dark:text-rose-200">
                   {order.rejectionReason}
                 </p>
               ) : null}
@@ -293,7 +293,7 @@ export default function OrderStatus() {
               <div className="mt-6 overflow-x-auto">
                 <table className="w-full min-w-[560px] text-left text-[13.5px]">
                   <thead>
-                    <tr className="text-[11px] uppercase tracking-[.14em] text-[#8d8a9e]">
+                    <tr className="text-[12px] uppercase tracking-[.14em] text-muted-foreground">
                       <th className="py-2 pr-4 font-medium">Product</th>
                       <th className="py-2 pr-4 font-medium">Model</th>
                       <th className="py-2 pr-4 font-medium">PCs</th>
@@ -304,16 +304,16 @@ export default function OrderStatus() {
                   </thead>
                   <tbody>
                     {order.items.map((item, index) => (
-                      <tr key={index} className="border-t border-white/[.06]">
-                        <td className="py-3 pr-4 text-white">{item.productName}</td>
-                        <td className="py-3 pr-4 text-[#d8d5e8]">{item.modelLabel}</td>
-                        <td className="py-3 pr-4 text-[#d8d5e8]">{item.seatsLabel}</td>
-                        <td className="py-3 pr-4 text-[#d8d5e8]">{item.qty}</td>
-                        <td className="py-3 pr-4 text-[#d8d5e8]">{formatUSD(item.lineTotal)}</td>
+                      <tr key={index} className="border-t border-border">
+                        <td className="py-3 pr-4 text-foreground">{item.productName}</td>
+                        <td className="py-3 pr-4 text-foreground">{item.modelLabel}</td>
+                        <td className="py-3 pr-4 text-foreground">{item.seatsLabel}</td>
+                        <td className="py-3 pr-4 text-foreground">{item.qty}</td>
+                        <td className="py-3 pr-4 text-foreground">{formatUSD(item.lineTotal)}</td>
                         <td className="py-3">
                           {item.licenseKey ? (
                             <span className="inline-flex items-center gap-2">
-                              <code className="font-mono-tech text-[12.5px] text-[#6ee7ef]">
+                              <code className="font-mono-tech text-[12.5px] text-brand-cyan">
                                 {item.licenseKey}
                               </code>
                               {order.status === 'APPROVED' && item.hasKey ? (
@@ -321,7 +321,7 @@ export default function OrderStatus() {
                                   type="button"
                                   aria-label="Copy license key"
                                   onClick={() => copyKey(item.licenseKey, index)}
-                                  className="text-[#8d8a9e] hover:text-white"
+                                  className="text-muted-foreground hover:text-foreground"
                                 >
                                   {copiedIndex === index ? (
                                     <Check className="h-3.5 w-3.5" />
@@ -332,7 +332,7 @@ export default function OrderStatus() {
                               ) : null}
                             </span>
                           ) : (
-                            <span className="text-[#8d8a9e]">—</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </td>
                       </tr>
@@ -341,18 +341,18 @@ export default function OrderStatus() {
                 </table>
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-white/[.07] pt-4">
-                <span className="text-[13.5px] text-[#b9b6c9]">Total</span>
-                <span className="text-[20px] font-light text-white">{formatUSD(order.total)}</span>
+              <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                <span className="text-[13.5px] text-foreground/75">Total</span>
+                <span className="text-[20px] font-light text-foreground">{formatUSD(order.total)}</span>
               </div>
 
               {order.status === 'APPROVED' &&
               order.items.some((it) => it.downloadUrl) ? (
                 <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[.04] p-5">
-                  <p className="text-[15px] font-semibold text-white">
+                  <p className="text-[15px] font-semibold text-foreground">
                     Your downloads
                   </p>
-                  <p className="mt-1 text-[13px] text-[#b9b6c9]">
+                  <p className="mt-1 text-[13px] text-foreground/75">
                     These buttons always serve the newest build — when a tool
                     is updated, re-download here for free. Same file for
                     monthly, annual and lifetime plans; your license key
@@ -371,7 +371,7 @@ export default function OrderStatus() {
                           key={index}
                           href={it.downloadUrl}
                           data-testid={`button-download-${index}`}
-                          className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[14px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                          className="inline-flex items-center gap-2 rounded-xl border bg-white px-5 py-3 text-[14px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
                         >
                           <Download className="h-4 w-4" />
                           {it.productName} — latest build (.exe)
@@ -382,26 +382,26 @@ export default function OrderStatus() {
               ) : order.status === 'APPROVED' && order.downloadUrl ? (
                 <a
                   href={order.downloadUrl}
-                  className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[15px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
+                  className="mt-6 inline-flex items-center gap-2 rounded-xl border bg-white px-6 py-3 text-[15px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
                 >
                   <Download className="h-4 w-4" /> Download your software
                 </a>
               ) : null}
 
               {order.status === 'PENDING' ? (
-                <p className="mt-6 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-3 text-[13.5px] text-amber-100/90">
+                <p className="mt-6 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-3 text-[13.5px] text-amber-800/90 dark:text-amber-100/90">
                   Payment instructions were included in your order confirmation. As soon as your
                   payment is confirmed, your license keys and download link appear on this page.
                 </p>
               ) : null}
             </div>
 
-            <p className="flex items-center gap-2 text-[13px] text-[#8d8a9e]">
-              <ShieldCheck className="h-4 w-4 text-[#6ee7ef]" />
+            <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
+              <ShieldCheck className="h-4 w-4 text-brand-cyan" />
               Every license is machine-locked to the PC it is activated on.
               <a
                 href="mailto:Connect@3SVerse.com"
-                className="ml-2 inline-flex items-center gap-1.5 text-[#6ee7ef] hover:text-white"
+                className="ml-2 inline-flex items-center gap-1.5 text-brand-cyan hover:text-foreground"
               >
                 <Mail className="h-3.5 w-3.5" /> Connect@3SVerse.com
               </a>
