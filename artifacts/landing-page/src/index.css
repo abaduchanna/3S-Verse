@@ -373,13 +373,18 @@ html.bc-active input, html.bc-active textarea { cursor: text !important; }
 
 ::selection { background: #e44bd7; color: #0b0a10; }
 
-/* ── Decorative shapes — one electric render for BOTH themes ────────────
-   The dark-canvas 3D renders (indigo/cyan/magenta neon light trails) ARE
-   the brand look; the light theme shows the exact same asset — same ring,
-   same colors, every section, by construction. On the white canvas the
-   neon gets a touch of extra saturation + contrast so it reads as
-   electric as it does on the dark surface. Unlayered so it wins over the
-   Tailwind utility layer. */
+/* ── Decorative shapes — same electric render, per-canvas variants ──────
+   Both themes show the SAME dark-canvas 3D renders (indigo/cyan/magenta
+   neon). The dark theme uses the originals; the light theme uses the
+   -solid variants of v1/v2, whose thin transparent trail tears would
+   read as holes on white (they blend into the dark canvas) — filled via
+   scripts/solidify.py. v3 is already solid, so it shares the original.
+   CSS swaps each pair via html.dark. On the white canvas the neon gets
+   a touch of extra saturation + contrast so it reads as electric as it
+   does on the dark surface. Unlayered so it wins over Tailwind. */
+.shape-img-light { display: none; }
+html:not(.dark) .shape-img-light { display: block; }
+html:not(.dark) .shape-img-dark { display: none; }
 html:not(.dark) .shape-img {
   filter: saturate(1.32) contrast(1.07);
 }

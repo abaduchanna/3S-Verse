@@ -234,10 +234,29 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
     4: [720, 713],
   };
   const [w, h] = dims[v];
-  /* One electric render for BOTH themes — the dark-canvas 3D renders
-     (indigo/cyan/magenta neon light trails) ARE the brand look, shown
-     as-is on the white canvas too (CSS adds a touch of saturation there).
-     Same ring, same colors, every section — by construction. */
+  /* Same electric render in both themes — but v1/v2 carry thin transparent
+     tears inside the trail body that blend into the dark canvas yet read
+     as torn holes ("cheed") on the white one. The light theme therefore
+     uses the -solid variants (tears diffusion-filled + boundary
+     solidified — scripts/solidify.py); v3 is already fully solid so both
+     themes share the original. CSS swaps the pair via html.dark.
+     ?v busts caches. */
+  const solid = v === 1 || v === 2;
+  const img = (variant: 'dark' | 'light') => (
+    <motion.img
+      src={`/shapes/shape-v${v}${variant === 'light' && solid ? '-solid' : ''}.webp${variant === 'light' && solid ? '?v=6' : ''}`}
+      alt=""
+      width={w}
+      height={h}
+      draggable={false}
+      loading={v === 1 ? 'eager' : 'lazy'}
+      fetchPriority={v === 1 ? 'high' : undefined}
+      decoding="async"
+      className={`shape-img shape-img-${variant} h-auto w-full will-change-transform`}
+      animate={spin ? { rotate: 360 * dir } : undefined}
+      transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
+    />
+  );
   return (
     <motion.div
       aria-hidden="true"
@@ -246,19 +265,8 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
       animate={floatY ? { y: [-floatY, floatY, -floatY] } : undefined}
       transition={floatY ? { duration: floatDur, repeat: Infinity, ease: 'easeInOut' } : undefined}
     >
-      <motion.img
-        src={`/shapes/shape-v${v}.webp`}
-        alt=""
-        width={w}
-        height={h}
-        draggable={false}
-        loading={v === 1 ? 'eager' : 'lazy'}
-        fetchPriority={v === 1 ? 'high' : undefined}
-        decoding="async"
-        className="shape-img h-auto w-full will-change-transform"
-        animate={spin ? { rotate: 360 * dir } : undefined}
-        transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
-      />
+      {img('dark')}
+      {img('light')}
     </motion.div>
   );
 }
@@ -362,9 +370,10 @@ function BrandCursor() {
         </div>
         <div className="brand-cursor-fade f-ring">
           <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} className="shape-img-dark" />
+          <img src="/shapes/shape-v1-solid.webp?v=6" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
         </div>
         <div className="brand-cursor-fade f-orb">
-          <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} className="shape-img-dark" />
+          <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} />
         </div>
       </div>
     </div>
