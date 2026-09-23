@@ -18,7 +18,7 @@ import DealerStore from '@/components/DealerStore';
 // Orders now flow through FormSubmit inside DealerStore.tsx (static-safe).
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AnimatePresence, motion, useInView, useScroll, useSpring, type Variants } from 'framer-motion';
-import { useEffect, useRef, useState, lazy, Suspense, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, lazy, Suspense, type CSSProperties, type FormEvent, type MouseEvent, type ReactNode } from 'react';
 import {
   ArrowDownRight,
   ArrowRight,
@@ -129,7 +129,8 @@ const WAVE_MS = 2500;
 const WAVE_FLIP_MS = 1180;
 let twBusy = false;
 
-function runThemeWave(to: Theme, flip: () => void): void {
+function runThemeWave(to: Theme, flip: () => void,
+                      origin?: { x: number; y: number }): void {
   const el = document.querySelector<HTMLElement>('.theme-wave');
   if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     flip();
@@ -137,6 +138,13 @@ function runThemeWave(to: Theme, flip: () => void): void {
   }
   if (twBusy) return;
   twBusy = true;
+  /* The ripple bursts from the toggle button itself (top right): its
+     center is fed in as --tw-x/--tw-y and the clip circle grows from
+     that exact point. */
+  if (origin) {
+    el.style.setProperty('--tw-x', `${Math.round(origin.x)}px`);
+    el.style.setProperty('--tw-y', `${Math.round(origin.y)}px`);
+  }
   el.classList.remove('to-light', 'to-dark');
   el.classList.remove('is-running');
   void el.offsetWidth; // restart the CSS cycle cleanly on rapid toggles
@@ -150,13 +158,14 @@ function runThemeWave(to: Theme, flip: () => void): void {
 
 function ThemeToggle({ className = '' }: { className?: string }) {
   const [theme, setTheme] = useState<Theme>(currentTheme);
-  const toggle = () => {
+  const toggle = (e: MouseEvent<HTMLButtonElement>) => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    const r = e.currentTarget.getBoundingClientRect();
     // Icon + class flip land mid-wave, while the sheet covers the screen.
     runThemeWave(next, () => {
       setTheme(next);
       applyTheme(next);
-    });
+    }, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
   };
   const label = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
   return (
@@ -209,7 +218,7 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
      transparency (scripts/light_shapes/process.py). ?v busts caches. */
   const renderImg = (variant: 'dark' | 'light') => (
     <motion.img
-      src={`/shapes/shape-v${v}${variant === 'light' ? '-light' : ''}.webp${variant === 'light' ? '?v=3' : ''}`}
+      src={`/shapes/shape-v${v}${variant === 'light' ? '-light' : ''}.webp${variant === 'light' ? '?v=4' : ''}`}
       alt=""
       width={w}
       height={h}
@@ -335,57 +344,27 @@ function BrandCursor() {
         </div>
         <div className="brand-cursor-fade f-ring">
           <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} className="shape-img-dark" />
-          <img src="/shapes/shape-v1-light.webp?v=3" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
+          <img src="/shapes/shape-v1-light.webp?v=4" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
         </div>
         <div className="brand-cursor-fade f-orb">
           <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} className="shape-img-dark" />
-          <img src="/shapes/shape-v3-light.webp?v=3" alt="" width={640} height={640} draggable={false} className="shape-img-light" />
+          <img src="/shapes/shape-v3-light.webp?v=4" alt="" width={640} height={640} draggable={false} className="shape-img-light" />
         </div>
       </div>
     </div>
   );
 }
 
-/* Theme wave overlay — mounted once per page. The sheet is colored by the
-   DESTINATION theme (CSS below); the three crests ride its top edge: two
-   faint back crests drifting one way, a front gradient lip drifting the
-   other. All transform-only, GPU-friendly, pointer-transparent. */
-const TW_WAVE_UP = 'M0 64 Q150 20 300 64 T600 64 T900 64 T1200 64 V122 H0 Z';
-const TW_WAVE_DOWN = 'M0 64 Q150 108 300 64 T600 64 T900 64 T1200 64 V122 H0 Z';
+/* Theme wave overlay — mounted once per page. A wall of water colored by
+   the DESTINATION theme bursts out of the theme toggle button (top right)
+   as an expanding circular ripple, holds to cover the screen for the
+   theme flip, then drains back into the button. Pointer-transparent. */
 
 function ThemeWave() {
   return (
     <div className="theme-wave" aria-hidden="true">
       <div className="tw-sheet">
         <div className="tw-fill" />
-        <div className="tw-crest tw-c2" style={{ '--tw-dur': '13s' } as CSSProperties}>
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none"><path d={TW_WAVE_DOWN} fill="rgba(228,75,215,.10)" /></svg>
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none"><path d={TW_WAVE_DOWN} fill="rgba(228,75,215,.10)" /></svg>
-        </div>
-        <div className="tw-crest tw-c1" style={{ '--tw-dur': '9s' } as CSSProperties}>
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none"><path d={TW_WAVE_UP} fill="rgba(110,231,239,.13)" /></svg>
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none"><path d={TW_WAVE_UP} fill="rgba(110,231,239,.13)" /></svg>
-        </div>
-        <div className="tw-crest tw-cf" style={{ '--tw-dur': '6s' } as CSSProperties}>
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="twgf1" x1="0" y1="0" x2="0" y2="1">
-                <stop className="tw-stop-tint" offset="0" />
-                <stop className="tw-stop-bg" offset="0.82" />
-              </linearGradient>
-            </defs>
-            <path d={TW_WAVE_UP} fill="url(#twgf1)" />
-          </svg>
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="twgf2" x1="0" y1="0" x2="0" y2="1">
-                <stop className="tw-stop-tint" offset="0" />
-                <stop className="tw-stop-bg" offset="0.82" />
-              </linearGradient>
-            </defs>
-            <path d={TW_WAVE_UP} fill="url(#twgf2)" />
-          </svg>
-        </div>
       </div>
     </div>
   );
