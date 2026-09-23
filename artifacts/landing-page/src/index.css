@@ -377,18 +377,17 @@ html.bc-active input, html.bc-active textarea { cursor: text !important; }
 ::selection { background: #e44bd7; color: #0b0a10; }
 
 /* ── Decorative shapes — per-theme variants ─────────────────────────────
-   Dark keeps the original dark-canvas 3D renders. Light swaps to the
-   inline-SVG "pastel glass" editions (<LightShape /> in App.tsx) — the
-   recolored webps turned muddy/haloed on white, so light mode now uses
-   clean gradient geometry with the same silhouette language. Unlayered
-   so it wins over the Tailwind utility layer. */
+   Dark keeps the original dark-canvas 3D renders. Light uses their
+   frosted-glass siblings: same renders tone-mapped for the white canvas
+   (dark bodies lifted to pastel, neon highlights kept — see
+   scripts/make_light_shapes_v2.py). Unlayered so it wins over the
+   Tailwind utility layer. */
 .shape-img-light { display: none; }
 html:not(.dark) .shape-img-light { display: block; }
 html:not(.dark) .shape-img-dark { display: none; }
-/* the SVG fills its wrapper; soft brand-tinted lift off the white page */
-.lightsvg { width: 100%; height: auto; display: block; }
+/* soft brand-tinted lift off the white page */
 html:not(.dark) .shape-img-light {
-  filter: drop-shadow(0 24px 48px rgba(99,102,241,.16)) drop-shadow(0 6px 18px rgba(34,211,238,.10));
+  filter: drop-shadow(0 24px 48px rgba(99,102,241,.14)) drop-shadow(0 6px 18px rgba(148,163,184,.10));
 }
 /* low-opacity background accents need more presence on the white canvas */
 html:not(.dark) .shape-subtle { opacity: .6; }

@@ -188,126 +188,6 @@ function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; 
   );
 }
 
-/* Light-theme shape editions — inline SVG "pastel glass" geometry. The
-   dark-canvas 3D webps can't be recolored convincingly for a white page
-   (they turn muddy and grow halo bites), so light mode swaps to these
-   hand-built gradient shapes: same silhouette language as the renders
-   (v1 swirl ring, v2 twisted torus, v3 glossy orb, v4 segmented ring),
-   tuned for the white canvas. Inline = crisp at any size, ~0 bytes over
-   the wire. Gradient ids are namespaced per variant; duplicate instances
-   of a variant reuse identical defs, so first-in-DOM resolution is safe. */
-function LightShape({ v }: { v: 1 | 2 | 3 | 4 }) {
-  if (v === 1) {
-    /* hero swirl — wide donut with a spiral mouth opening upper-left,
-       an inner sweep, and two thin strands orbiting the body */
-    return (
-      <svg viewBox="0 0 900 932" className="lightsvg" aria-hidden="true">
-        <defs>
-          <linearGradient id="ls3s-v1a" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#818CF8" /><stop offset=".55" stopColor="#60A5FA" /><stop offset="1" stopColor="#22D3EE" />
-          </linearGradient>
-          <linearGradient id="ls3s-v1b" x1="1" y1="1" x2="0" y2="0">
-            <stop offset="0" stopColor="#C084FC" /><stop offset="1" stopColor="#818CF8" />
-          </linearGradient>
-          <linearGradient id="ls3s-v1c" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0" stopColor="#F0ABFC" /><stop offset="1" stopColor="#67E8F9" />
-          </linearGradient>
-          <filter id="ls3s-v1soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="34" /></filter>
-        </defs>
-        <g fill="none" strokeLinecap="round">
-          <circle cx="450" cy="466" r="288" stroke="url(#ls3s-v1a)" strokeWidth="150" opacity=".26" filter="url(#ls3s-v1soft)" />
-          <circle cx="450" cy="466" r="288" stroke="url(#ls3s-v1a)" strokeWidth="110" strokeDasharray="1590 220" strokeDashoffset="437" />
-          <circle cx="450" cy="466" r="198" stroke="url(#ls3s-v1b)" strokeWidth="74" opacity=".92" strokeDasharray="870 374" strokeDashoffset="-120" />
-          <circle cx="450" cy="466" r="372" stroke="url(#ls3s-v1c)" strokeWidth="9" opacity=".5" strokeDasharray="760 1575" strokeDashoffset="1560" />
-          <circle cx="450" cy="466" r="398" stroke="url(#ls3s-v1a)" strokeWidth="6" opacity=".32" strokeDasharray="540 1959" strokeDashoffset="240" />
-        </g>
-      </svg>
-    );
-  }
-  if (v === 2) {
-    /* integrate torus — chunky violet ring with diagonal cyan twist
-       highlights and one pink glint, like light passing through glass */
-    return (
-      <svg viewBox="0 0 720 652" className="lightsvg" aria-hidden="true">
-        <defs>
-          <linearGradient id="ls3s-v2a" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#A78BFA" /><stop offset=".6" stopColor="#818CF8" /><stop offset="1" stopColor="#6D28D9" />
-          </linearGradient>
-          <linearGradient id="ls3s-v2b" x1="1" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#67E8F9" /><stop offset="1" stopColor="#38BDF8" />
-          </linearGradient>
-          <linearGradient id="ls3s-v2c" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0" stopColor="#F0ABFC" /><stop offset="1" stopColor="#C084FC" />
-          </linearGradient>
-          <filter id="ls3s-v2soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="30" /></filter>
-        </defs>
-        <g fill="none" strokeLinecap="round">
-          <circle cx="360" cy="326" r="228" stroke="url(#ls3s-v2a)" strokeWidth="120" opacity=".3" filter="url(#ls3s-v2soft)" />
-          <circle cx="360" cy="326" r="228" stroke="url(#ls3s-v2a)" strokeWidth="96" />
-          <circle cx="360" cy="326" r="248" stroke="url(#ls3s-v2b)" strokeWidth="52" opacity=".85" strokeDasharray="640 918" strokeDashoffset="520" />
-          <circle cx="360" cy="326" r="212" stroke="url(#ls3s-v2b)" strokeWidth="44" opacity=".9" strokeDasharray="430 902" strokeDashoffset="60" />
-          <circle cx="360" cy="326" r="228" stroke="url(#ls3s-v2c)" strokeWidth="26" opacity=".8" strokeDasharray="300 1132" strokeDashoffset="980" />
-        </g>
-      </svg>
-    );
-  }
-  if (v === 3) {
-    /* footer orb — pastel glass sphere: radial body, soft interior
-       swirls, top-left window highlight, cyan rim light, pink sparkle */
-    return (
-      <svg viewBox="0 0 640 640" className="lightsvg" aria-hidden="true">
-        <defs>
-          <radialGradient id="ls3s-orb" cx=".36" cy=".3" r=".95">
-            <stop offset="0" stopColor="#FFFFFF" /><stop offset=".28" stopColor="#E4E9FF" /><stop offset=".58" stopColor="#C4B5FD" />
-            <stop offset=".82" stopColor="#A78BFA" /><stop offset="1" stopColor="#8B5CF6" />
-          </radialGradient>
-          <linearGradient id="ls3s-sw1" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#7C3AED" /><stop offset="1" stopColor="#E44BD7" />
-          </linearGradient>
-          <filter id="ls3s-soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="10" /></filter>
-        </defs>
-        <circle cx="320" cy="320" r="300" fill="url(#ls3s-orb)" />
-        <g fill="none" strokeLinecap="round" opacity=".4" filter="url(#ls3s-soft)">
-          <path d="M150 400 C 220 300, 380 300, 470 210" stroke="url(#ls3s-sw1)" strokeWidth="30" />
-          <path d="M200 480 C 300 420, 420 440, 500 330" stroke="#22D3EE" strokeWidth="22" opacity=".8" />
-        </g>
-        <ellipse cx="225" cy="180" rx="92" ry="52" fill="#FFFFFF" opacity=".85" transform="rotate(-24 225 180)" />
-        <path d="M84 448 A 262 262 0 0 0 556 436" fill="none" stroke="#67E8F9" strokeWidth="10" strokeLinecap="round" opacity=".55" />
-        <circle cx="468" cy="452" r="14" fill="#F0ABFC" opacity=".9" />
-      </svg>
-    );
-  }
-  /* v4 segmented ring — four rounded glass segments with soft gaps */
-  const SEG_DASH = 320;
-  const SEG_GAP = 76;
-  return (
-    <svg viewBox="0 0 720 713" className="lightsvg" aria-hidden="true">
-      <defs>
-        <linearGradient id="ls3s-v4a" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#818CF8" /><stop offset="1" stopColor="#22D3EE" />
-        </linearGradient>
-        <linearGradient id="ls3s-v4b" x1="1" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#C084FC" /><stop offset="1" stopColor="#E44BD7" />
-        </linearGradient>
-        <filter id="ls3s-v4soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="30" /></filter>
-      </defs>
-      <g fill="none" strokeLinecap="round">
-        <circle cx="360" cy="356" r="252" stroke="url(#ls3s-v4a)" strokeWidth="110" opacity=".22" filter="url(#ls3s-v4soft)" />
-        {[0, 1, 2, 3].map((i) => (
-          <circle
-            key={i}
-            cx="360" cy="356" r="252" strokeWidth="92"
-            stroke={i % 2 ? 'url(#ls3s-v4b)' : 'url(#ls3s-v4a)'}
-            strokeDasharray={`${SEG_DASH} ${SEG_GAP}`}
-            strokeDashoffset={-i * (SEG_DASH + SEG_GAP)}
-            opacity=".95"
-          />
-        ))}
-      </g>
-    </svg>
-  );
-}
-
 /* The template's exact 3D energy shapes — glossy swirl / torus / sphere /
    segmented ring — dropped in as transparent images on the near-black canvas.
    v1 = hero spiral, v2 = integrate torus, v3 = sphere, v4 = segmented ring.
@@ -323,12 +203,12 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   };
   const [w, h] = dims[v];
   /* Both theme variants render and swap via CSS (html.dark). Dark keeps
-     the original dark-canvas webp render; light swaps to the inline-SVG
-     pastel edition (<LightShape />) — the recolored webps went muddy and
-     haloed on the white canvas, so they were retired. */
-  const renderImg = () => (
+     the original dark-canvas webp; light uses its frosted-glass sibling
+     (same render, tone-mapped: dark bodies lifted to pastel, neon kept —
+     see scripts/make_light_shapes_v2.py). */
+  const renderImg = (variant: 'dark' | 'light') => (
     <motion.img
-      src={`/shapes/shape-v${v}.webp`}
+      src={`/shapes/shape-v${v}${variant === 'light' ? '-light' : ''}.webp`}
       alt=""
       width={w}
       height={h}
@@ -336,19 +216,10 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
       loading={v === 1 ? 'eager' : 'lazy'}
       fetchPriority={v === 1 ? 'high' : undefined}
       decoding="async"
-      className="shape-img shape-img-dark h-auto w-full will-change-transform"
+      className={`shape-img shape-img-${variant} h-auto w-full will-change-transform`}
       animate={spin ? { rotate: 360 * dir } : undefined}
       transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
     />
-  );
-  const renderLight = () => (
-    <motion.div
-      className="shape-img-light h-auto w-full will-change-transform"
-      animate={spin ? { rotate: 360 * dir } : undefined}
-      transition={spin ? { duration: spin, repeat: Infinity, ease: 'linear' } : undefined}
-    >
-      <LightShape v={v} />
-    </motion.div>
   );
   return (
     <motion.div
@@ -358,8 +229,8 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
       animate={floatY ? { y: [-floatY, floatY, -floatY] } : undefined}
       transition={floatY ? { duration: floatDur, repeat: Infinity, ease: 'easeInOut' } : undefined}
     >
-      {renderImg()}
-      {renderLight()}
+      {renderImg('dark')}
+      {renderImg('light')}
     </motion.div>
   );
 }
@@ -463,11 +334,11 @@ function BrandCursor() {
         </div>
         <div className="brand-cursor-fade f-ring">
           <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} className="shape-img-dark" />
-          <div className="shape-img-light"><LightShape v={1} /></div>
+          <img src="/shapes/shape-v1-light.webp" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
         </div>
         <div className="brand-cursor-fade f-orb">
           <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} className="shape-img-dark" />
-          <div className="shape-img-light"><LightShape v={3} /></div>
+          <img src="/shapes/shape-v3-light.webp" alt="" width={640} height={640} draggable={false} className="shape-img-light" />
         </div>
       </div>
     </div>
