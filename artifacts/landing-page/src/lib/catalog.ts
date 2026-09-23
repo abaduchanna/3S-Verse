@@ -155,9 +155,9 @@ export const VIDEO_DEMO = {
 export const YOUTUBE_URL = '';
 
 /**
- * Official downloads — served from the PUBLIC 3sverse-downloads repo,
+ * Official downloads — served from the PUBLIC 3SVerse_Downloads repo,
  * which auto-syncs the newest build of each tool every 4 hours
- * (github.com/abaduchanna/3sverse-downloads → releases/latest). These are
+ * (github.com/abaduchanna/3SVerse_Downloads → releases/latest). These are
  * versionless URLs: the same link always delivers the newest build, so
  * trial users and paid customers re-downloading updates never need a new
  * link. There is ONE build per tool: it opens as a free 7-day trial and
@@ -166,7 +166,7 @@ export const YOUTUBE_URL = '';
  * the app via Ed25519 signatures, so this link is safe to share anywhere.
  */
 const TRIAL_BASE =
-  'https://github.com/abaduchanna/3sverse-downloads/releases/latest/download/';
+  'https://github.com/abaduchanna/3SVerse_Downloads/releases/latest/download/';
 
 export const TRIAL_DOWNLOADS: Record<string, string> = {
   extractor: `${TRIAL_BASE}VidaPay_Incentive_Extractor.exe`,

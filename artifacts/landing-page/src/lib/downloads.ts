@@ -2,11 +2,11 @@
  * Latest-build download links — single source of truth for every
  * "download the app" button on the site and in the order emails.
  *
- * SINGLE-BUILD MODEL (mirrors the sync workflow in 3sverse-downloads):
+ * SINGLE-BUILD MODEL (mirrors the sync workflow in 3SVerse_Downloads):
  * Each tool ships as ONE .exe. It opens as a free 7-day trial and a
  * license key unlocks the full version permanently — trial users and
  * paid customers run byte-identical software:
- *   https://github.com/abaduchanna/3sverse-downloads/releases/latest/download/<EXE>
+ *   https://github.com/abaduchanna/3SVerse_Downloads/releases/latest/download/<EXE>
  * A scheduled action re-syncs the newest build of each tool every few
  * hours, so each URL below ALWAYS serves the newest build.
  *
@@ -18,7 +18,7 @@
  */
 
 export const DOWNLOAD_BASE =
-  'https://github.com/abaduchanna/3sverse-downloads/releases/latest/download';
+  'https://github.com/abaduchanna/3SVerse_Downloads/releases/latest/download';
 
 const asset = (file: string) => `${DOWNLOAD_BASE}/${file}`;
 

@@ -13,8 +13,8 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, FileDown, Loader2, ShieldCheck } from 'lucide-react';
 import { TRIAL_DOWNLOADS } from '@/lib/catalog';
 
-const RELEASES_API = 'https://api.github.com/repos/abaduchanna/3sverse-downloads/releases/latest';
-const RELEASES_PAGE = 'https://github.com/abaduchanna/3sverse-downloads/releases/latest';
+const RELEASES_API = 'https://api.github.com/repos/abaduchanna/3SVerse_Downloads/releases/latest';
+const RELEASES_PAGE = 'https://github.com/abaduchanna/3SVerse_Downloads/releases/latest';
 
 const LABELS: Record<string, string> = {
   'VidaPay_Incentive_Extractor.exe': 'VidaPay Incentive Extractor — 7-day trial included',
