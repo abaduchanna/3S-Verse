@@ -55,11 +55,122 @@ const LEDGER_PATH_DEFAULT = "ledger/orders.json";
 const INBOX_DIR_DEFAULT = "ledger/orders_inbox";
 const CACHE_SECONDS = 300;
 
-/* Order intake rate limit (per IP): 5 orders / 15 min, same as the old
-   Netlify order function. */
+/* Trial builds live in the PUBLIC 3sverse-downloads repo (GitHub serves
+   them directly). The /trial route puts the same Turnstile gate in front
+   of those public links so scrapers/bots cannot hammer them at scale. */
+const TRIAL_DOWNLOADS_BASE =
+  "https://github.com/abaduchanna/3sverse-downloads/releases/latest/download/";
+const TRIAL_ASSETS = {
+  extractor: "VidaPay_Incentive_Extractor_TRIAL.exe",
+  ordering: "VidaPay_Device_Ordering_TRIAL.exe",
+  rebate: "VidaPay_Rebate_Filing_TRIAL.exe",
+};
+
+/* --------------------------- Turnstile (bot gate) -----------------------
+   Add these in Worker → Settings → Variables to switch the protection on:
+     TURNSTILE_SITE_KEY   (plain text, from the CF dashboard widget)
+     TURNSTILE_SECRET_KEY (secret, from the same widget)
+   While either is missing the worker behaves exactly like the previous
+   version (no challenge) so the rollout can be staged. */
+const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+function turnstileConfigured(env) {
+  return Boolean(env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY);
+}
+
+async function verifyTurnstile(env, token, ip) {
+  if (!turnstileConfigured(env)) return true; // protection not switched on
+  if (!token) return false;
+  const body = new URLSearchParams({
+    secret: env.TURNSTILE_SECRET_KEY,
+    response: token,
+  });
+  if (ip && ip !== "unknown") body.set("remoteip", ip);
+  try {
+    const res = await fetch(TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: String(body),
+    });
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch {
+    return false; // fail closed when the gate is on
+  }
+}
+
+/* Challenge page: renders the widget, and on success re-requests the same
+   URL with &ct=<token> so the worker can verify it server-side. */
+function challengePage(request, env, nextUrl) {
+  if (!turnstileConfigured(env)) {
+    // Unreachable in normal flow (verify passes when unconfigured) — kept
+    // as a safe fallback so a relative nextUrl can never hit Response.redirect.
+    return errorPage(500, "Download gate is not configured yet.");
+  }
+  const siteKey = env.TURNSTILE_SITE_KEY;
+  const sep = nextUrl.includes("?") ? "&" : "?";
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<title>3S Verse — quick check</title>` +
+    `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer><\/script>` +
+    `</head><body style="font-family:Arial,sans-serif;background:#f4f3f8;padding:40px;text-align:center;">` +
+    `<div style="max-width:420px;margin:60px auto 0;background:#fff;border:1px solid #e6e4ee;border-radius:12px;padding:36px;">` +
+    `<h1 style="margin:0 0 8px;font-size:19px;">Quick security check</h1>` +
+    `<p style="color:#6b6880;font-size:13px;line-height:1.6;margin:0 0 20px;">This one-click check keeps downloads fast and bot-free for everyone.</p>` +
+    `<div id="tsbox" style="display:flex;justify-content:center;"></div>` +
+    `<p id="tserr" style="color:#b91c1c;font-size:12px;display:none;">Check failed — please try again.</p>` +
+    `<p style="color:#6b6880;font-size:12px;margin-top:18px;">3S Verse · Connect@3SVerse.com</p>` +
+    `</div>` +
+    `<script>
+      function _onToken(token){
+        window.location.href = ${JSON.stringify(nextUrl + sep + "ct=")} + encodeURIComponent(token);
+      }
+      window._tsOnToken = _onToken;
+      window.onload = function(){
+        function render(){
+          if (!window.turnstile){ setTimeout(render, 200); return; }
+          try {
+            turnstile.render("#tsbox", { sitekey: ${JSON.stringify(siteKey)}, callback: _onToken, "error-callback": function(){ document.getElementById("tserr").style.display="block"; } });
+          } catch(e){ document.getElementById("tserr").style.display="block"; }
+        }
+        render();
+      };
+    <\/script>` +
+    `</body></html>`;
+  return new Response(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
+/* Order intake + contact relay rate limit (per IP): 5 orders / 15 min,
+   10 contact posts / 15 min. */
 const INBOX_WINDOW_MS = 15 * 60 * 1000;
 const INBOX_MAX_PER_WINDOW = 5;
-const inboxHits = new Map(); // ip → [timestamps]
+const CONTACT_WINDOW_MS = 15 * 60 * 1000;
+const CONTACT_MAX_PER_WINDOW = 10;
+const hitWindows = new Map(); // "kind:ip" → [timestamps]
+
+function rateLimited(kind, ip, windowMs, maxPerWindow) {
+  const now = Date.now();
+  const k = kind + ":" + ip;
+  const recent = (hitWindows.get(k) || []).filter((t) => now - t < windowMs);
+  if (recent.length >= maxPerWindow) {
+    hitWindows.set(k, recent);
+    return true;
+  }
+  recent.push(now);
+  hitWindows.set(k, recent);
+  return false;
+}
+
+function inboxIp(request) {
+  return (
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown"
+  );
+}
 
 /* product → private repo + release asset name (the FULL builds).
    "bundle" is expanded to all three products at validation time. */
@@ -158,26 +269,6 @@ function jsonCors(request, status, payload) {
   });
 }
 
-function inboxIp(request) {
-  return (
-    request.headers.get("cf-connecting-ip") ||
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown"
-  );
-}
-
-function inboxRateLimited(ip) {
-  const now = Date.now();
-  const recent = (inboxHits.get(ip) || []).filter((t) => now - t < INBOX_WINDOW_MS);
-  if (recent.length >= INBOX_MAX_PER_WINDOW) {
-    inboxHits.set(ip, recent);
-    return true;
-  }
-  recent.push(now);
-  inboxHits.set(ip, recent);
-  return false;
-}
-
 function readText(v, max) {
   return typeof v === "string" ? v.trim().slice(0, max) : "";
 }
@@ -230,7 +321,8 @@ async function handleOrderPost(request, env) {
   if (!env.LEDGER_WRITE_TOKEN) {
     return jsonCors(request, 503, { ok: false, error: "Order intake is not configured yet (missing LEDGER_WRITE_TOKEN)." });
   }
-  if (inboxRateLimited(inboxIp(request))) {
+  const ip = inboxIp(request);
+  if (rateLimited("order", ip, INBOX_WINDOW_MS, INBOX_MAX_PER_WINDOW)) {
     return jsonCors(request, 429, { ok: false, error: "Too many orders — please try again later." });
   }
   let body;
@@ -238,6 +330,9 @@ async function handleOrderPost(request, env) {
     body = await request.json();
   } catch {
     return jsonCors(request, 400, { ok: false, error: "Invalid request body." });
+  }
+  if (!(await verifyTurnstile(env, body.turnstileToken, ip))) {
+    return jsonCors(request, 403, { ok: false, error: "Security check failed or missing — please retry the order." });
   }
   const clean = sanitizeInboxOrder(body);
   if (clean.error) return jsonCors(request, 400, { ok: false, error: clean.error });
@@ -313,6 +408,7 @@ function infoPage() {
 <p style="color:#6b6880;font-size:14px;line-height:1.6;">Use the <strong>order number from your invoice</strong> on
 <a href="https://3sverse.com" style="color:#0e7c8c;">3sverse.com</a> to download your software.
 Free trials are available on the site without any sign-in.</p>
+<p style="color:#6b6880;font-size:12px;">Routes: /download?order=…&product=… · /trial?product=… · POST /order · POST /contact</p>
 <p style="color:#6b6880;font-size:12px;">Support: Connect@3SVerse.com</p>
 </div></body></html>`,
     { headers: { "Content-Type": "text/html; charset=utf-8" } },
@@ -355,6 +451,61 @@ function errorPage(status, message) {
 }
 
 /* ------------------------------- handler ------------------------------- */
+/* ------------------- contact relay (Turnstile-gated) --------------------
+   The website's forms post here; the worker verifies the Turnstile token
+   server-side and only then relays the payload to FormSubmit. This gives
+   the static site (GitHub Pages) a real server-side bot gate. */
+const FORUM_SUBMIT_URL = "https://formsubmit.co/ajax/connect@3sverse.com";
+const CONTACT_ALLOWED_FIELDS = new Set([
+  "name", "email", "store", "company", "tool", "rating", "review", "text",
+  "message", "phone", "messenger", "notes", "_subject", "_template",
+  "_replyto", "_autoresponse", "_honey",
+]);
+
+async function handleContactPost(request, env) {
+  const ip = inboxIp(request);
+  if (rateLimited("contact", ip, CONTACT_WINDOW_MS, CONTACT_MAX_PER_WINDOW)) {
+    return jsonCors(request, 429, { ok: false, error: "Too many messages — please try again later." });
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonCors(request, 400, { ok: false, error: "Invalid request body." });
+  }
+  if (!(await verifyTurnstile(env, body.turnstileToken, ip))) {
+    return jsonCors(request, 403, { ok: false, error: "Security check failed or missing — please retry." });
+  }
+  if (body._honey) {
+    // Honeypot filled -> almost certainly a bot. Pretend success, send nothing.
+    return jsonCors(request, 200, { ok: true });
+  }
+  const fields = {};
+  for (const [k, v] of Object.entries(body || {})) {
+    if (k === "turnstileToken" || k === "website") continue;
+    if (!CONTACT_ALLOWED_FIELDS.has(k)) continue;
+    fields[k] = typeof v === "string" ? v.slice(0, 4000) : v;
+  }
+  if (!fields.name && !fields.email && !fields._subject) {
+    return jsonCors(request, 400, { ok: false, error: "Nothing to send." });
+  }
+  try {
+    const upstream = await fetch(FORUM_SUBMIT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(fields),
+    });
+    const payload = await upstream.json().catch(() => ({}));
+    return jsonCors(request, upstream.ok && payload.success === "true" ? 200 : 502,
+      upstream.ok && payload.success === "true"
+        ? { ok: true }
+        : { ok: false, error: "The mail relay rejected the message — please email Connect@3SVerse.com directly." });
+  } catch {
+    return jsonCors(request, 502, { ok: false, error: "Mail relay unreachable — please email Connect@3SVerse.com directly." });
+  }
+}
+
+/* ------------------------------- router -------------------------------- */
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -371,8 +522,44 @@ export default {
       return handleOrderPost(request, env);
     }
 
+    if (url.pathname === "/contact") {
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders(request) });
+      }
+      if (request.method !== "POST") {
+        return jsonCors(request, 405, { ok: false, error: "Method not allowed." });
+      }
+      return handleContactPost(request, env);
+    }
+
+    if (url.pathname === "/trial") {
+      const tproduct = (url.searchParams.get("product") || "").trim().toLowerCase();
+      const asset = TRIAL_ASSETS[tproduct];
+      if (!asset) {
+        return errorPage(404, "Unknown trial product — use /trial?product=extractor|ordering|rebate.");
+      }
+      const target = TRIAL_DOWNLOADS_BASE + asset;
+      const ct = url.searchParams.get("ct") || "";
+      if (!(await verifyTurnstile(env, ct, inboxIp(request)))) {
+        return challengePage(request, env, url.pathname + "?product=" + encodeURIComponent(tproduct));
+      }
+      return Response.redirect(target, 302);
+    }
+
     if (url.pathname !== "/download") {
       return errorPage(404, "Unknown path — use /download?order=…&product=…");
+    }
+
+    /* Paid-download Turnstile gate: first hit (no ct token) shows the
+       one-click check; the widget bounces back with &ct=<token> which is
+       verified server-side before a single byte of the build is served. */
+    {
+      const ct = url.searchParams.get("ct") || "";
+      if (!(await verifyTurnstile(env, ct, inboxIp(request)))) {
+        const qs = new URLSearchParams(url.search);
+        qs.delete("ct");
+        return challengePage(request, env, url.pathname + "?" + qs.toString());
+      }
     }
 
     if (!env.GH_TOKEN) {

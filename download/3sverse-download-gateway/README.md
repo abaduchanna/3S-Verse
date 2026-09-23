@@ -158,3 +158,64 @@ Commit + push — the store's "Already purchased?" box becomes a live gate
   (GitHub's editor shows errors before committing).
 * The worker never exposes the GitHub token; customers only ever see your
   worker URL. Rotate the token yearly.
+
+## Turnstile bot protection (2026-09 update)
+
+The worker now carries a Cloudflare Turnstile gate on every public ACTION:
+
+| Route | Protection |
+|-------|------------|
+| `POST /order`   | `turnstileToken` field required (verified server-side) |
+| `POST /contact` | `turnstileToken` field required + relays to FormSubmit only after verification |
+| `GET /download` | first hit without a valid `&ct=` token shows a one-click check page; the widget bounces back with `&ct=<token>` which is verified server-side before a single byte streams |
+| `GET /trial`    | same one-click check, then 302 to the public trial asset |
+
+Static pages on GitHub Pages need no gate (nothing to attack there) —
+every ENDPOINT does, and all of them are covered.
+
+### Switching the protection ON (5 minutes)
+
+1. dash.cloudflare.com → **Turnstile → Add site** — domain `3sverse.com`,
+   widget mode **Managed** → copy the **Site Key** and the **Secret Key**.
+2. Worker → Settings → Variables → add:
+   * `TURNSTILE_SITE_KEY` (plain text) = the Site Key
+   * `TURNSTILE_SECRET_KEY` (secret) = the Secret Key
+3. `landing-page/src/lib/catalog.ts` → set `TURNSTILE_SITE_KEY` to the
+   same Site Key → rebuild + push the site (CI deploys it).
+   This one switch also routes the free-trial buttons through `/trial`
+   and makes contact/review/order posts carry tokens.
+4. Redeploy this worker (paste the new `worker.js` in the dashboard).
+
+Order matters: deploy the worker first, then set the site key. Until the
+worker runs the new code the site key must stay `''` (the forms fall back
+to posting straight to FormSubmit and trial links stay direct-to-GitHub).
+
+### What is new in this version
+
+* `POST /contact` — new relay: verifies Turnstile, then forwards to
+  FormSubmit AJAX (`connect@3sverse.com`). Field allow-list, honeypot
+  short-circuit, 10 posts / 15 min / IP rate limit.
+* `GET /trial?product=extractor|ordering|rebate` — Turnstile page in front
+  of the public trial builds (3sverse-downloads releases).
+* `GET /download` — interstitial check when the gate is on; invoice links
+  still work (they show the one-click check first).
+* `POST /order` — now requires the token when the gate is on.
+* While `TURNSTILE_SECRET_KEY` is unset the worker behaves exactly like
+  the previous version (everything passes) — staged rollout, no cliff.
+
+### Whole-site bot posture (optional, dashboard-only)
+
+Turnstile covers the actions. For the rest, two free Cloudflare toggles:
+
+* **Security → Bots → Bot Fight Mode** ON (blocks obvious bot traffic).
+* **Security → WAF → Rate limiting** rule on `*workers.dev/3sverse-downloads*`
+  (e.g. 60 req/min/IP) to cap scraping pressure.
+
+### Licensing side — seat moves (same release)
+
+* Desktop tools now have a **"Deactivate this PC"** link (bottom-right of
+  every app): frees the seat server-side, same key activates elsewhere.
+* Studio's **Release Seats** asks for a reason and writes
+  `ledger/transfer_log.json`; the apps' self-deactivation writes the same
+  log. Studio's Manage tab has a **Transfer log** viewer. Repeated moves
+  for one key = key-sharing pattern.
