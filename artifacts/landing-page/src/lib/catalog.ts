@@ -155,24 +155,25 @@ export const VIDEO_DEMO = {
 export const YOUTUBE_URL = '';
 
 /**
- * Free-trial downloads — served from the PUBLIC 3sverse-downloads repo,
- * which auto-syncs the newest 7-day trial build of each tool every 4 hours
+ * Official downloads — served from the PUBLIC 3sverse-downloads repo,
+ * which auto-syncs the newest build of each tool every 4 hours
  * (github.com/abaduchanna/3sverse-downloads → releases/latest). These are
  * versionless URLs: the same link always delivers the newest build, so
  * trial users and paid customers re-downloading updates never need a new
- * link. ONLY trial builds live in that public repo; FULL (paid) builds
- * stay in the private build repos and are delivered through the
- * order-number gateway (see PAID_DOWNLOAD below).
+ * link. There is ONE build per tool: it opens as a free 7-day trial and
+ * a license key unlocks the full version — paid delivery is the key
+ * (emailed), not a separate file. Key authenticity is enforced inside
+ * the app via Ed25519 signatures, so this link is safe to share anywhere.
  */
 const TRIAL_BASE =
   'https://github.com/abaduchanna/3sverse-downloads/releases/latest/download/';
 
 export const TRIAL_DOWNLOADS: Record<string, string> = {
-  extractor: `${TRIAL_BASE}VidaPay_Incentive_Extractor_TRIAL.exe`,
-  ordering: `${TRIAL_BASE}VidaPay_Device_Ordering_TRIAL.exe`,
-  rebate: `${TRIAL_BASE}VidaPay_Rebate_Filing_TRIAL.exe`,
-  /* Bundle trial → the branded download page lists all three trial
-     installers with live SHA-256 checksums. */
+  extractor: `${TRIAL_BASE}VidaPay_Incentive_Extractor.exe`,
+  ordering: `${TRIAL_BASE}VidaPay_Device_Ordering.exe`,
+  rebate: `${TRIAL_BASE}VidaPay_Rebate_Filing.exe`,
+  /* Bundle → the branded download page lists all three installers
+     with live SHA-256 checksums. */
   bundle: '/#/download',
 };
 
@@ -189,19 +190,19 @@ export function trialDownloadUrl(productId: string): string {
 }
 
 export const TRIAL_DOWNLOAD = {
-  label: 'Download free trial (.exe)',
-  note: 'Windows 10/11 · 7-day trial · license key arrives by email',
+  label: 'Download for Windows (.exe)',
+  note: 'Windows 10/11 · full software · free 7-day trial built in · license key unlocks full',
 } as const;
 
 /**
- * Paid-customer download gateway (FULL builds) — LIVE.
- * Cloudflare Worker: https://3sverse-downloads.abaduchanna.workers.dev
- * (source + setup guide: 3sverse-download-gateway/README.md). The worker
- * checks the customer's order number against the license ledger
- * (vidapay-license-server → ledger/orders.json) and only then serves the
- * private FULL build — so paid builds are never publicly downloadable.
- * If gatewayUrl is ever emptied, the storefront falls back to a request
- * box instead of the automatic download (audit F04).
+ * Order intake + optional trial gate (Cloudflare Worker):
+ * https://3sverse-downloads.abaduchanna.workers.dev
+ * The storefront POSTs every order to orderInboxUrl — the worker files it
+ * into vidapay-license-server/ledger/orders_inbox/<ref>.json so the
+ * License Studio "Orders" tab shows pending orders live (key issue
+ * prefills straight from the order). Downloads themselves no longer go
+ * through this worker: the one official build is public (see
+ * TRIAL_DOWNLOADS above) and paid delivery is the license key.
  */
 export const PAID_DOWNLOAD = {
   gatewayUrl: 'https://3sverse-downloads.abaduchanna.workers.dev/download',

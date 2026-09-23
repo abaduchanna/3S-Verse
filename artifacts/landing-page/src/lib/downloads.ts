@@ -2,36 +2,36 @@
  * Latest-build download links — single source of truth for every
  * "download the app" button on the site and in the order emails.
  *
- * SECURITY CONTRACT (mirrors the sync workflow in 3sverse-downloads):
- *   - TRIAL builds live in the PUBLIC mirror repo and are free for anyone:
- *       https://github.com/abaduchanna/3sverse-downloads/releases/latest/download/<TRIAL.exe>
- *     A scheduled action re-syncs the newest trial of each tool every few
- *     hours, so each URL below ALWAYS serves the newest build.
- *   - FULL (paid) builds stay in the PRIVATE build repos. They are served
- *     ONLY through the Cloudflare download gateway (PAID_DOWNLOAD.gatewayUrl),
- *     which validates the customer's order number against the license
- *     ledger before streaming anything. Never point a public URL at a FULL
- *     asset — the mirror repo no longer carries them.
+ * SINGLE-BUILD MODEL (mirrors the sync workflow in 3sverse-downloads):
+ * Each tool ships as ONE .exe. It opens as a free 7-day trial and a
+ * license key unlocks the full version permanently — trial users and
+ * paid customers run byte-identical software:
+ *   https://github.com/abaduchanna/3sverse-downloads/releases/latest/download/<EXE>
+ * A scheduled action re-syncs the newest build of each tool every few
+ * hours, so each URL below ALWAYS serves the newest build.
+ *
+ * Paid delivery is the LICENSE KEY (emailed after payment), not a
+ * separate build — there is no private FULL-build gateway in the
+ * customer path anymore. Key authenticity is enforced inside the app
+ * (Ed25519 signatures against the seller-published public keys), so the
+ * public link is safe to share anywhere.
  */
-
-import { PAID_DOWNLOAD } from './catalog';
 
 export const DOWNLOAD_BASE =
   'https://github.com/abaduchanna/3sverse-downloads/releases/latest/download';
 
 const asset = (file: string) => `${DOWNLOAD_BASE}/${file}`;
 
-/** Product id → trial asset in the public mirror. Paid builds are NOT
- * listed here — they go through the gateway below. */
-export const PRODUCT_BUILDS: Record<string, { trial: string }> = {
+/** Product id → the one official build in the public mirror. */
+export const PRODUCT_BUILDS: Record<string, { build: string }> = {
   extractor: {
-    trial: asset('VidaPay_Incentive_Extractor_TRIAL.exe'),
+    build: asset('VidaPay_Incentive_Extractor.exe'),
   },
   ordering: {
-    trial: asset('VidaPay_Device_Ordering_TRIAL.exe'),
+    build: asset('VidaPay_Device_Ordering.exe'),
   },
   rebate: {
-    trial: asset('VidaPay_Rebate_Filing_TRIAL.exe'),
+    build: asset('VidaPay_Rebate_Filing.exe'),
   },
 };
 
@@ -41,54 +41,43 @@ export interface BuildDownload {
   note: string;
 }
 
-/** Gateway URL for a paid order's FULL build ('' while the gateway is not
- * deployed — the seller then delivers FULL builds personally). */
-export function paidDownloadUrl(productId: string, orderRef: string): string {
-  if (!PAID_DOWNLOAD.gatewayUrl || !orderRef) return '';
-  return (
-    `${PAID_DOWNLOAD.gatewayUrl}` +
-    `?order=${encodeURIComponent(orderRef.trim().toUpperCase())}` +
-    `&product=${encodeURIComponent(productId)}`
-  );
+/** The one official build URL for a product ('' for unknown ids). */
+export function buildDownloadUrl(productId: string): string {
+  return PRODUCT_BUILDS[productId]?.build ?? '';
 }
 
-/** Ordered download list for a product as seen by a customer with a
- * verified order reference. With no gateway configured, only the trial is
- * listed plus a contact note — paid builds are never exposed publicly. */
+/** Ordered download list for a product. One entry — the same official
+ * build serves trials and paid customers alike; only the note differs. */
 export function downloadsForProduct(productId: string, orderRef = ''): BuildDownload[] {
-  const builds = PRODUCT_BUILDS[productId];
-  if (!builds) return [];
+  const url = buildDownloadUrl(productId);
+  if (!url) return [];
   const list: BuildDownload[] = [];
-
-  const paid = paidDownloadUrl(productId, orderRef);
-  if (paid) {
-    list.push({
-      label: 'Licensed build (.exe)',
-      url: paid,
-      note: 'For monthly / annual / lifetime — verified against your order, always the newest build.',
-    });
-  }
-  list.push({
-    label: 'Trial build (.exe)',
-    url: builds.trial,
-    note: 'Full features for 7 days on 1 PC — no card needed.',
-  });
+  list.push(
+    orderRef
+      ? {
+          label: 'Download for Windows (.exe)',
+          url,
+          note: 'Always the newest official build — your license key (emailed with your invoice) unlocks the full version.',
+        }
+      : {
+          label: 'Download for Windows (.exe)',
+          url,
+          note: 'Full software with a free 7-day trial built in — a license key unlocks it permanently.',
+        },
+  );
   return list;
 }
 
-/** The download that matches a purchased billing model. Trial models map
- * to the public trial asset; PAID models go through the gateway when the
- * caller has an order reference, otherwise '' (delivered by email).
+/** The download that matches a purchased billing model. With the
+ * single-build model every model gets the same official build; paid
+ * models are unlocked by the license key, not by a different file.
  * (Used by the dormant Netlify order-status function for order emails.) */
 export function downloadForProductModel(
   productId: string,
-  model: string,
-  orderRef = '',
+  _model: string,
+  _orderRef = '',
 ): string {
-  const builds = PRODUCT_BUILDS[productId];
-  if (!builds) return '';
-  if (model === 'trial') return builds.trial;
-  return paidDownloadUrl(productId, orderRef);
+  return buildDownloadUrl(productId);
 }
 
 /** Order line keys look like "extractor|lifetime|5". */

@@ -1,12 +1,13 @@
 /**
  * Download page (#/download, deep link /download) — the branded download
- * destination for the public 7-day trial installers (audit: replace the
- * raw GitHub release URL as the main public download destination).
+ * destination for the official VidaPay tool installers.
  *
- * Checksums are fetched LIVE from the public downloads repository's
- * latest release (GitHub provides sha256 digests on release assets), so
- * the values shown always match the file a visitor downloads right now —
- * the trial builds re-publish on a fixed sync schedule.
+ * One build per tool: it opens as a free 7-day trial and a license key
+ * unlocks the full version, so trial users and paid customers download
+ * the same file. Checksums are fetched LIVE from the public downloads
+ * repository's latest release (GitHub provides sha256 digests on release
+ * assets), so the values shown always match the file a visitor downloads
+ * right now — the builds re-publish on a fixed sync schedule.
  */
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, FileDown, Loader2, ShieldCheck } from 'lucide-react';
@@ -16,9 +17,9 @@ const RELEASES_API = 'https://api.github.com/repos/abaduchanna/3sverse-downloads
 const RELEASES_PAGE = 'https://github.com/abaduchanna/3sverse-downloads/releases/latest';
 
 const LABELS: Record<string, string> = {
-  'VidaPay_Incentive_Extractor_TRIAL.exe': 'VidaPay Incentive Extractor — 7-day trial',
-  'VidaPay_Device_Ordering_TRIAL.exe': 'VidaPay Device Ordering — 7-day trial',
-  'VidaPay_Rebate_Filing_TRIAL.exe': 'VidaPay Rebate Filing — 7-day trial',
+  'VidaPay_Incentive_Extractor.exe': 'VidaPay Incentive Extractor — 7-day trial included',
+  'VidaPay_Device_Ordering.exe': 'VidaPay Device Ordering — 7-day trial included',
+  'VidaPay_Rebate_Filing.exe': 'VidaPay Rebate Filing — 7-day trial included',
 };
 
 interface Asset {
@@ -81,14 +82,15 @@ export default function DownloadPage() {
 
       <main className="mx-auto max-w-3xl px-5 pb-24 pt-14">
         <div className="font-mono-tech text-[10px] uppercase tracking-[.3em] text-brand-cyan">
-          Free 7-day trials — full software, no card needed
+          One build each — free 7-day trial, license key unlocks full
         </div>
         <h1 className="mt-4 text-[clamp(2rem,4.5vw,3.2rem)] font-light leading-[1.08] tracking-[-0.02em]">
           Download the VidaPay tools.
         </h1>
         <p className="mt-5 text-[15px] font-light leading-7 text-foreground/75">
           Windows 10/11, your VidaPay dealer login, and Excel for the outputs — that is the whole checklist.
-          Each trial is the full software for 7 days on one PC. Installers are hosted in our controlled public
+          Each download is the full software: it runs as a 7-day trial on one PC, and the license key you
+          buy unlocks it permanently — no second installer. Builds are hosted in our controlled public
           repository and re-published on a fixed sync schedule.
         </p>
 
@@ -181,7 +183,7 @@ export default function DownloadPage() {
               'Verify the SHA-256 checksum shown above against the file you downloaded (Windows: certutil -hashfile <file> SHA256).',
               'The tools run on your own PC under your own VidaPay login — credentials and extracted data never leave your machine.',
               'No telemetry, no analytics. Network calls go to the VidaPay portal and the license ledger only.',
-              'Paid (FULL) builds are never public — they are delivered through your order number.',
+              'One official build per tool — the 7-day trial starts on first run; your license key unlocks the full version permanently.',
             ].map((line) => (
               <li key={line} className="flex gap-2.5">
                 <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-brand-cyan" /> {line}

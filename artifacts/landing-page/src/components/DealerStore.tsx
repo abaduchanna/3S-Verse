@@ -669,7 +669,7 @@ export default function DealerStore() {
                       className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-[13.5px] font-semibold text-[#0b0a10] transition-transform hover:scale-[1.02]"
                     >
                       <Download className="h-4 w-4" />
-                      <span className="min-w-0">{product ? product.name : 'Trial'} — trial</span>
+                      <span className="min-w-0">{product ? product.name : 'Tool'} — download</span>
                     </a>
                   );
                 })}

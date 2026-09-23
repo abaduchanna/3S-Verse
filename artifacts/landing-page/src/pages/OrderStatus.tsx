@@ -194,11 +194,10 @@ export default function OrderStatus() {
               Your downloads
             </h2>
             <p className="mt-2 max-w-2xl text-[13.5px] font-light leading-6 text-foreground/75">
-              These buttons always serve the newest build of each tool — when an
-              update ships, come back to this page and re-download for free.
-              Licensed (monthly / annual / lifetime) builds are verified against
-              your order before download; the trial runs 7 days on 1 PC. License
-              keys are delivered by email after payment confirmation.
+              These buttons always serve the newest official build of each tool — when an
+              update ships, come back to this page and re-download for free. Every build
+              opens as a 7-day trial; the license key delivered with your invoice unlocks
+              the full version permanently. No separate installer is needed for paid plans.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               {staticOrder.products.flatMap((pid, i) => {
@@ -217,11 +216,11 @@ export default function OrderStatus() {
             </div>
             {!PAID_DOWNLOAD.gatewayUrl ? (
               <p className="mt-4 rounded-xl border border-border bg-foreground/[.03] px-4 py-3 text-[13px] text-foreground/75">
-                Your licensed build link is being activated — email{' '}
+                Your license key is being issued — email{' '}
                 <a className="text-brand-cyan" href={`mailto:${PAID_DOWNLOAD.contactEmail}`}>
                   {PAID_DOWNLOAD.contactEmail}
                 </a>{' '}
-                with your order reference and we send the FULL build right away.
+                with your order reference and we send it right away.
               </p>
             ) : null}
             <p className="mt-4 text-[12.5px] text-muted-foreground">
