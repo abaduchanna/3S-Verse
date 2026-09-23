@@ -2482,7 +2482,10 @@ function Footer() {
             <a href="#/terms" data-testid="link-footer-terms" className="transition-colors hover:text-foreground">Terms</a>
             <a href="#/refund" data-testid="link-footer-refund" className="transition-colors hover:text-foreground">Refund</a>
             <a href="#/eula" data-testid="link-footer-eula" className="transition-colors hover:text-foreground">EULA</a>
-            <a href="#/invoice" data-testid="link-footer-invoice" className="transition-colors hover:text-foreground" title="Invoice Studio (seller)">Invoice</a>
+            {/* Invoice Studio removed from the footer on purpose — it is the
+                seller's tool and must have zero public footprint. It stays
+                reachable only by typing the direct URL (#/invoice), which is
+                additionally passcode-gated (see src/pages/InvoiceStudio.tsx). */}
             <a href="#top" data-testid="link-footer-top" className="transition-colors hover:text-foreground">Back to top ↑</a>
           </div>
         </div>

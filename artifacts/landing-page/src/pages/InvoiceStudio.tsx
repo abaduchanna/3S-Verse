@@ -76,6 +76,85 @@ const fieldClass =
   'rounded-xl border border-border bg-foreground/[.04] px-4 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-brand-cyan/60 [&>option]:bg-card';
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-[.16em] text-muted-foreground';
 
+/* ------------------------------------------------------------------
+ * SELLER GATE — Invoice Studio is the seller's tool, not a public page.
+ * The footer link was removed; this passcode screen is the second lock
+ * for anyone typing the raw URL. Only the SHA-256 hash ships in the
+ * bundle, not the passcode itself. To change the passcode, replace
+ * GATE_HASH with: python3 -c "import hashlib;print(hashlib.sha256(b'YOUR NEW PASSCODE').hexdigest())"
+ * (current default passcode: 3SV-INVOICE-2026 — change it after first
+ * login is fine, the gate reads the hash every attempt).
+ * The gate stops casual access; real money movement is gated server-side
+ * (worker secrets + ledger), which is where actual security lives.
+ * ------------------------------------------------------------------ */
+const GATE_KEY = '3sv_invoice_gate';
+const GATE_HASH = '96fc56d564312cd91231b4c5a3c47f9c2068f0402173625c65dbb501d3d84fb2';
+
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function InvoiceGate({ onUnlock }: { onUnlock: () => void }) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-6" data-testid="invoice-gate">
+      <form
+        className="w-full max-w-sm rounded-3xl border border-border bg-card p-8 shadow-2xl"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (busy) return;
+          setBusy(true);
+          setError(false);
+          const hex = await sha256Hex(value.trim());
+          if (hex === GATE_HASH) {
+            try { sessionStorage.setItem(GATE_KEY, 'ok'); } catch { /* private mode */ }
+            onUnlock();
+          } else {
+            setError(true);
+            setBusy(false);
+          }
+        }}
+      >
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-foreground/[.04]">
+          <ShieldCheck className="h-6 w-6 text-brand-cyan" />
+        </div>
+        <h1 className="text-[17px] font-semibold text-foreground">Invoice Studio</h1>
+        <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
+          Seller area. Enter the passcode to continue — customers never need this page.
+        </p>
+        <input
+          type="password"
+          autoFocus
+          value={value}
+          onChange={(e) => { setValue(e.target.value); setError(false); }}
+          className={inputClass + ' mt-5'}
+          placeholder="Passcode"
+          aria-label="Invoice Studio passcode"
+          data-testid="invoice-gate-input"
+        />
+        {error ? (
+          <p className="mt-3 rounded-xl border border-rose-400/25 bg-rose-400/[.06] px-4 py-2.5 text-[13px] text-rose-700 dark:text-rose-200" data-testid="invoice-gate-error">
+            Wrong passcode. Try again.
+          </p>
+        ) : null}
+        <button
+          type="submit"
+          disabled={busy || value.length === 0}
+          className="mt-5 w-full rounded-xl bg-foreground px-4 py-2.5 text-[13.5px] font-semibold text-background transition-opacity disabled:opacity-40"
+          data-testid="invoice-gate-submit"
+        >
+          {busy ? 'Checking…' : 'Unlock'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 interface Row {
   productId: string;
   model: ModelId;
@@ -100,6 +179,11 @@ function todayISO(): string {
 }
 
 export default function InvoiceStudio() {
+  /* Seller gate — nothing below renders until the passcode is accepted
+     (session-scoped: re-entering in a new tab/session asks again). */
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return sessionStorage.getItem(GATE_KEY) === 'ok'; } catch { return false; }
+  });
   const [orderRef, setOrderRef] = useState('');
   const [dateISO, setDateISO] = useState(todayISO());
   const [status, setStatus] = useState<InvoiceStatus>('PAID');
@@ -178,6 +262,10 @@ export default function InvoiceStudio() {
     () => (items.length > 0 ? renderInvoiceDocument(draft) : ''),
     [draft, items.length],
   );
+
+  /* Seller gate — render the passcode screen instead of the studio until
+     unlocked. Placed after every hook so the hook order stays stable. */
+  if (!unlocked) return <InvoiceGate onUnlock={() => setUnlocked(true)} />;
 
   /* ---------- row helpers ---------- */
   const addRow = () =>
@@ -326,7 +414,7 @@ export default function InvoiceStudio() {
     setRows(rowMap);
     setKeysText(SAMPLE_INVOICE.keys.map((k) => `${k.label}: ${k.key}`).join('\n'));
     setNotes(SAMPLE_INVOICE.notes);
-    showFlash('Sample invoice bhar di — form edit karo, preview live update hota hai');
+    showFlash('Sample invoice loaded — edit the form, the preview updates live');
   };
 
   const canSend = items.length > 0;
@@ -340,7 +428,7 @@ export default function InvoiceStudio() {
             <div className="text-[13px] font-semibold uppercase tracking-[.22em] text-muted-foreground">3S Verse</div>
             <h1 className="mt-1 text-[26px] font-bold leading-tight">Invoice Studio</h1>
             <p className="mt-1 text-[14px] text-muted-foreground">
-              Order details bharo — yehi format customer ko jata hai (PDF · HTML · email).
+              Order details — this exact format goes to the customer (PDF · HTML · email).
             </p>
           </div>
           <button
@@ -436,8 +524,8 @@ export default function InvoiceStudio() {
             ) : null}
             {refWasCancelled ? (
               <p className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[.06] px-4 py-2.5 text-[12.5px] text-amber-700/90 dark:text-amber-700 dark:text-amber-200/90">
-                Warning: is order ref ({orderRef.trim().toUpperCase()}) pe pehle koi invoice CANCEL
-                ho chuki hai — dobara check kar lo.
+                Warning: an invoice for order ref ({orderRef.trim().toUpperCase()}) was CANCELLED
+                before — double-check before reusing this reference.
               </p>
             ) : null}
 
@@ -483,45 +571,58 @@ export default function InvoiceStudio() {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <select
-                        className={fieldClass + ' min-w-0 flex-1'}
-                        value={row.model}
-                        onChange={(e) => patchRow(index, { model: e.target.value as ModelId })}
-                      >
-                        {MODELS.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        min={1}
-                        max={PC_MAX}
-                        aria-label="PCs per license"
-                        className={fieldClass + ' w-[92px] shrink-0 text-center'}
-                        value={row.pcs}
-                        onChange={(e) =>
-                          patchRow(index, {
-                            pcs: Math.min(PC_MAX, Math.max(1, Math.round(Number(e.target.value) || 1))),
-                          })
-                        }
-                      />
-                      <input
-                        type="number"
-                        min={1}
-                        max={10}
-                        className={fieldClass + ' w-[76px] shrink-0 text-center'}
-                        value={row.qty}
-                        onChange={(e) =>
-                          patchRow(index, { qty: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })
-                        }
-                      />
+                    <div className="mt-2 flex items-end gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-[.14em] text-muted-foreground">Billing model</div>
+                        <select
+                          className={fieldClass + ' w-full'}
+                          value={row.model}
+                          onChange={(e) => patchRow(index, { model: e.target.value as ModelId })}
+                        >
+                          {MODELS.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-[92px] shrink-0">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-[.14em] text-muted-foreground">PCs / license</div>
+                        <input
+                          type="number"
+                          min={1}
+                          max={PC_MAX}
+                          aria-label="PCs per license"
+                          title="How many PCs one license covers (1-9)"
+                          className={fieldClass + ' w-full text-center'}
+                          value={row.pcs}
+                          onChange={(e) =>
+                            patchRow(index, {
+                              pcs: Math.min(PC_MAX, Math.max(1, Math.round(Number(e.target.value) || 1))),
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="w-[76px] shrink-0">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-[.14em] text-muted-foreground">Licenses</div>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          aria-label="Number of licenses"
+                          title="How many separate licenses to bill (each covering the PCs above)"
+                          className={fieldClass + ' w-full text-center'}
+                          value={row.qty}
+                          onChange={(e) =>
+                            patchRow(index, { qty: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })
+                          }
+                        />
+                      </div>
                     </div>
                     {product && (
                       <div className="mt-2 text-[12.5px] text-muted-foreground">
                         {formatUSD(catalogInvoiceItem(product.id, row.model, row.pcs, 1)?.unit ?? 0)} per license ({pcLabel(row.pcs)})
+                        {row.qty > 1 ? ` · ${row.qty} licenses = ${formatUSD((catalogInvoiceItem(product.id, row.model, row.pcs, 1)?.unit ?? 0) * row.qty)}` : ''}
                       </div>
                     )}
                   </div>
@@ -539,10 +640,13 @@ export default function InvoiceStudio() {
             <div className={labelClass + ' mt-5'}>License keys (optional — one per line)</div>
             <textarea
               className={inputClass + ' min-h-[84px] font-mono text-[13px]'}
-              placeholder={'VidaPay Full Bundle: 3SV-XXXX-XXXX-XXXX-XXXX\n(optional "Label: key" — plain key bhi chalega)'}
+              placeholder={'One key per line, exactly as issued — e.g.\nVidaPay Full Bundle: 3SV-XXXX-XXXX-XXXX-XXXX\n("Label: key" or just the key — both work)'}
               value={keysText}
               onChange={(e) => setKeysText(e.target.value)}
             />
+            <p className="mt-2 text-[12px] leading-5 text-muted-foreground">
+              Leave empty for a pay-first invoice — keys go on the receipt once payment clears. One bundle key covers every tool.
+            </p>
 
             <div className={labelClass + ' mt-5'}>Notes</div>
             <textarea
@@ -693,7 +797,7 @@ export default function InvoiceStudio() {
                 />
                 <p className="mt-3 flex items-center gap-2 text-[12.5px] text-muted-foreground">
                   <ShieldCheck className="h-4 w-4 text-brand-cyan" />
-                  Live preview — print, HTML download aur email paste teeno se EXACT yehi format customer ko jayega.
+                  Live preview — print, HTML download and email paste all send the customer this exact format.
                 </p>
               </div>
             ) : (
