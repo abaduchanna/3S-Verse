@@ -1576,11 +1576,11 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'My laptop died or was replaced — do I have to buy the license again?',
-    a: 'No, never. A license is locked to one PC at a time, not to one PC forever. Every tool has a built-in "Deactivate this PC" link (bottom-right of the window): click it there, then activate the same key on the new machine. If the old PC is dead and cannot be deactivated, just contact us — we release the seat from our side, usually within minutes. Either way you never pay twice for the same license.',
+    a: 'No, never. A license is locked to one PC at a time, not to one PC forever. Every tool has a built-in "Deactivate this PC" link (bottom-right of the window): click it there, then activate the same key on the new machine. If the old PC is dead and cannot be deactivated, just contact us — we release the seat from our side, usually within minutes. Either way you never pay twice for the same license. One fair-use note: a key can self-service move once per 14 days (this is what keeps one key from being shared across several PCs) — if you genuinely need to move more often, email us and we will sort it out the same day.',
   },
   {
     q: 'Can I move my license to a new PC myself?',
-    a: 'Yes — that is exactly what deactivation is for, and it is free. Deactivate on the old PC (or ask us to release the seat), then activate with the same key on the new one. Every move is logged for your protection: a genuine upgrade never gets questioned, but a key that keeps hopping between different PCs every week gets a friendly check-in, because that pattern usually means the key is being shared.',
+    a: 'Yes — that is exactly what deactivation is for, and it is free. Deactivate on the old PC (or ask us to release the seat), then activate with the same key on the new one. Moves are logged, and the fair-use rule is one self-service move per 14 days per key: deactivate today, activate on the new PC today — done. A second move inside those 14 days asks you to email Connect@3SVerse.com with your order reference, and we release it manually after a quick check. Genuine customers almost never hit this limit — it exists so one purchased key cannot bounce between several PCs every week.',
   },
   {
     q: 'I run multiple stores. Will it keep up?',
