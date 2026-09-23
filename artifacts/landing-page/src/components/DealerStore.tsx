@@ -25,6 +25,7 @@ import {
   PER_PC_NOTE,
   PRODUCTS,
   TRIAL_DOWNLOAD,
+  TURNSTILE_SITE_KEY,
   discountPercent,
   formatUSD,
   isRecurringModel,
@@ -40,6 +41,7 @@ import {
   volumeTier,
   type ModelId,
 } from '@/lib/catalog';
+import { TurnstileWidget } from '@/components/TurnstileWidget';
 import { buildOrderInvoice } from '@/lib/autoinvoice';
 import {
   formatDueLong,
@@ -150,6 +152,8 @@ export default function DealerStore() {
   const [copied, setCopied] = useState(false);
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [invoiceEmailed, setInvoiceEmailed] = useState(false);
+  const [cfToken, setCfToken] = useState('');
+  const [cfResetCount, setCfResetCount] = useState(0);
   /* Paid-customer re-download box (order-number gated FULL builds). */
   const [paidRef, setPaidRef] = useState('');
   const [paidProduct, setPaidProduct] = useState('bundle');
@@ -318,6 +322,10 @@ export default function DealerStore() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (submitting || lines.length === 0) return;
+    if (TURNSTILE_SITE_KEY && !cfToken) {
+      setError('Complete the verification box first, then place the order.');
+      return;
+    }
     setSubmitting(true);
     setError('');
 
@@ -364,6 +372,7 @@ export default function DealerStore() {
           })),
           total,
           totalLabel: formatUSD(total),
+          ...(cfToken ? { turnstileToken: cfToken } : {}),
         }),
       }).catch(() => null);
     }
@@ -984,6 +993,8 @@ export default function DealerStore() {
               {error}
             </p>
           ) : null}
+
+          {TURNSTILE_SITE_KEY && <TurnstileWidget key={cfResetCount} onToken={setCfToken} />}
 
           <div className="mt-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex items-center gap-2 text-[12.5px] text-muted-foreground">

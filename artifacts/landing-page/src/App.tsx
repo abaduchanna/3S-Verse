@@ -75,9 +75,12 @@ import {
   formatUSD,
   perPcPrice,
   whatsappLink,
+  PAID_DOWNLOAD,
+  TURNSTILE_SITE_KEY,
   type DealerReview,
 } from '@/lib/catalog';
 import { trialDownloadUrl } from '@/lib/catalog';
+import { TurnstileWidget } from '@/components/TurnstileWidget';
 
 const queryClient = new QueryClient();
 const CONTACT_EMAIL = 'Connect@3SVerse.com';
@@ -86,11 +89,10 @@ const CONTACT_EMAIL = 'Connect@3SVerse.com';
 const LINKEDIN_URL = 'https://www.linkedin.com/company/3sverse';
 const INSTAGRAM_URL = 'https://www.instagram.com/3s.verse/';
 const FACEBOOK_URL = 'https://www.facebook.com/3sverse/';
-// Cloudflare Turnstile site key (public by design) — bot protection for the
-// contact form. Create one free: dash.cloudflare.com → Turnstile → Add site
-// (domain: 3sverse.com) → copy the Site Key here and redeploy. While it is
-// empty the form renders no widget and still relies on the honeypot field.
-const TURNSTILE_SITE_KEY = '';
+// Cloudflare Turnstile site key lives in src/lib/catalog.ts (single source
+// of truth — the download/trial routing switches on it too). While it is
+// empty the contact form renders no widget and still relies on the honeypot
+// field, and posts straight to FormSubmit instead of the worker relay.
 const EXPERIENCE_START_YEAR = 2013;
 const YEARS_EXPERIENCE = new Date().getFullYear() - EXPERIENCE_START_YEAR;
 
@@ -1573,6 +1575,14 @@ const FAQ_ITEMS: Array<{ q: string; a: string }> = [
     a: 'Yes. Everything runs on your own Windows PC under your own dealer login. Your VidaPay credentials stay on your machine — the tools never send them anywhere, and each license is machine-locked to the PC you activate it on.',
   },
   {
+    q: 'My laptop died or was replaced — do I have to buy the license again?',
+    a: 'No, never. A license is locked to one PC at a time, not to one PC forever. Every tool has a built-in "Deactivate this PC" link (bottom-right of the window): click it there, then activate the same key on the new machine. If the old PC is dead and cannot be deactivated, just contact us — we release the seat from our side, usually within minutes. Either way you never pay twice for the same license.',
+  },
+  {
+    q: 'Can I move my license to a new PC myself?',
+    a: 'Yes — that is exactly what deactivation is for, and it is free. Deactivate on the old PC (or ask us to release the seat), then activate with the same key on the new one. Every move is logged for your protection: a genuine upgrade never gets questioned, but a key that keeps hopping between different PCs every week gets a friendly check-in, because that pattern usually means the key is being shared.',
+  },
+  {
     q: 'I run multiple stores. Will it keep up?',
     a: 'That is exactly what they were built for. All three tools were born inside a real multi-store wireless operation — per-store dashboards, per-store ordering quantities, and bulk claim filing across every branch are the default, not an add-on. Pick exactly how many PCs you need when ordering: 2–4 PCs get 10% off per PC and 5–9 get 20%, applied automatically. For 10 or more PCs we quote district pricing with central billing.',
   },
@@ -1836,6 +1846,8 @@ function Reviews() {
   const [form, setForm] = useState({ name: '', email: '', store: '', tool: REVIEW_TOOLS[0], rating: '5', text: '', website: '' });
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [note, setNote] = useState('');
+  const [cfToken, setCfToken] = useState('');
+  const [cfResetCount, setCfResetCount] = useState(0);
 
   const clean = (v: string) => v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
 
@@ -1846,6 +1858,11 @@ function Reviews() {
     const text = clean(form.text);
     const email = clean(form.email);
     if (!name || !email || !store || !text) return;
+    if (TURNSTILE_SITE_KEY && !cfToken) {
+      setStatus('error');
+      setNote('complete the verification box first');
+      return;
+    }
     setStatus('sending');
     setNote('');
     const fields = {
@@ -1861,20 +1878,40 @@ function Reviews() {
       _replyto: email,
       _autoresponse: 'Thanks for your 3S Verse review! We verify every review against license records before publishing. We may reply here to confirm a detail or two.',
       _honey: form.website,
+      ...(cfToken ? { 'cf-turnstile-response': cfToken, turnstileToken: cfToken } : {}),
     };
+    // Same protected chain as the contact form: worker /contact (Turnstile
+    // verified server-side) → FormSubmit direct → mailto fallback.
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
-      const response = await fetch('https://formsubmit.co/ajax/connect@3sverse.com', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(fields),
-        signal: controller.signal,
-      });
-      const payload = (await response.json().catch(() => null)) as { success?: string } | null;
+      let delivered = false;
+      try {
+        const res = await fetch(PAID_DOWNLOAD.contactRelayUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(fields),
+          signal: controller.signal,
+        });
+        const payload = (await res.json().catch(() => null)) as { ok?: boolean } | null;
+        delivered = res.ok && Boolean(payload?.ok);
+      } catch {
+        delivered = false;
+      }
+      if (!delivered) {
+        const response = await fetch('https://formsubmit.co/ajax/connect@3sverse.com', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(fields),
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => null)) as { success?: string } | null;
+        if (!response.ok || payload?.success !== 'true') throw new Error('review submit failed');
+      }
       clearTimeout(timeoutId);
-      if (!response.ok || payload?.success !== 'true') throw new Error('review submit failed');
       setForm({ name: '', email: '', store: '', tool: REVIEW_TOOLS[0], rating: '5', text: '', website: '' });
+      setCfToken('');
+      setCfResetCount((count) => count + 1);
       setStatus('success');
     } catch {
       // Relay unreachable — hand the review to the dealer's own email client
@@ -2007,6 +2044,7 @@ function Reviews() {
                 Your experience
                 <textarea required maxLength={2000} rows={4} value={form.text} onChange={(e) => { setForm((c) => ({ ...c, text: e.target.value })); setStatus('idle'); }} data-testid="textarea-review-text" className="mt-2 w-full resize-y rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-brand-cyan/70" placeholder="What did the tool change for your stores? Real numbers beat adjectives." />
               </label>
+              {TURNSTILE_SITE_KEY && <TurnstileWidget key={cfResetCount} onToken={setCfToken} />}
               <div className="mt-6 flex flex-wrap items-center gap-4">
                 <button type="submit" disabled={status === 'sending'} data-testid="button-review-submit" className="group inline-flex items-center justify-center gap-2.5 rounded-xl border bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] disabled:cursor-wait disabled:opacity-70">
                   {status === 'sending' ? 'Sending...' : 'Submit review'}
@@ -2206,77 +2244,6 @@ function Work() {
   );
 }
 
-/* ── Cloudflare Turnstile (contact-form bot protection) ──────────────────── */
-type TurnstileRenderParams = {
-  sitekey: string;
-  theme?: 'light' | 'dark' | 'auto';
-  callback?: (token: string) => void;
-  'expired-callback'?: () => void;
-  'error-callback'?: () => void;
-};
-
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (el: HTMLElement, params: TurnstileRenderParams) => string;
-      reset: (widgetId?: string) => void;
-      remove: (widgetId: string) => void;
-    };
-  }
-}
-
-let turnstileScriptPromise: Promise<void> | null = null;
-
-function loadTurnstileScript(): Promise<void> {
-  if (window.turnstile) return Promise.resolve();
-  if (turnstileScriptPromise) return turnstileScriptPromise;
-  turnstileScriptPromise = new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => {
-      turnstileScriptPromise = null;
-      reject(new Error('Turnstile script failed to load'));
-    };
-    document.head.appendChild(script);
-  });
-  return turnstileScriptPromise;
-}
-
-function TurnstileWidget({ onToken }: { onToken: (token: string) => void }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const onTokenRef = useRef(onToken);
-  onTokenRef.current = onToken;
-
-  useEffect(() => {
-    if (!TURNSTILE_SITE_KEY || containerRef.current === null) return;
-    let cancelled = false;
-    let widgetId: string | null = null;
-    loadTurnstileScript()
-      .then(() => {
-        if (cancelled || containerRef.current === null || !window.turnstile) return;
-        widgetId = window.turnstile.render(containerRef.current, {
-          sitekey: TURNSTILE_SITE_KEY,
-          theme: 'dark',
-          callback: (token) => onTokenRef.current(token),
-          'expired-callback': () => onTokenRef.current(''),
-          'error-callback': () => onTokenRef.current(''),
-        });
-      })
-      .catch(() => { /* widget unavailable — the honeypot still guards the form */ });
-    return () => {
-      cancelled = true;
-      try {
-        if (widgetId !== null && window.turnstile) window.turnstile.remove(widgetId);
-      } catch { /* already gone */ }
-    };
-  }, []);
-
-  return <div ref={containerRef} className="mt-5" data-testid="turnstile-widget" />;
-}
-
 function Contact() {
   const [form, setForm] = useState({ name: '', email: '', organization: '', locations: '2–5 stores', interest: 'Dealer tools (Extractor / Ordering / Rebate)', message: '', website: '' });
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -2319,30 +2286,45 @@ function Contact() {
       _captcha: 'false',
       _replyto: cleanEmail,
       _honey: form.website,
-      ...(cfToken ? { 'cf-turnstile-response': cfToken } : {}),
+      ...(cfToken ? { 'cf-turnstile-response': cfToken, turnstileToken: cfToken } : {}),
+    };
+
+    // POST chain, most-protected first:
+    //   1. worker /contact — verifies the Turnstile token server-side
+    //      before relaying (the static site has no server of its own)
+    //   2. FormSubmit AJAX — direct fallback when the worker is unreachable
+    //   3. mailto — never lose the inquiry
+    const postJson = async (url: string, signal: AbortSignal) => {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(fields),
+        signal,
+      });
+      return { res, payload: await res.json().catch(() => null) as { success?: string; ok?: boolean } | null };
     };
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
-      let response: Response;
-      let payload: { success?: string; message?: string } | null = null;
+      let delivered = false;
+      let relayNote = '';
       try {
-        response = await fetch('https://formsubmit.co/ajax/connect@3sverse.com', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify(fields),
-          signal: controller.signal,
-        });
-        payload = (await response.json().catch(() => null)) as { success?: string; message?: string } | null;
-      } finally {
-        clearTimeout(timeoutId);
+        const { res, payload } = await postJson(PAID_DOWNLOAD.contactRelayUrl, controller.signal);
+        if (res.ok && payload?.ok) delivered = true;
+        else relayNote = 'relay';
+      } catch {
+        relayNote = 'relay';
       }
-
-      if (!response.ok || payload?.success !== 'true') {
-        setServerNote(payload?.message ?? '');
-        throw new Error('Contact submission failed');
+      if (!delivered) {
+        // Worker unreachable (or its env not live yet) — go direct.
+        const { res, payload } = await postJson('https://formsubmit.co/ajax/connect@3sverse.com', controller.signal);
+        if (!res.ok || payload?.success !== 'true') {
+          setServerNote(payload?.message ?? '');
+          throw new Error('Contact submission failed');
+        }
       }
+      clearTimeout(timeoutId);
 
       setForm({ name: '', email: '', organization: '', locations: '2–5 stores', interest: 'Dealer tools (Extractor / Ordering / Rebate)', message: '', website: '' });
       setCfToken('');

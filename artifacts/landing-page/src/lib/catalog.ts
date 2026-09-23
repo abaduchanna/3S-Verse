@@ -176,9 +176,16 @@ export const TRIAL_DOWNLOADS: Record<string, string> = {
   bundle: '/#/download',
 };
 
-/** Versionless trial download URL for a product ('' hides its button). */
+/** Versionless trial download URL for a product ('' hides its button).
+ *  With Turnstile switched on, trials route through the worker's /trial
+ *  gate (one-click check, then 302 to the same GitHub asset) so bots cannot
+ *  hammer the public release links; without it, the direct GitHub URL. */
 export function trialDownloadUrl(productId: string): string {
-  return TRIAL_DOWNLOADS[productId] ?? '';
+  const direct = TRIAL_DOWNLOADS[productId] ?? '';
+  if (TURNSTILE_SITE_KEY && productId !== 'bundle' && direct) {
+    return `${PAID_DOWNLOAD.trialUrl}?product=${encodeURIComponent(productId)}`;
+  }
+  return direct;
 }
 
 export const TRIAL_DOWNLOAD = {
@@ -203,10 +210,25 @@ export const PAID_DOWNLOAD = {
      the License Studio "Orders" tab shows pending orders live (key issue
      prefills straight from the order). Must match gatewayUrl origin. */
   orderInboxUrl: 'https://3sverse-downloads.abaduchanna.workers.dev/order',
+  /* Turnstile-gated free-trial entry (worker /trial → public GitHub release).
+     Only used when TURNSTILE_SITE_KEY is set below. */
+  trialUrl: 'https://3sverse-downloads.abaduchanna.workers.dev/trial',
+  contactRelayUrl: 'https://3sverse-downloads.abaduchanna.workers.dev/contact',
   label: 'Download your licensed software',
   note: 'Enter the order number from your invoice (3SV-…).',
   contactEmail: 'Connect@3SVerse.com',
 } as const;
+
+/**
+ * Cloudflare Turnstile site key (public by design) — bot protection for the
+ * contact/review forms, the order intake and BOTH download paths. Create one
+ * free: dash.cloudflare.com → Turnstile → Add site (domain: 3sverse.com) →
+ * copy the Site Key here, and the widget's SECRET key into the download-
+ * gateway worker env (TURNSTILE_SECRET_KEY), then redeploy both. While ''
+ * no widget renders, forms post as before and trial links go straight to
+ * GitHub. See download/3sverse-download-gateway/README.md for the checklist.
+ */
+export const TURNSTILE_SITE_KEY = '';
 
 export const MODELS: ModelOption[] = [
   { id: 'trial', label: '7-Day Free Trial', note: 'Full features, 7 days, 1 PC — no card needed' },
