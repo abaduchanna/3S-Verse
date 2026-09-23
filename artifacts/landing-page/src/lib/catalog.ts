@@ -198,6 +198,11 @@ export const TRIAL_DOWNLOAD = {
  */
 export const PAID_DOWNLOAD = {
   gatewayUrl: 'https://3sverse-downloads.abaduchanna.workers.dev/download',
+  /* Order intake: the storefront POSTs every order here too — the worker
+     files it into vidapay-license-server/ledger/orders_inbox/<ref>.json so
+     the License Studio "Orders" tab shows pending orders live (key issue
+     prefills straight from the order). Must match gatewayUrl origin. */
+  orderInboxUrl: 'https://3sverse-downloads.abaduchanna.workers.dev/order',
   label: 'Download your licensed software',
   note: 'Enter the order number from your invoice (3SV-…).',
   contactEmail: 'Connect@3SVerse.com',

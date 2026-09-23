@@ -340,6 +340,34 @@ export default function DealerStore() {
     });
     const summary = orderSummaryText(placed(false));
 
+    // File the order into the license-ledger inbox (Cloudflare worker →
+    // vidapay-license-server/ledger/orders_inbox/<ref>.json) so the
+    // License Studio "Orders" tab shows it to the seller live. Best-effort
+    // and fire-and-forget: the FormSubmit email below stays as the backup
+    // channel and must never be blocked by this call.
+    if (PAID_DOWNLOAD.orderInboxUrl) {
+      void fetch(PAID_DOWNLOAD.orderInboxUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ref,
+          name: form.name.trim(),
+          email: form.email.trim(),
+          company: form.company.trim(),
+          messenger: form.messenger.trim(),
+          notes: form.notes.trim(),
+          items: lines.map((l) => ({
+            productId: l.productId,
+            model: l.model,
+            pcs: l.pcs,
+            qty: l.qty,
+          })),
+          total,
+          totalLabel: formatUSD(total),
+        }),
+      }).catch(() => null);
+    }
+
     // Static hosting (GitHub Pages) has no server functions, so orders go
     // through FormSubmit — the same relay the contact form uses. The very
     // first submission emails a one-time activation link to the seller inbox.
