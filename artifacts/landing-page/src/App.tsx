@@ -203,12 +203,13 @@ function Shape({ v, className = '', style, spin = 0, dir = 1, floatY = 0, floatD
   };
   const [w, h] = dims[v];
   /* Both theme variants render and swap via CSS (html.dark). Dark keeps
-     the original dark-canvas webp; light uses its frosted-glass sibling
-     (same render, tone-mapped: dark bodies lifted to pastel, neon kept —
-     see scripts/make_light_shapes_v2.py). */
+     the original dark-canvas 3D render; light uses a dedicated render
+     generated for the white canvas (same geometry language: swirl,
+     torus, orb, segmented sphere — pastel iridescent glass), matted to
+     transparency (scripts/light_shapes/process.py). ?v busts caches. */
   const renderImg = (variant: 'dark' | 'light') => (
     <motion.img
-      src={`/shapes/shape-v${v}${variant === 'light' ? '-light' : ''}.webp`}
+      src={`/shapes/shape-v${v}${variant === 'light' ? '-light' : ''}.webp${variant === 'light' ? '?v=3' : ''}`}
       alt=""
       width={w}
       height={h}
@@ -334,11 +335,11 @@ function BrandCursor() {
         </div>
         <div className="brand-cursor-fade f-ring">
           <img src="/shapes/shape-v1.webp" alt="" width={900} height={932} draggable={false} className="shape-img-dark" />
-          <img src="/shapes/shape-v1-light.webp" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
+          <img src="/shapes/shape-v1-light.webp?v=3" alt="" width={900} height={932} draggable={false} className="shape-img-light" />
         </div>
         <div className="brand-cursor-fade f-orb">
           <img src="/shapes/shape-v3.webp" alt="" width={640} height={640} draggable={false} className="shape-img-dark" />
-          <img src="/shapes/shape-v3-light.webp" alt="" width={640} height={640} draggable={false} className="shape-img-light" />
+          <img src="/shapes/shape-v3-light.webp?v=3" alt="" width={640} height={640} draggable={false} className="shape-img-light" />
         </div>
       </div>
     </div>

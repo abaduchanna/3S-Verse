@@ -377,11 +377,10 @@ html.bc-active input, html.bc-active textarea { cursor: text !important; }
 ::selection { background: #e44bd7; color: #0b0a10; }
 
 /* ── Decorative shapes — per-theme variants ─────────────────────────────
-   Dark keeps the original dark-canvas 3D renders. Light uses their
-   frosted-glass siblings: same renders tone-mapped for the white canvas
-   (dark bodies lifted to pastel, neon highlights kept — see
-   scripts/make_light_shapes_v2.py). Unlayered so it wins over the
-   Tailwind utility layer. */
+   Dark keeps the original dark-canvas 3D renders. Light uses dedicated
+   renders generated for the white canvas (pastel iridescent glass,
+   matted to transparency — scripts/light_shapes/process.py).
+   Unlayered so it wins over the Tailwind utility layer. */
 .shape-img-light { display: none; }
 html:not(.dark) .shape-img-light { display: block; }
 html:not(.dark) .shape-img-dark { display: none; }
