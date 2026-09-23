@@ -10,7 +10,11 @@
  *   GET /download?order=3SV-XXXXXXXX&product=bundle   → HTML page with
  *                                                       one button per
  *                                                       covered tool
- *   GET /                                             → info page
+ *   POST /order   → order intake: the website POSTs the customer's
+ *                   order here and the worker files it into the ledger
+ *                   repo (ledger/orders_inbox/<ref>.json) so the
+ *                   License Studio "Orders" tab can pick it up
+ *   GET /         → info page
  *
  * HOW A REQUEST IS HANDLED
  *   1. Normalize the order number (trim + uppercase).
@@ -25,9 +29,13 @@
  *
  * SETUP (summary — full walkthrough in README.md)
  *   Secrets (Worker → Settings → Variables):
- *     GH_TOKEN  fine-grained PAT, Contents: Read-only on
- *               vidapay-license-server, vidapay-extractor,
- *               vidapay-ordering, vidapay-rebate-filing
+ *     GH_TOKEN            fine-grained PAT, Contents: Read-only on
+ *                         vidapay-license-server, vidapay-extractor,
+ *                         vidapay-ordering, vidapay-rebate-filing
+ *     LEDGER_WRITE_TOKEN  fine-grained PAT, Contents: Read+Write on
+ *                         vidapay-license-server ONLY (the Studio
+ *                         admin token works) — used by POST /order to
+ *                         file orders into the inbox
  *   Variables (plain text):
  *     LEDGER_REPO   "abaduchanna/vidapay-license-server"
  *     LEDGER_PATH   "ledger/orders.json"
@@ -44,7 +52,14 @@
 const OWNER_DEFAULT = "abaduchanna";
 const LEDGER_REPO_DEFAULT = "abaduchanna/vidapay-license-server";
 const LEDGER_PATH_DEFAULT = "ledger/orders.json";
+const INBOX_DIR_DEFAULT = "ledger/orders_inbox";
 const CACHE_SECONDS = 300;
+
+/* Order intake rate limit (per IP): 5 orders / 15 min, same as the old
+   Netlify order function. */
+const INBOX_WINDOW_MS = 15 * 60 * 1000;
+const INBOX_MAX_PER_WINDOW = 5;
+const inboxHits = new Map(); // ip → [timestamps]
 
 /* product → private repo + release asset name (the FULL builds).
    "bundle" is expanded to all three products at validation time. */
@@ -119,6 +134,140 @@ function expandProducts(order) {
   const owned = Array.isArray(order.products) ? order.products : [];
   if (owned.includes("bundle")) return ALL_PRODUCTS.slice();
   return owned.filter((p) => ALL_PRODUCTS.includes(p));
+}
+
+/* ---------------------------- order intake ----------------------------- */
+function corsHeaders(request) {
+  const origin = request.headers.get("origin") || "*";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+function jsonCors(request, status, payload) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      ...corsHeaders(request),
+    },
+  });
+}
+
+function inboxIp(request) {
+  return (
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown"
+  );
+}
+
+function inboxRateLimited(ip) {
+  const now = Date.now();
+  const recent = (inboxHits.get(ip) || []).filter((t) => now - t < INBOX_WINDOW_MS);
+  if (recent.length >= INBOX_MAX_PER_WINDOW) {
+    inboxHits.set(ip, recent);
+    return true;
+  }
+  recent.push(now);
+  inboxHits.set(ip, recent);
+  return false;
+}
+
+function readText(v, max) {
+  return typeof v === "string" ? v.trim().slice(0, max) : "";
+}
+
+const INBOX_PRODUCTS = { extractor: 1, ordering: 1, rebate: 1 };
+const INBOX_MODELS = { trial: 1, monthly: 1, annual: 1, lifetime: 1 };
+
+function sanitizeInboxOrder(body) {
+  const ref = readText(body.ref, 24).toUpperCase();
+  if (!/^3SV-[A-Z0-9]{4,12}$/.test(ref)) return { error: "Bad order reference." };
+  const name = readText(body.name, 120);
+  const email = readText(body.email, 254).toLowerCase();
+  if (!name) return { error: "Name is required." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "A valid email is required." };
+  const rawItems = Array.isArray(body.items) ? body.items : [];
+  if (rawItems.length < 1 || rawItems.length > 10) return { error: "Order must contain 1-10 items." };
+  const items = [];
+  for (const it of rawItems) {
+    const productId = readText(it?.productId, 40);
+    const model = readText(it?.model, 16);
+    const pcs = Number(it?.pcs);
+    const qty = Math.max(1, Math.min(10, Number(it?.qty) || 1));
+    if (!INBOX_PRODUCTS[productId]) return { error: "Unknown product." };
+    if (!INBOX_MODELS[model]) return { error: "Unknown billing model." };
+    if (!Number.isInteger(pcs) || pcs < 1 || pcs > 50) return { error: "Bad PC count." };
+    items.push({ productId, model, pcs, qty });
+  }
+  const total = Number(body.total);
+  return {
+    order: {
+      ref,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      customer: {
+        name,
+        email,
+        company: readText(body.company, 160),
+        messenger: readText(body.messenger, 120),
+        notes: readText(body.notes, 1000),
+      },
+      items,
+      totalLabel: readText(body.totalLabel, 32) ||
+        (Number.isFinite(total) ? `$${total.toFixed(2)}` : ""),
+      source: "3sverse.com",
+    },
+  };
+}
+
+async function handleOrderPost(request, env) {
+  if (!env.LEDGER_WRITE_TOKEN) {
+    return jsonCors(request, 503, { ok: false, error: "Order intake is not configured yet (missing LEDGER_WRITE_TOKEN)." });
+  }
+  if (inboxRateLimited(inboxIp(request))) {
+    return jsonCors(request, 429, { ok: false, error: "Too many orders — please try again later." });
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonCors(request, 400, { ok: false, error: "Invalid request body." });
+  }
+  const clean = sanitizeInboxOrder(body);
+  if (clean.error) return jsonCors(request, 400, { ok: false, error: clean.error });
+  const order = clean.order;
+  const repo = env.LEDGER_REPO || LEDGER_REPO_DEFAULT;
+  const dir = env.INBOX_DIR || INBOX_DIR_DEFAULT;
+  const url = `https://api.github.com/repos/${repo}/contents/${dir}/${order.ref}.json`;
+  const put = async (payload) =>
+    fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${env.LEDGER_WRITE_TOKEN}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
+        "User-Agent": "3sverse-download-gateway",
+      },
+      body: JSON.stringify(payload),
+    });
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(order, null, 2))));
+  let res = await put({
+    message: `order inbox ${order.ref}`,
+    content,
+  });
+  if (res.status === 422) {
+    return jsonCors(request, 409, { ok: false, error: "This order reference was already received." });
+  }
+  if (res.status >= 400) {
+    return jsonCors(request, 502, { ok: false, error: `Could not file the order (GitHub ${res.status}).` });
+  }
+  return jsonCors(request, 200, { ok: true, ref: order.ref });
 }
 
 function validate(ledger, orderNo, product) {
@@ -211,6 +360,17 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/" || url.pathname === "") return infoPage();
+
+    if (url.pathname === "/order") {
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders(request) });
+      }
+      if (request.method !== "POST") {
+        return jsonCors(request, 405, { ok: false, error: "Method not allowed." });
+      }
+      return handleOrderPost(request, env);
+    }
+
     if (url.pathname !== "/download") {
       return errorPage(404, "Unknown path — use /download?order=…&product=…");
     }

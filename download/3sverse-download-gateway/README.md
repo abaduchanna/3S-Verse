@@ -35,6 +35,12 @@ README.md        this guide
 
 ### 2. Deploy the worker (dashboard, no tools needed)
 
+> **Variables used by this worker:**
+> `GH_TOKEN` (secret, read-only, downloads) · `LEDGER_WRITE_TOKEN`
+> (secret, Contents Read+Write on vidapay-license-server only — the
+> Studio admin token works — used by `POST /order` intake) ·
+> `OWNER` · `LEDGER_REPO` · `LEDGER_PATH`.
+
 On dash.cloudflare.com you will land on a screen titled **"Create an app —
 Make something new"** with these tiles:
 
@@ -59,6 +65,11 @@ Do this, in order:
    text editor, select all, copy) → **Deploy** (top right) → confirm.
 6. Back on the worker's page → **Settings → Variables and Secrets → Add**:
    * Type **Secret** — `GH_TOKEN` = the token from step 1.
+   * Type **Secret** — `LEDGER_WRITE_TOKEN` = a token with Contents
+     Read+Write on `vidapay-license-server` (the Studio admin token
+     works). Powers the website order intake (`POST /order`) — without
+     it orders still arrive by email but the Studio Orders tab stays
+     empty.
    * Type **Text** — `OWNER` = `abaduchanna`.
    * Type **Text** — `LEDGER_REPO` = `abaduchanna/vidapay-license-server`.
    * Type **Text** — `LEDGER_PATH` = `ledger/orders.json`.
