@@ -341,14 +341,16 @@
   margin: -23px 0 0 -10px;
 }
 .brand-cursor-fade.f-ring img,
-.brand-cursor-fade.f-orb img {
+.brand-cursor-fade.f-orb img,
+.brand-cursor-fade .shape-img-light {
   position: absolute;
   inset: 0;
   height: 100%;
   width: 100%;
   max-width: none;
 }
-.brand-cursor-fade.f-ring img {
+.brand-cursor-fade.f-ring img,
+.brand-cursor-fade.f-ring .shape-img-light {
   animation: bcSpin 10s linear infinite;
   filter: drop-shadow(0 0 10px rgba(110,231,239,.35));
 }
@@ -361,7 +363,8 @@
   width: 42px;
   margin: -21px 0 0 -9px;
 }
-.brand-cursor-fade.f-orb img {
+.brand-cursor-fade.f-orb img,
+.brand-cursor-fade.f-orb .shape-img-light {
   animation: bcSpin 16s linear infinite;
   filter: drop-shadow(0 0 10px rgba(228,75,215,.32)) drop-shadow(0 0 8px rgba(110,231,239,.28));
 }
@@ -374,15 +377,21 @@ html.bc-active input, html.bc-active textarea { cursor: text !important; }
 ::selection { background: #e44bd7; color: #0b0a10; }
 
 /* ── Decorative shapes — per-theme variants ─────────────────────────────
-   The originals are dark-canvas renders; `-light` variants (matting bites
-   and baked whites healed, graded to pastel glass — see
-   scripts/make_light_shapes.py) swap in via the html class. Unlayered so
-   it wins over the Tailwind utility layer. */
+   Dark keeps the original dark-canvas 3D renders. Light swaps to the
+   inline-SVG "pastel glass" editions (<LightShape /> in App.tsx) — the
+   recolored webps turned muddy/haloed on white, so light mode now uses
+   clean gradient geometry with the same silhouette language. Unlayered
+   so it wins over the Tailwind utility layer. */
 .shape-img-light { display: none; }
 html:not(.dark) .shape-img-light { display: block; }
 html:not(.dark) .shape-img-dark { display: none; }
+/* the SVG fills its wrapper; soft brand-tinted lift off the white page */
+.lightsvg { width: 100%; height: auto; display: block; }
+html:not(.dark) .shape-img-light {
+  filter: drop-shadow(0 24px 48px rgba(99,102,241,.16)) drop-shadow(0 6px 18px rgba(34,211,238,.10));
+}
 /* low-opacity background accents need more presence on the white canvas */
-html:not(.dark) .shape-subtle { opacity: .55; }
+html:not(.dark) .shape-subtle { opacity: .6; }
 
 /* ── Theme wave — 2.5s liquid sweep carrying the light/dark flip ────────
    Rise (0–1.0s) → hold covered (flip at 1.18s) → tide out (by 2.5s).
