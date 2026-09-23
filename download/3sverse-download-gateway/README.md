@@ -219,3 +219,10 @@ Turnstile covers the actions. For the rest, two free Cloudflare toggles:
   `ledger/transfer_log.json`; the apps' self-deactivation writes the same
   log. Studio's Manage tab has a **Transfer log** viewer. Repeated moves
   for one key = key-sharing pattern.
+* **14-day move cooldown (anti key-sharing):** after any release, the key
+  self-service moves to ONE new PC inside 14 days; a second move inside
+  the window is refused by the apps with an "email Connect@3SVerse.com"
+  fallback. A Studio release is the manual override — it always works and
+  refreshes the one-move grace. Multi-seat (per-PC volume) licenses are
+  exempt. State lives in the license record (`cooldown_until`,
+  `cooldown_moves_left`); the transfer log stays the audit trail.
