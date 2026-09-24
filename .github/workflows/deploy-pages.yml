@@ -21,6 +21,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write   # stale-artifact cleanup below (rerun safety)
 
 concurrency:
   group: pages
@@ -34,6 +35,21 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      # Rerunning a FAILED run re-runs upload-pages-artifact, which appends a
+      # SECOND "github-pages" artifact to the same run — deploy-pages then
+      # aborts with "Multiple artifacts named github-pages" (observed 2026-09-24).
+      # Delete any stale artifacts for THIS run before uploading a fresh one.
+      - name: Remove stale github-pages artifacts (rerun safety)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+            | jq -r '.artifacts[] | select(.name == "github-pages") | .id' \
+            | while read -r id; do
+                echo "deleting stale artifact $id"
+                gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id" || true
+              done
 
       - uses: pnpm/action-setup@v4
         with:
