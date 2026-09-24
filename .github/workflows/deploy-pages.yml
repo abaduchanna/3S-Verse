@@ -4,9 +4,11 @@
 #
 # Publish dir: artifacts/landing-page/dist/public (vite.config.ts hard-requires
 # PORT and BASE_PATH, so both are pinned below). The 404.html shipped from
-# public/ routes friendly shortcuts (/invoice -> /#/invoice) and sends every
-# other unknown path back to the landing page — no SPA byte-copy needed since
-# the app only has the / route plus hash-routed views.
+# public/ routes friendly shortcuts (/privacy, /download, … -> their #/ views)
+# and sends every other unknown path back to the landing page — no SPA
+# byte-copy needed since the app only has the / route plus hash-routed views.
+# NOTE: /invoice was removed on purpose — Invoice Studio is the seller's
+# private tool and is no longer part of the public site.
 
 name: Deploy landing page to GitHub Pages
 

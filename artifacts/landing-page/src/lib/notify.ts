@@ -8,11 +8,11 @@
  *
  * CONFIGURATION — two ways, browser override wins:
  *
- *   A) IN-APP (recommended): open 3sverse.com/#/invoice → "Email delivery
- *      (EmailJS)" card → paste Service ID / Template ID / Public Key →
- *      Save to this browser → Send test email. The values are stored in
- *      this browser's localStorage, so only YOUR device sends mail — no
- *      redeploy needed, nothing to leak.
+ *   A) BROWSER OVERRIDE: values saved in this browser's localStorage under
+ *      the key below (previously entered via the seller Invoice Studio UI —
+ *      that page is no longer on the public site). If you saved values on
+ *      your device they keep working; clear them with
+ *      emailjsClearConfig() from a console if needed.
  *
  *   B) BUILD-TIME: paste the three IDs into EMAILJS_CONFIG below, set
  *      enabled: true, commit + push. Every visitor's browser then has a
@@ -44,7 +44,7 @@
  *      IMPORTANT: use TRIPLE braces {{{invoice_html}}} so EmailJS inserts
  *      the invoice as raw HTML, not escaped text. Save → copy Template ID.
  *   4. Account → API Keys → copy the Public Key.
- *   5. Paste the three IDs (in-app card or EMAILJS_CONFIG) and test.
+ *   5. Paste the three IDs (EMAILJS_CONFIG, or a saved browser override) and test.
  * Until configured, the storefront still shows the invoice with download +
  * PDF buttons — only the auto-email silently skips.
  */

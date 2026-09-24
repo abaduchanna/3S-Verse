@@ -154,7 +154,8 @@ export default function DealerStore() {
   const [invoiceEmailed, setInvoiceEmailed] = useState(false);
   const [cfToken, setCfToken] = useState('');
   const [cfResetCount, setCfResetCount] = useState(0);
-  /* Paid-customer re-download box (order-number gated FULL builds). */
+  /* Paid-customer re-download box (order-verified gateway → the official
+     installer; the license key emailed after checkout unlocks it). */
   const [paidRef, setPaidRef] = useState('');
   const [paidProduct, setPaidProduct] = useState('bundle');
   const [paidBusy, setPaidBusy] = useState(false);
@@ -188,9 +189,10 @@ export default function DealerStore() {
   );
 
   /* Paid-customer download: verify the order number through the gateway
-     worker (which checks the license ledger) and stream the FULL build.
-     Without a deployed gateway we fall back to a pre-filled email so the
-     customer is never stranded. */
+     worker (which checks the license ledger) and start the official
+     installer — the same one public build every customer downloads; the
+     key emailed after checkout unlocks it. Without a deployed gateway we
+     fall back to a pre-filled email so the customer is never stranded. */
   const paidDownload = () => {
     const ref = paidRef.trim().toUpperCase();
     if (!ref) {
@@ -491,17 +493,18 @@ export default function DealerStore() {
         {PER_PC_NOTE}
       </p>
 
-      {/* Paid-customer re-download — order number is checked against the
-          license ledger before a FULL build is served. */}
+      {/* Paid-customer re-download — the order number is checked against
+          the license ledger, then the official installer downloads (the
+          license key unlocks it on this PC). */}
       <div className="mb-10 rounded-2xl border border-border bg-foreground/[.02] p-5">
         <p className="mb-1 flex items-center gap-2 text-[14px] font-medium text-foreground">
           <KeyRound className="h-4 w-4 text-brand-cyan" /> Already purchased? Re-download your
           software
         </p>
         <p className="mb-4 text-[13px] font-light leading-5 text-muted-foreground">
-          Enter the order number printed on your invoice — we verify your package (1-year or
-          lifetime) before the FULL build downloads. Updates are always free for paying
-          customers.
+          Enter the order number printed on your invoice — we verify it against your license before
+          the installer downloads. It is the same official build every customer uses; your license
+          key unlocks it. Updates are always free for paying customers.
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input

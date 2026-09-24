@@ -130,7 +130,7 @@ export const LAUNCH_OFFER = {
  * WhatsApp float button — paste the number in international format with no
  * +, spaces or dashes (e.g. '923001234567'). Leave '' to hide the button.
  */
-export const WHATSAPP_NUMBER = '';
+export const WHATSAPP_NUMBER = '923393078683';
 export const WHATSAPP_GREETING =
   'Hi 3S Verse — I have a question about the VidaPay dealer tools.';
 

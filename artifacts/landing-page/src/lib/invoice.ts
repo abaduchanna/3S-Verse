@@ -1,10 +1,12 @@
 /**
  * 3S Verse — invoice engine.
  *
- * Single source of truth for the invoice format used by the Invoice Studio
- * (src/pages/InvoiceStudio.tsx). The SAME renderer output goes to the
- * customer (PDF print, standalone HTML file, or HTML email paste) — the
- * seller and the customer always see the identical format.
+ * Single source of truth for the invoice format used by the storefront
+ * (DealerStore builds every order invoice through ./autoinvoice). The SAME
+ * renderer output goes to the customer (PDF print, standalone HTML file, or
+ * HTML email paste) — the seller and the customer always see the identical
+ * format. (The seller-side Invoice Studio page was removed from the public
+ * site; this library is the part the storefront still needs.)
  *
  * Prices come from ./catalog so invoice amounts always match the storefront
  * (launch offer included). Output HTML is table-based with inline styles so

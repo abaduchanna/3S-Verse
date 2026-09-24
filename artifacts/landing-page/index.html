@@ -55,7 +55,7 @@
           "url": "https://3sverse.com/",
           "logo": "https://3sverse.com/logo-square.png",
           "image": "https://3sverse.com/og-image.jpg",
-          "description": "VidaPay dealer tools and a software, systems & operations studio — we build the apps, websites, AI agents, dashboards and automation businesses run on, backed by 13+ years of real operations experience.",
+          "description": "VidaPay dealer tools — incentive extraction, device ordering, rebate filing — plus custom dealership automation, backed by 13+ years of real operations experience.",
           "email": "Connect@3SVerse.com",
           "sameAs": [
             "https://www.linkedin.com/company/3sverse",
@@ -218,17 +218,18 @@
          only normalizes the state the page starts in. */
       (function () {
         try { history.scrollRestoration = 'manual'; } catch (e) {}
-        /* Friendly shortcuts: /invoice -> Invoice Studio (#/invoice) and the
-           policy/download pages -> their #/ routes. Covers the window where
-           an old SPA-fallback 404.html (a copy of this index.html) is still
-           served from a CDN edge for those paths. */
-        var m = location.pathname.replace(/\/+$/, '').toLowerCase().match(/^\/(invoice|privacy|terms|refund|eula|security|download)$/);
+        /* Friendly shortcuts: the policy/download pages -> their #/ routes.
+           Covers the window where an old SPA-fallback 404.html (a copy of
+           this index.html) is still served from a CDN edge for those paths.
+           NOTE: /invoice was removed on purpose — Invoice Studio is the
+           seller's private tool and no longer exists on the public site. */
+        var m = location.pathname.replace(/\/+$/, '').toLowerCase().match(/^\/(privacy|terms|refund|eula|security|download)$/);
         if (m) {
           location.replace(location.origin + '/#/' + m[1]);
           return;
         }
         if (location.hash && !location.hash.startsWith('#/')) {
-          /* "#/…" are app routes (e.g. #/invoice = Invoice Studio) — they
+          /* "#/…" are app routes (e.g. #/download = the download page) — they
              must survive; only section anchors (#contact, …) are stripped. */
           try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
         }
@@ -239,15 +240,15 @@
   <body>
     <noscript>
       <div style="font-family: sans-serif; max-width: 720px; margin: 48px auto; padding: 0 20px; color: #17121c;">
-        <h1>3S Verse — Software, Systems &amp; Operations</h1>
-        <p>3S Verse builds the systems your business runs on — apps, websites, AI agents, dashboards and workflow automation, built by operators with 13+ years of real operations experience.</p>
+        <h1>3S Verse — VidaPay Tools for Wireless Dealers</h1>
+        <p>3S Verse builds the VidaPay tools wireless dealers run on — incentive extraction, device ordering, rebate filing — plus custom dealership automation, built by operators with 13+ years of real operations experience.</p>
         <h2>What we build</h2>
         <ul>
-          <li>Websites &amp; web applications</li>
-          <li>Business process automation</li>
-          <li>AI agents &amp; chatbots</li>
-          <li>Operations dashboards &amp; reporting</li>
-          <li>Systems integration &amp; workflow tools</li>
+          <li>VidaPay Incentive Extractor</li>
+          <li>VidaPay Device Ordering</li>
+          <li>VidaPay Rebate Filing</li>
+          <li>Custom dealer automation &amp; reporting</li>
+          <li>Multi-store operations support</li>
         </ul>
         <h2>Contact</h2>
         <p>Email: <a href="mailto:Connect@3SVerse.com">Connect@3SVerse.com</a><br />

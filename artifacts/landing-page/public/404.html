@@ -205,7 +205,7 @@
            mapped onto their hash-routed views (trial -> #/download, order ->
            #/order), and ANY other unknown path goes back to the landing page
            instead of sitting on a dead splash screen. */
-        var m = location.pathname.replace(/\/+$/, '').toLowerCase().match(/^\/(invoice|privacy|terms|refund|eula|security|download|order|trial)$/);
+        var m = location.pathname.replace(/\/+$/, '').toLowerCase().match(/^\/(privacy|terms|refund|eula|security|download|order|trial)$/);
         if (m) {
           var view = m[1] === 'trial' ? 'download' : m[1];
           location.replace(location.origin + '/#/' + view + location.search);
@@ -216,7 +216,7 @@
           return;
         }
         if (location.hash && !location.hash.startsWith('#/')) {
-          /* "#/…" are app routes (e.g. #/invoice = Invoice Studio) — they
+          /* "#/…" are app routes (e.g. #/download = the download page) — they
              must survive; only section anchors (#contact, …) are stripped. */
           try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
         }
@@ -227,15 +227,15 @@
   <body>
     <noscript>
       <div style="font-family: sans-serif; max-width: 720px; margin: 48px auto; padding: 0 20px; color: #17121c;">
-        <h1>3S Verse — Software, Systems &amp; Operations</h1>
-        <p>3S Verse builds the systems your business runs on — apps, websites, AI agents, dashboards and workflow automation, built by operators with 13+ years of real operations experience.</p>
+        <h1>3S Verse — VidaPay Tools for Wireless Dealers</h1>
+        <p>3S Verse builds the VidaPay tools wireless dealers run on — incentive extraction, device ordering, rebate filing — plus custom dealership automation, built by operators with 13+ years of real operations experience.</p>
         <h2>What we build</h2>
         <ul>
-          <li>Websites &amp; web applications</li>
-          <li>Business process automation</li>
-          <li>AI agents &amp; chatbots</li>
-          <li>Operations dashboards &amp; reporting</li>
-          <li>Systems integration &amp; workflow tools</li>
+          <li>VidaPay Incentive Extractor</li>
+          <li>VidaPay Device Ordering</li>
+          <li>VidaPay Rebate Filing</li>
+          <li>Custom dealer automation &amp; reporting</li>
+          <li>Multi-store operations support</li>
         </ul>
         <h2>Contact</h2>
         <p>Email: <a href="mailto:Connect@3SVerse.com">Connect@3SVerse.com</a><br />

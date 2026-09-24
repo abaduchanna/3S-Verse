@@ -2,10 +2,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
-/* Invoice Studio is a separate hash-route (#/invoice) used only when a
-   seller opens it — landing visitors should never pay its JS cost, so it
-   is code-split and fetched on demand. */
-const InvoiceStudio = lazy(() => import('@/pages/InvoiceStudio'));
+/* Invoice Studio was REMOVED from the public site on purpose — it is the
+   seller's private tool. The page component, its #/invoice hash route and
+   the /invoice URL shortcut were all taken out; the seller invoices from
+   the desktop tooling instead. Nothing on the public site links to it. */
 const OrderStatusPage = lazy(() => import('@/pages/OrderStatus'));
 /* Policy, security and download pages — same hash-routing pattern so they
    stay static-safe on GitHub Pages; deep links like /privacy redirect
@@ -24,8 +24,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   BarChart3,
-  Bell,
-  Bot,
   Boxes,
   Calculator,
   Check,
@@ -33,7 +31,6 @@ import {
   Database,
   Download,
   Facebook,
-  Globe2,
   Instagram,
   Linkedin,
   Menu,
@@ -525,10 +522,10 @@ function Kicker({ children, magenta = false }: { children: ReactNode; magenta?: 
 const MARQUEE_ITEMS = [
   'VIDAPAY INCENTIVE EXTRACTOR',
   'VIDAPAY DEVICE ORDERING',
-  'WORKFLOW AUTOMATION',
-  'AI AGENTS',
-  'LIVE DASHBOARDS',
-  'WEB & MOBILE APPS',
+  'VIDAPAY REBATE FILING',
+  'FREE 7-DAY TRIAL',
+  'ONE LICENSE · ALL THREE TOOLS',
+  'CUSTOM DEALER AUTOMATION',
 ];
 
 function Marquee() {
@@ -580,7 +577,7 @@ function Nav() {
         <div className="hidden items-center gap-3 md:flex">
           <ThemeToggle className="flex h-10 w-10 items-center justify-center rounded-xl border border-input text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan" />
           <BtnGhost href="#contact" testId="button-nav-contact" className="px-5 py-2.5 text-[14px]">Contact</BtnGhost>
-          <BtnWhite href="#contact" testId="button-nav-get-started" className="px-5 py-2.5 text-[14px]">Let&apos;s build</BtnWhite>
+          <BtnWhite href="#contact" testId="button-nav-get-started" className="px-5 py-2.5 text-[14px]">Get started</BtnWhite>
         </div>
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle className="flex h-10 w-10 items-center justify-center rounded-lg border border-input text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan" />
@@ -606,7 +603,7 @@ function Nav() {
               <span className="font-mono-tech text-[10px] uppercase tracking-[.2em] text-muted-foreground">Theme</span>
               <ThemeToggle className="flex h-10 w-10 items-center justify-center rounded-lg border border-input text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan" />
             </div>
-            <a href="#contact" onClick={() => setOpen(false)} data-testid="button-mobile-get-started" className="mt-4 block rounded-xl border bg-white px-4 py-3 text-center text-[15px] font-semibold text-[#0b0a10]">Let&apos;s build</a>
+            <a href="#contact" onClick={() => setOpen(false)} data-testid="button-mobile-get-started" className="mt-4 block rounded-xl border bg-white px-4 py-3 text-center text-[15px] font-semibold text-[#0b0a10]">Get started</a>
           </motion.nav>
         )}
       </AnimatePresence>
@@ -627,43 +624,50 @@ function OpsPanel() {
       <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
         <div className="flex items-center gap-3">
           <img src="/logo-240.png" alt="" width={240} height={57} className="h-3 w-auto opacity-90" />
-          <span className="font-mono-tech text-[10px] tracking-[.22em] text-muted-foreground">OPERATIONS / LIVE</span>
+          <span className="font-mono-tech text-[10px] tracking-[.22em] text-muted-foreground">VIDAPAY INCENTIVE EXTRACTOR</span>
         </div>
         <div className="flex items-center gap-3 font-mono-tech text-[10px] text-brand-cyan">
-          <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70] shadow-[0_0_8px_#c7ef70]" /> SYNCED</span>
-          <span className="hidden rounded-md border border-border bg-foreground/[.04] px-2 py-0.5 text-foreground sm:inline">42ms</span>
+          <span className="rounded-md border border-border bg-foreground/[.04] px-2 py-0.5 text-foreground">Sample output</span>
         </div>
       </div>
       <div className="grid gap-4 p-5 sm:grid-cols-[1fr_1.2fr]">
         <div className="space-y-4">
           <div className="rounded-xl border border-border bg-foreground/[.02] p-4">
             <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
-              <span>Throughput</span><span className="text-brand-lime">+12.4%</span>
+              <span>Incentives · this week</span><span className="rounded border border-brand-cyan/30 px-1.5 py-0.5 text-brand-cyan">EXTRACTED</span>
             </div>
-            <div className="mt-2 flex items-end justify-between">
-              <strong className="text-[26px] font-light tracking-tight text-foreground">84.7<span className="text-sm text-brand-cyan">%</span></strong>
-            </div>
-            <div className="mt-3 flex h-14 items-end gap-1">
-              {[35, 48, 40, 58, 52, 67, 61, 76, 72, 88, 82, 95].map((height, i) => (
-                <motion.div key={i} initial={{ height: 0 }} animate={{ height: `${height}%` }} transition={{ delay: 0.9 + i * 0.04, duration: 0.45 }} className={`w-full rounded-t-[2px] ${i > 8 ? 'bg-[#6ee7ef]' : 'bg-[#78a6ff]/40'}`} />
+            <div className="mt-3 space-y-2">
+              {[
+                ['Vendor rebate — row 14', '$1,240.00'],
+                ['Activation spiff — row 09', '$615.00'],
+                ['Bundle bonus — row 22', '$890.00'],
+              ].map(([row, amount], i) => (
+                <motion.div key={row} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.9 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-border bg-foreground/[.02] px-3 py-2">
+                  <span className="text-[12.5px] text-foreground">{row}</span>
+                  <span className="font-mono-tech text-[11.5px] text-brand-cyan">{amount}</span>
+                </motion.div>
               ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+              <span className="font-mono-tech text-[10px] uppercase tracking-[.18em] text-muted-foreground">Total recovered</span>
+              <span className="text-[18px] font-light tracking-tight text-foreground">$2,745.00</span>
             </div>
           </div>
           <div className="rounded-xl border border-border bg-foreground/[.02] p-4">
             <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
-              <span>Queue health</span><span className="rounded border border-brand-lime/30 px-1.5 py-0.5 text-brand-lime">NORMAL</span>
+              <span>Excel output</span><span className="rounded border border-brand-lime/30 px-1.5 py-0.5 text-brand-lime">READY</span>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-foreground/[.06]">
-              <motion.div initial={{ width: 0 }} animate={{ width: '72%' }} transition={{ delay: 1.1, duration: 1 }} className="h-full rounded-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7]" />
+              <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ delay: 1.1, duration: 1 }} className="h-full rounded-full bg-gradient-to-r from-[#6ee7ef] to-[#e44bd7]" />
             </div>
             <div className="mt-3 flex items-center gap-2 font-mono-tech text-[9px] text-muted-foreground">
-              <Bell className="h-3 w-3 text-[#ff9d66]" /> 2 rules executed automatically
+              <FileSpreadsheet className="h-3 w-3 text-[#c7ef70]" /> one workbook · per-store tabs · no retyping
             </div>
           </div>
         </div>
         <div className="relative rounded-xl border border-border bg-foreground/[.02] p-4">
           <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
-            <span>Flow map</span><Network className="h-3.5 w-3.5 text-brand-magenta" />
+            <span>Run flow</span><Network className="h-3.5 w-3.5 text-brand-magenta" />
           </div>
           <svg viewBox="0 0 210 150" className="mt-2 h-[150px] w-full">
             <path d="M19 85 C48 85 41 42 73 42 S100 112 130 105 149 44 189 44" fill="none" stroke="#6ee7ef" strokeWidth="1.5" strokeDasharray="4 4" opacity=".85" />
@@ -677,7 +681,7 @@ function OpsPanel() {
             ))}
           </svg>
           <div className="flex justify-between border-t border-border pt-2.5 font-mono-tech text-[9px] text-muted-foreground">
-            <span>7 active paths</span><span className="text-brand-cyan">0 blocked</span>
+            <span>Portal in · you approve · Excel out</span><span className="text-brand-cyan">credentials stay on your PC</span>
           </div>
         </div>
       </div>
@@ -702,21 +706,21 @@ function Hero() {
           <div className="relative z-10">
             <Reveal>
               <div className="mb-7 flex items-center gap-3 font-mono-tech text-[10px] uppercase tracking-[.3em] text-brand-cyan">
-                <Sparkles className="h-3.5 w-3.5 text-brand-magenta" /> Software · Systems · Operations
+                <Sparkles className="h-3.5 w-3.5 text-brand-magenta" /> VidaPay tools · Wireless dealers
               </div>
             </Reveal>
             <Reveal delay={0.08}>
               <h1 className="text-[clamp(2.4rem,8.5vw,4.6rem)] font-light leading-[1.06] tracking-[-0.03em] text-foreground">
-                The systems your
+                The tools your
                 <br />
-                business runs on —
+                dealership runs on —
                 <br />
                 <span className="font-normal text-brand-cyan">built by operators.</span>
               </h1>
             </Reveal>
             <Reveal delay={0.16}>
               <p className="mt-8 max-w-xl text-[17px] font-light leading-8 text-foreground/75">
-                3S Verse builds dealer tools, custom applications and workflow automation for businesses that run on spreadsheets, portals and repetitive processes. Start with a 7-day VidaPay tool trial — or bring us the bottleneck your team needs removed.
+                3S Verse builds the VidaPay tools wireless dealers run on — incentive extraction, device ordering, rebate filing — plus custom automation for the work those tools don&apos;t cover. Start with a free 7-day trial, or bring us the bottleneck.
               </p>
             </Reveal>
             <Reveal delay={0.24}>
@@ -731,7 +735,7 @@ function Hero() {
             <Reveal delay={0.32}>
               <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-5 font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
                 <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years in real operations</span>
-                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-brand-cyan" /> $265K+ identified or recovered across prior programs</span>
+                <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-brand-cyan" /> 3 tools · one bundle license</span>
                 <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-brand-magenta" /> Running in dealerships daily</span>
               </div>
             </Reveal>
@@ -763,15 +767,15 @@ function IntegrateSection() {
         <div aria-hidden="true" className="hidden w-px self-stretch bg-gradient-to-b from-transparent via-foreground/10 to-transparent lg:block" />
         <div className="lg:pl-20">
           <Reveal>
-            <Kicker>Power your business</Kicker>
+            <Kicker>Beyond the three tools</Kicker>
             <h2 className="text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
               Automation that meets the work <span className="text-brand-cyan">where it happens.</span>
             </h2>
             <p className="mt-7 max-w-lg text-[16px] font-light leading-8 text-foreground/75">
-              AI agents that draft, reconcile, and answer for you. Pipelines that move data between the systems you already run. No rip-and-replace, no six-month projects — we plug automation straight into VidaPay portals, spreadsheets, ERPs, and WhatsApp, and it starts saving hours from week one.
+              Need something the three tools don&apos;t do? We build custom automation around how your dealership already works — VidaPay portal data into clean spreadsheets, reports your back office trusts, workflows that run without retyping. No rip-and-replace, no six-month projects — it starts saving hours from week one.
             </p>
             <div className="mt-10">
-              <BtnWhite href="#contact" testId="button-integrate-start">Start a project</BtnWhite>
+              <BtnWhite href="#contact" testId="button-integrate-start">Ask about a custom build</BtnWhite>
             </div>
           </Reveal>
         </div>
@@ -783,48 +787,32 @@ function IntegrateSection() {
 const features = [
   {
     index: '01',
-    title: 'Process automation',
-    description: 'If your team does it twice a week, it should be automated. We turn repeatable, error-prone workflows into fast, reliable pipelines — often with nothing more than a well-built script.',
+    title: 'VidaPay workflow automation',
+    description: 'If your front office does it twice a week, it should be automated. We turn repeatable VidaPay portal work — extraction, ordering, claim filing — into fast, reliable runs.',
     icon: Zap,
     color: 'cyan',
-    detail: ['Workflow automation', 'Scripts & pipelines', 'Live in days'],
+    detail: ['Portal → Excel pipelines', 'Bulk claim filing', 'Live in days'],
   },
   {
     index: '02',
-    title: 'Web & mobile apps',
-    description: 'Full-stack web and Android apps that carry real operational weight — internal tools, customer-facing products, everything in between — built to fit the operation you already run.',
+    title: 'Custom dealer tools',
+    description: 'Internal apps built to fit the way your stores actually run — commission trackers, order logs, audit sheets — shipped clean and documented, not another spreadsheet on a shared drive.',
     icon: Smartphone,
     color: 'magenta',
-    detail: ['Full-stack web apps', 'Android development', 'Documented delivery scope'],
+    detail: ['Built for your workflow', 'Windows · web · mobile', 'Documented delivery scope'],
   },
   {
     index: '03',
-    title: 'Custom websites',
-    description: 'Fast, responsive, conversion-driven websites that make you look as sharp as you operate — engineered to turn visitors into enquiries.',
-    icon: Globe2,
+    title: 'Reporting & dashboards',
+    description: 'One live view of activations, incentives, and inventory across every store — KPI dashboards that turn the portal data you already extract into a daily operating picture.',
+    icon: BarChart3,
     color: 'cyan',
-    detail: ['Conversion-led design', 'Fast & responsive', 'Built to scale'],
+    detail: ['KPI dashboards', 'Per-store reporting', 'Excel & portal friendly'],
   },
   {
     index: '04',
-    title: 'AI agents & assistants',
-    description: 'No gimmicks — AI where it saves real hours. Agents that research, draft, reconcile, and clear the busywork, so your team spends its time on decisions, not data entry.',
-    icon: Bot,
-    color: 'magenta',
-    detail: ['Custom AI agents', 'Workflow copilots', 'Practical, not hype'],
-  },
-  {
-    index: '05',
-    title: 'Dashboards & data',
-    description: 'One live view of inventory, sales, procurement, and finance — KPI dashboards that turn scattered spreadsheets into a daily operating picture your team actually trusts.',
-    icon: BarChart3,
-    color: 'cyan',
-    detail: ['KPI dashboards', 'ERP & spreadsheet reporting', 'Live operational view'],
-  },
-  {
-    index: '06',
-    title: 'Supply chain & operations',
-    description: `Our home turf — inventory planning, procurement, rebates and claims, designed by people with ${YEARS_EXPERIENCE}+ years across telecom, FMCG, and pharma. Not theorists.`,
+    title: 'Multi-store operations',
+    description: `Our home turf — inventory, procurement, rebates and claims across many locations, designed by people with ${YEARS_EXPERIENCE}+ years running retail operations. Not theorists.`,
     icon: Boxes,
     color: 'magenta',
     detail: ['Inventory & procurement', 'Claims & loss recovery', 'Multi-location operations'],
@@ -840,11 +828,11 @@ function Services() {
             <div>
               <Kicker>01 — What we offer</Kicker>
               <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
-                Every system your business needs — <span className="text-brand-cyan">under one roof.</span>
+                The portal tools — and whatever your dealership needs next.
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
-              One partner across the whole spectrum: a website that sells, apps that run your day, AI that clears the busywork, dashboards that keep score, and automation that never sleeps. Scoped in weeks, not quarters, by people who have actually run these operations. We specialize in operational software — internal applications, data workflows, reporting systems, AI-assisted processes and dealer tools; marketing websites are available when they support the same operating system or sales journey.
+              One partner for the whole front office: the three VidaPay tools your stores run on, plus custom automation, reporting and multi-store systems when you outgrow the manual work. Scoped in weeks, not quarters, by people who have actually run these operations.
             </p>
           </div>
         </Reveal>
@@ -926,15 +914,15 @@ function HowVisual() {
         transition={{ delay: 0.55, duration: 0.7 }}
         className="absolute -bottom-10 -right-3 w-[240px] rounded-2xl border border-border bg-card p-5 shadow-[0_30px_80px_rgba(0,0,0,.16)] dark:shadow-[0_30px_80px_rgba(0,0,0,.6)] sm:-right-8"
       >
-        <div className="text-[14px] font-medium text-foreground">Results</div>
+        <div className="text-[14px] font-medium text-foreground">Run complete</div>
         <svg viewBox="0 0 200 90" className="mt-3 w-full">
           <polyline points="0,78 28,66 56,70 84,48 112,52 140,30 168,34 200,14" fill="none" stroke="#6ee7ef" strokeWidth="1.8" strokeLinejoin="round" />
           <polyline points="0,82 28,76 56,72 84,64 112,60 140,50 168,44 200,38" fill="none" stroke="#e44bd7" strokeWidth="1.2" strokeDasharray="3 3" opacity=".7" />
           <line x1="0" y1="88" x2="200" y2="88" stroke="rgba(255,255,255,.12)" strokeWidth="1" />
         </svg>
         <div className="mt-2 flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.16em] text-muted-foreground">
-          <span>hours saved / wk</span>
-          <span className="text-brand-lime">+38%</span>
+          <span>VidaPay portal → Excel</span>
+          <span className="text-brand-lime">one run</span>
         </div>
       </motion.div>
     </div>
@@ -944,7 +932,7 @@ function HowVisual() {
 function HowItWorks() {
   const steps = [
     ['01', 'Map the real work', 'We start where the work happens — the manual loops, the bottlenecks, the hours nobody tracks. You can’t fix what nobody has measured.'],
-    ['02', 'Build the fix', 'App, website, AI, dashboard, or automation — the right build for the problem, shipped clean, documented, and live on a date we committed to.'],
+    ['02', 'Build the fix', 'A tool, dashboard, or automation — the right build for the problem, shipped clean, documented, and live on a date we committed to.'],
     ['03', 'Keep it moving', 'Operations change, and your systems keep up. We stay close — tuning and extending what we built so it never becomes the next bottleneck.'],
   ];
   return (
@@ -1020,10 +1008,14 @@ function StatVisual({ kind }: { kind: 'bars' | 'rings' | 'line' }) {
 }
 
 function Outcomes() {
+  /* Replaced the old operator-career stats (telecom/FMCG/pharma programs) —
+     they read as irrelevant to a wireless dealer and the site contradicted
+     its own "no invented praise" rule. These three are VERIFIABLE facts
+     about the product and the purchase instead. */
   const stats = [
-    { value: '$265K+', label: 'identified or recovered across prior operator programs', kind: 'bars' as const },
-    { value: '$100K+', label: 'annual vendor savings — one prior sourcing program', kind: 'line' as const },
-    { value: 'Double-digit', label: 'inventory turnover improvement — a prior program', kind: 'rings' as const },
+    { value: '3 tools', label: 'Extractor · Device Ordering · Rebate Filing — one bundle license covers all', kind: 'bars' as const },
+    { value: '7 days', label: 'free full-software trial on every tool — no card, no feature locks', kind: 'rings' as const },
+    { value: '30 days', label: 'money-back guarantee on every purchase — no forms, no interrogation', kind: 'line' as const },
   ];
   return (
     <section id="outcomes" className="relative overflow-hidden py-28 lg:py-36">
@@ -1031,13 +1023,13 @@ function Outcomes() {
         <Reveal>
           <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div>
-              <Kicker>03 — Real results</Kicker>
+              <Kicker>03 — The short version</Kicker>
               <h2 className="max-w-2xl text-[clamp(2.2rem,4vw,3.6rem)] font-light leading-[1.05] tracking-[-0.02em] text-foreground">
-                Builds that <span className="text-brand-magenta">recover real money.</span>
+                Simple to try, <span className="text-brand-magenta">safer to buy.</span>
               </h2>
             </div>
             <p className="max-w-sm text-[15px] font-light leading-7 text-foreground/75">
-              Operator-experience figures from 13+ years across retail operations, distribution and multi-store programs — stated as experienced, and published as verified case studies as clients approve them.
+              Everything below is a fact about the product and the purchase — the trial, the bundle, the guarantee — not a promise of results we haven&apos;t measured on your stores yet. Run the free trial and judge the tools on your own data.
             </p>
           </div>
         </Reveal>
@@ -1056,9 +1048,6 @@ function Outcomes() {
             </Reveal>
           ))}
         </div>
-        <p className="mt-8 max-w-3xl text-[12.5px] font-light leading-5 text-muted-foreground">
-          These are operator-career outcomes from prior telecom, FMCG and pharmaceutical programs — not 3SVerse client results. Every future client case study publishes with its method, measurement period and verification.
-        </p>
       </div>
     </section>
   );
@@ -2245,6 +2234,7 @@ function Work() {
 }
 
 function Contact() {
+  const wa = whatsappLink();
   const [form, setForm] = useState({ name: '', email: '', organization: '', locations: '2–5 stores', interest: 'Dealer tools (Extractor / Ordering / Rebate)', message: '', website: '' });
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [serverNote, setServerNote] = useState('');
@@ -2364,7 +2354,7 @@ function Contact() {
               Bring us the <span className="text-brand-cyan">bottleneck.</span>
             </h2>
             <p className="mx-auto mt-6 max-w-xl text-[16px] font-light leading-8 text-foreground/75">
-              Dealer tools for your front office, a website, an app, an AI agent, or a workflow that should have been automated years ago — two clicks below tells us where the hours go, and we&apos;ll show you how to get them back.
+              The VidaPay dealer tools for your front office, or a custom automation for the work they don&apos;t cover — two clicks below tells us where the hours go, and we&apos;ll show you how to get them back.
             </p>
           </div>
         </Reveal>
@@ -2401,8 +2391,8 @@ function Contact() {
                 I&apos;m interested in
                 <select name="interest" value={form.interest} onChange={(event) => { setForm((current) => ({ ...current, interest: event.target.value })); setSubmitStatus('idle'); }} data-testid="select-contact-interest" className="mt-2 w-full appearance-none rounded-xl border border-border bg-foreground/[.03] px-4 py-3 font-sans text-[14px] normal-case tracking-normal text-foreground outline-none transition-colors focus:border-brand-cyan/70">
                   <option className="bg-card">Dealer tools (Extractor / Ordering / Rebate)</option>
-                  <option className="bg-card">Custom software / automation</option>
-                  <option className="bg-card">Website or app</option>
+                  <option className="bg-card">Custom automation for my dealership</option>
+                  <option className="bg-card">More PCs / district pricing</option>
                   <option className="bg-card">Something else</option>
                 </select>
               </label>
@@ -2429,6 +2419,9 @@ function Contact() {
         <Reveal delay={0.16}>
           <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-x-7 gap-y-3" data-testid="contact-socials">
             <span className="font-mono-tech text-[10px] uppercase tracking-[.2em] text-muted-foreground">Prefer social? Follow the build —</span>
+            {wa ? (
+              <a href={wa} target="_blank" rel="noopener noreferrer" data-testid="link-contact-whatsapp" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-wa"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
+            ) : null}
             <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-contact-linkedin" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-cyan"><Linkedin className="h-4 w-4" /> LinkedIn</a>
             <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-magenta"><Instagram className="h-4 w-4" /> Instagram</a>
             <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-periwinkle"><Facebook className="h-4 w-4" /> Facebook</a>
@@ -2447,7 +2440,7 @@ function Footer() {
           <div className="max-w-sm">
             <img src="/logo-240.png" alt="3S Verse" width={240} height={57} className="h-5 w-auto" />
             <p className="mt-5 text-[14px] font-light leading-7 text-foreground/75">
-              Software, systems &amp; operations — apps, websites, AI agents, dashboards, and process automation, built by people who have run the operations themselves.
+              VidaPay dealer tools and custom dealership automation — built by people who have run wireless retail operations themselves.
             </p>
           </div>
           <div className="flex flex-wrap gap-x-14 gap-y-8">
@@ -2482,10 +2475,6 @@ function Footer() {
             <a href="#/terms" data-testid="link-footer-terms" className="transition-colors hover:text-foreground">Terms</a>
             <a href="#/refund" data-testid="link-footer-refund" className="transition-colors hover:text-foreground">Refund</a>
             <a href="#/eula" data-testid="link-footer-eula" className="transition-colors hover:text-foreground">EULA</a>
-            {/* Invoice Studio removed from the footer on purpose — it is the
-                seller's tool and must have zero public footprint. It stays
-                reachable only by typing the direct URL (#/invoice), which is
-                additionally passcode-gated (see src/pages/InvoiceStudio.tsx). */}
             <a href="#top" data-testid="link-footer-top" className="transition-colors hover:text-foreground">Back to top ↑</a>
           </div>
         </div>
@@ -2555,7 +2544,7 @@ function Home() {
       if (!anchor) return;
       const href = anchor.getAttribute('href');
       if (!href || href === '#') return;
-      // Hash-routed app views (e.g. #/invoice) need native fragment
+      // Hash-routed app views (e.g. #/download) need native fragment
       // navigation so the hashchange event fires and App() can remount.
       if (href.startsWith('#/')) return;
       // A smooth scroll started in the same tick as the mobile menu's exit
@@ -2614,7 +2603,7 @@ function Router() {
 }
 
 function App() {
-  // #/invoice — seller-only Invoice Studio, hash-routed so it stays
+  // Legal, download and order views are hash-routed so they stay
   // static-safe on GitHub Pages (no SPA fallback needed for deep links).
   const [hash, setHash] = useState(() => (typeof window === 'undefined' ? '' : window.location.hash));
   useEffect(() => {
@@ -2622,17 +2611,6 @@ function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
-  if (hash.startsWith('#/invoice')) {
-    return (
-      <Suspense fallback={
-        <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-          Loading Invoice Studio…
-        </div>
-      }>
-        <InvoiceStudio />
-      </Suspense>
-    );
-  }
   const legalMatch = hash.match(/^#\/(privacy|terms|refund|eula|security)$/);
   if (legalMatch) {
     return (

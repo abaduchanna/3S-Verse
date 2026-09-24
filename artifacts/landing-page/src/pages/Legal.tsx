@@ -266,11 +266,12 @@ function Security() {
       </Section>
       <Section title="Installer integrity">
         <p>
-          Every public trial build is served from a controlled GitHub repository and is re-published on a fixed
+          Every installer is served from a controlled GitHub repository and is re-published on a fixed
           sync schedule. The <a className="text-brand-cyan hover:underline" href="#/download">Download page</a>{' '}
           shows the live SHA-256 checksum of each installer straight from that repository — verify the file you
-          downloaded against it before running. Paid (FULL) builds are never publicly downloadable; they are
-          delivered to paying customers through an order-number-gated request.
+          downloaded against it before running. There is one build per tool and it is the same public file for
+          everyone: it opens as a free 7-day trial, and a license key unlocks the full version. Paid delivery is
+          the key, emailed to you after checkout — never a separate hidden installer.
         </p>
         <p>
           Code signing: the installers are not yet Authenticode-signed. A code-signing certificate is on the
