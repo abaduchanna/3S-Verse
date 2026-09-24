@@ -1,4 +1,4 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.1 (SHEET + CREDENTIAL FIX)
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.2 (CLEAR + CHUNKED UPLOAD)
 =========================================================================
 
 Ye wo file hai jo lost ho gayi thi. Ye aap ki Excel/CSV data
@@ -13,6 +13,21 @@ SHEET (TAB) KA RULE (v3 naya)
   legi (chuney par [SHEET] line mein naam dikha degi).
 - Jo sheet aap khol kar dikhti hai (Dashboard/Summary wali) us se
   data NAHI uthaya jayega - sirf data wala tab.
+
+NAYA (v3.2): UPLOAD KA TARIKA BADAL GAYA HAI
+--------------------------------------------
+Pehle script poora data EK saath bhejta tha - badi files (~11 MB)
+par Firebase error de deta tha.
+
+Ab 3 steps hain:
+  STEP A: Purana data poora CLEAR (delete) hota hai
+  STEP B: Naya data chhote-chhote CHUNKS mein (400 rows per
+          request) charhta hai - size/timeout error khatam
+  VERIFY: Aakhir mein Firebase se rows count check hota hai
+
+Is liye ab badi Excel files par bhi upload error nahi aayega.
+Agar beech mein network fail bhi ho jaye to dobara RUN_UPLOAD.bat
+chalao - wo pehle clear kar ke poora dobara charh dega.
 
 2 MODES (script khud choose karta hai)
 --------------------------------------

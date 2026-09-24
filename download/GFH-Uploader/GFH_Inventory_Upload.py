@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================
-#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.1 (CREDENTIAL FIX)
+#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.2 (CLEAR + CHUNKED UPLOAD)
 # ============================================================
 #  Kya karta hai:
 #    Aap ki Excel (.xlsx) ya CSV file ke SAARE rows read kar ke
@@ -22,8 +22,10 @@
 #    - Data 'database' naam ke TAB mein hona chahiye (ya jis sheet ke
 #      headers dashboard se match karein - script khud dhoond leti hai).
 #    - Us sheet mein 25 columns BILKUL isi order mein hone chahiye.
-#    - Upload poora database REPLACE karta hai. Pehli baar
-#      RUN_BACKUP.bat zaroor chalao.
+#    - Upload pehle PURANA DATA CLEAR karta hai, phir naya data
+#      chhote-chhote chunks mein charhta hai (badi files par bhi
+#      size/timeout error nahi aata). Pehli baar RUN_BACKUP.bat
+#      zaroor chalao.
 #
 #  Use:
 #    RUN_UPLOAD.bat double-click karo
@@ -43,6 +45,7 @@ PROJECT_ID = "gfh-inventory-dashboard-6febd"
 DATA_NODE = "database"          # dashboard isi node se data uthata hai
 SHEET_NAME = "database"         # data isi tab se uthaya jayega; na miley to headers se khud dhoondega
 AUTO_CONFIRM = False            # True kar do to upload se pehle na puche
+CHUNK_ROWS = 400                # ek request mein itne rows jate hain (size-limit safe)
 # ------------------------------------------------------------
 
 EXPECTED_HEADERS = [
@@ -270,6 +273,49 @@ def fb_request(url, method="GET", payload=None, timeout=600):
     raise RuntimeError(f"Firebase {method} fail ho gaya: {last_err}")
 
 
+def fb_clear(node):
+    """STEP A: purana data poora delete (node -> null)."""
+    url = f"{FIREBASE_DB_URL}/{node}.json"
+    status, resp = fb_request(url, method="DELETE")
+    if status != 200:
+        raise RuntimeError(f"Clear (DELETE) fail: HTTP {status} {str(resp)[:200]}")
+
+
+def fb_put_chunks(payload, node):
+    """STEP B: payload (header + rows) ko chhote chunks mein
+    node/{start_index} par likhta hai. Keys 0..N contiguous hone se
+    Firebase use wapis ARRAY ki tarah serve karta hai - dashboard
+    ko farak nahi parta."""
+    total = len(payload)
+    n_chunks = (total + CHUNK_ROWS - 1) // CHUNK_ROWS
+    t0 = time.time()
+    for c in range(n_chunks):
+        start = c * CHUNK_ROWS
+        end = min(start + CHUNK_ROWS, total)
+        url = f"{FIREBASE_DB_URL}/{node}/{start}.json"
+        status, resp = fb_request(url, method="PUT", payload=payload[start:end])
+        if status != 200:
+            raise RuntimeError(
+                f"Chunk {c + 1}/{n_chunks} (rows {start:,}-{end - 1:,}) fail: "
+                f"HTTP {status} {str(resp)[:200]}")
+        print(f"    [UPLOAD] {end:,}/{total:,} rows (chunk {c + 1}/{n_chunks})")
+    print(f"    [UPLOAD] Sab chunks bhej diye ({time.time() - t0:.0f} sec)")
+
+
+def fb_verify(node):
+    """Shallow GET se sirf row-keys ginti hai (poora data download kiye bagair).
+    Returns: (ok, count)"""
+    url = f"{FIREBASE_DB_URL}/{node}.json?shallow=true"
+    status, data = fb_request(url)
+    if status != 200:
+        return False, -1
+    if isinstance(data, dict):
+        return True, len(data)
+    if data is None:
+        return True, 0
+    return False, -1
+
+
 def find_credential():
     """Folder mein Firebase service-account JSON dhundta hai.
        STEP 1: credential.json (exact naam - chhota naam kaafi hai)
@@ -352,11 +398,25 @@ def try_admin_upload(node, payload):
                 fbcred.Certificate(cred_path),
                 {"databaseURL": FIREBASE_DB_URL},
             )
-        print("[UPLOAD] Credential se bhej raha hoon... (11 MB tak lag sakta hai, tab mat band karna)")
+        print("[CLEAR] Purana data hata raha hoon (credential mode)...")
+        fdb.reference(node).delete()
+        print("[OK] Purana data clear ho gaya.")
+        total = len(payload)
+        n_chunks = (total + CHUNK_ROWS - 1) // CHUNK_ROWS
         t0 = time.time()
-        fdb.reference(node).set(payload)
-        print(f"[OK] Upload ho gaya! (credential mode, {time.time() - t0:.0f} sec)")
-        return True, None
+        for c in range(n_chunks):
+            start = c * CHUNK_ROWS
+            end = min(start + CHUNK_ROWS, total)
+            fdb.reference(f"{node}/{start}").set(payload[start:end])
+            print(f"    [UPLOAD] {end:,}/{total:,} rows (chunk {c + 1}/{n_chunks})")
+        got = fdb.reference(node).get(shallow=True)
+        count = len(got) if isinstance(got, dict) else -1
+        if count == total:
+            print(f"[OK] Upload ho gaya + verify: {count:,} rows (credential mode, {time.time() - t0:.0f} sec)")
+            return True, None
+        print(f"[WARN] Credential mode verify fail: expected {total:,}, mila {count:,}")
+        print("       Direct method se dobara poora try karta hoon...")
+        return False, None
     except Exception as e:
         print(f"[WARN] Credential se upload fail: {str(e)[:200]}")
         print("       Direct method se try karta hoon...")
@@ -379,7 +439,7 @@ def upload(payload, dry_run=False, node=DATA_NODE):
         return
 
     if not AUTO_CONFIRM:
-        print("\n  YAAD RAHE: Upload poore dashboard ka data REPLACE kar dega.")
+        print("\n  YAAD RAHE: Purana data DELETE ho kar aap ki file ka data aayega.")
         input("  Upload shuru karne ke liye ENTER dabao (cancel = Ctrl+C): ")
 
     admin_ok, cred_issue = try_admin_upload(node, payload)
@@ -393,22 +453,30 @@ def upload(payload, dry_run=False, node=DATA_NODE):
         else:
             print("[MODE] Credential file nahi mili - direct method (bina login).")
 
-    print("[UPLOAD] Data bhej raha hoon... (11 MB tak lag sakta hai, tab mat band karna)")
-    t0 = time.time()
-    status, resp = fb_request(url, method="PUT", payload=payload)
-    dt = time.time() - t0
-
-    if status == 200:
-        got = len(resp) - 1 if isinstance(resp, list) else -1
-        print(f"[OK] Upload ho gaya! HTTP 200, {dt:.0f} sec")
-        if got >= 0:
-            print(f"[OK] Firebase ne confirm kiya: {got:,} rows save hue.")
-        print("\n  Dashboard kholo aur refresh karo:  https://gfhinventorydashboard.netlify.app")
-    else:
-        print(f"[ERROR] HTTP {status} - upload fail. Response: {str(resp)[:300]}")
-        if status in (401, 403):
+    try:
+        print(f"[STEP A] Purana data clear kar raha hoon ({node} node delete)...")
+        fb_clear(node)
+        print("[OK] Purana data clear ho gaya.")
+        print(f"[STEP B] Naya data chunks mein charha raha hoon ({CHUNK_ROWS} rows/chunk)...")
+        fb_put_chunks(payload, node)
+    except RuntimeError as e:
+        print(f"\n[ERROR] Upload beech mein fail hua: {str(e)[:300]}")
+        print("        Dobara RUN_UPLOAD.bat chalao - wo pehle clear kar ke poora dobara charhega.")
+        if "HTTP 401" in str(e) or "HTTP 403" in str(e):
             print("        Rules ne mana kiya: credential file folder mein rakho")
             print("        (Firebase Console > Project settings > Service accounts > Generate new private key)")
+        return
+
+    total = len(payload)
+    vok, count = fb_verify(node)
+    if vok and count == total:
+        print(f"\n[OK] Upload complete + verify: {count:,} rows (header samet).")
+        print("\n  Dashboard kholo aur refresh karo:  https://gfhinventorydashboard.netlify.app")
+    elif vok:
+        print(f"\n[WARN] Verify: expected {total:,} rows, Firebase par {count:,} mile.")
+        print("       Dobara RUN_UPLOAD.bat chalao - pehle clear kar ke poora dobara charhega.")
+    else:
+        print("\n[WARN] Verify nahi ho saka (shallow GET fail). Dashboard refresh kar ke check karo.")
 
 
 def backup():
@@ -445,7 +513,7 @@ def main():
     global AUTO_CONFIRM
     args = sys.argv[1:]
     print("=" * 58)
-    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.1")
+    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.2")
     print("=" * 58)
 
     if "--backup" in args:
