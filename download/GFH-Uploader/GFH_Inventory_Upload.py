@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================
-#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.4 (AUTO-PICK + AUTO-MAP + CHUNKED)
+#  GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.5 (ZERO-PROMPT + AUTO-PICK + AUTO-MAP + CHUNKED)
 # ============================================================
 #  Kya karta hai:
 #    Aap ki Excel (.xlsx) ya CSV file ke SAARE rows read kar ke
@@ -19,6 +19,9 @@
 #       ke upload karta hai (tab tak jab tak rules khule hain).
 #
 #  Zaroori:
+#    - 'gfh database.xlsx' (tab: database, 25 columns) seedha chalti hai.
+#    - KOI SAWAL / ENTER / yes-no NAHI: file mili to foran purana data
+#      clear + naya upload. Bas RUN_UPLOAD.bat chalao.
 #    - Data 'database' naam ke TAB mein hona chahiye (ya jis sheet ke
 #      headers dashboard se match karein - script khud dhoond leti hai).
 #    - Columns ka ORDER ab farak nahi parta: script columns ko NAAM
@@ -46,8 +49,8 @@ FIREBASE_DB_URL = "https://gfh-inventory-dashboard-6febd-default-rtdb.firebaseio
 PROJECT_ID = "gfh-inventory-dashboard-6febd"
 DATA_NODE = "database"          # dashboard isi node se data uthata hai
 SHEET_NAME = "database"         # data isi tab se uthaya jayega; na miley to headers se khud dhoondega
-AUTO_CONFIRM = False            # True kar do to upload se pehle na puche
 CHUNK_ROWS = 400                # ek request mein itne rows jate hain (size-limit safe)
+AUTO_PICK_MIN = 15              # auto-pick: kam az kam itne/25 headers match hon (Rebate-type report ~13 hai, wo refuse ho jati hai)
 # ------------------------------------------------------------
 
 EXPECTED_HEADERS = [
@@ -454,9 +457,7 @@ def upload(payload, dry_run=False, node=DATA_NODE):
         print("  " + json.dumps(payload[1], ensure_ascii=False)[:500])
         return
 
-    if not AUTO_CONFIRM:
-        print("\n  YAAD RAHE: Purana data DELETE ho kar aap ki file ka data aayega.")
-        input("  Upload shuru karne ke liye ENTER dabao (cancel = Ctrl+C): ")
+    print("\n  Purana data delete ho kar is file ka data charhega - shuru...")
 
     admin_ok, cred_issue = try_admin_upload(node, payload)
     if admin_ok is True:
@@ -541,13 +542,14 @@ def score_file_headers(path):
 def find_best_file(folder):
     """Folder ki saari .xlsx/.csv ko headers ke match par score karta hai.
     Sab se zyada match wali file return karta hai (tie = newest).
-    Poori list print hoti hai - koi guess nahi. Best < 5 match ho to None
-    (galat file auto-pick nahi hogi)."""
+    Poori list print hoti hai - koi guess nahi. Best < 15 match ho to None
+    (Rebate-type report ~13/25 hoti hai - wo auto-pick NAHI hogi;
+    ghalat file auto-upload ho kar dashboard ujala nahi sakti)."""
     cands = []
     for fn in os.listdir(folder):
         if fn.startswith("~$"):
             continue
-        if fn.lower().endswith((".xlsx", ".csv")):
+        if fn.lower().endswith((".xlsx", ".xlsm", ".csv")):
             p = os.path.join(folder, fn)
             cands.append((os.path.getmtime(p), p))
     if not cands:
@@ -558,18 +560,17 @@ def find_best_file(folder):
     scored.sort(key=lambda x: (x[0], x[1]), reverse=True)  # score pehle, phir newest
     print("\n[FOUND] Folder ki files (dashboard headers se match):")
     for sc, _mt, p in scored:
-        mark = "  <-- AUTO-PICK" if (sc, _mt, p) == scored[0] and scored[0][0] >= 5 else ""
+        mark = "  <-- AUTO-PICK" if (sc, _mt, p) == scored[0] and scored[0][0] >= AUTO_PICK_MIN else ""
         print(f"    {os.path.basename(p)}  - {sc}/25 headers match{mark}")
-    if scored[0][0] < 5:
+    if scored[0][0] < AUTO_PICK_MIN:
         return None
     return scored[0][2]
 
 
 def main():
-    global AUTO_CONFIRM
     args = sys.argv[1:]
     print("=" * 58)
-    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.4")
+    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.5")
     print("=" * 58)
 
     if "--backup" in args:
@@ -583,22 +584,18 @@ def main():
         args = args[:i] + args[i + 2:]
 
     dry = "--dry-run" in args
-    if "--yes" in args:
-        AUTO_CONFIRM = True
 
     files = [a for a in args if not a.startswith("--")]
 
     if not files:
         latest = find_best_file(os.path.dirname(os.path.abspath(__file__)))
         if latest is None:
-            print("\nFolder mein inventory data wali file nahi mili (headers match nahi hue).")
-            print("Inventory file is folder mein rakho, ya file ko RUN_UPLOAD.bat par")
-            print("DRAG & DROP karo - phir guessing hi nahi hogi.")
-            p = input("   Ya poora path likho: ").strip().strip('"')
-            if not p or not os.path.exists(p):
-                print("[CANCEL] File nahi mili.")
-                return
-            files = [p]
+            print("\nFolder mein inventory wali file nahi mili (kisi file ke headers")
+            print(f"dashboard ke 25 columns se {AUTO_PICK_MIN}+ match nahi hue - sirf Rebate-type")
+            print("report wali file kaafi nahi hoti, wo jaan boojh kar refuse hoti hai).")
+            print("\nApni 'gfh database' file is folder mein rakho, ya file ko")
+            print("RUN_UPLOAD.bat par DRAG & DROP karo - seedha upload ho jayega.")
+            return
         else:
             print(f"\n[AUTO-PICK] {os.path.basename(latest)}")
             print("           (Backup ke liye RUN_BACKUP.bat use karo)")
@@ -607,6 +604,10 @@ def main():
     path = files[0]
     if not os.path.exists(path):
         print(f"[ERROR] File nahi mili: {path}")
+        return
+    if os.path.splitext(path)[1].lower() not in (".xlsx", ".xlsm", ".csv"):
+        print(f"[ERROR] '{os.path.basename(path)}' upload ke liye sahi format nahi (.xlsx/.xlsm/.csv chahiye).")
+        print("        Agar file .xls (purana format) hai to Excel mein Save As > .xlsx kar lo.")
         return
 
     print(f"\n[STEP 1/2] File read + check kar raha hoon...")

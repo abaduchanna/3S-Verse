@@ -1,5 +1,16 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.4 (AUTO-PICK + AUTO-MAP + CHUNKED)
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.5 (ZERO-PROMPT + AUTO-PICK + AUTO-MAP + CHUNKED)
 =================================================================================
+
+NAYA (v3.5): KOI SAWAL HI NAHI
+------------------------------
+- ENTER / yes-no / confirm ka sawal poori tarah hata diya gaya hai.
+- File mili -> foran purana data clear -> naya upload. Bas.
+- 'gfh database.xlsx' (tab: database, 25 columns) bilkul seedha
+  chalti hai - isi file ke liye ye script bani hai.
+- Auto-pick ab sakht hai: sirf wo file uthati hai jis ke headers
+  25 mein se kam az kam 15 match karte hain. Rebate filing jaisi
+  report (~13 match) jaan boojh kar REFUSE hoti hai - ghalat file
+  kabhi auto-upload nahi hogi.
 
 Ye wo file hai jo lost ho gayi thi. Ye aap ki Excel/CSV data
 padh kar dashboard (gfhinventorydashboard.netlify.app) par
@@ -67,9 +78,9 @@ CREDENTIAL FILE KA KHYAL RAKHNA (BOHAT ZAROORI)
 
 ISTEMAL (2 tarike)
 ------------------
-1) Apni inventory Excel file is folder mein rakho
-   -> RUN_UPLOAD.bat par double-click karo
-   -> ENTER dabao, upload shuru
+1) Apni inventory Excel file ('gfh database.xlsx') is folder mein
+   rakho -> RUN_UPLOAD.bat par double-click karo -> bas, upload shuru
+   (koi ENTER / sawal nahi)
 
 2) Ya Excel file ko pakad kar RUN_UPLOAD.bat par DRAG & DROP karo
 
@@ -103,7 +114,9 @@ ZAROORI BAATEIN
 - Bina drag-drop chalao to script folder ki saari Excel/CSV files ko
   headers se check kar ke SAB SE ZYADA MATCH wali inventory file
   uthati hai (sab se nayi nahi!) - poori list print hoti hai.
-  Agar koi file 5/25 se kam match ho to auto-pick refuse kar deti hai.
+  Agar best file bhi 15/25 se kam match ho (jaise sirf Rebate filing
+  jaisi report) to auto-pick REFUSE kar deta hai - us soorat mein
+  apni 'gfh database' file folder mein rakho ya drag-drop karo.
 - Best tareeqa: inventory file ko RUN_UPLOAD.bat par DRAG & DROP karo
   - phir koi guessing hi nahi hoti.
 - Upload ke baad dashboard kholo aur refresh karo.
