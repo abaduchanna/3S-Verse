@@ -90,9 +90,6 @@ const FACEBOOK_URL = 'https://www.facebook.com/3sverse/';
 // of truth — the download/trial routing switches on it too). While it is
 // empty the contact form renders no widget and still relies on the honeypot
 // field, and posts straight to FormSubmit instead of the worker relay.
-const EXPERIENCE_START_YEAR = 2013;
-const YEARS_EXPERIENCE = new Date().getFullYear() - EXPERIENCE_START_YEAR;
-
 /* ─────────────────────────── shared bits ─────────────────────────── */
 
 /* ── Theme (light/dark) — default dark, persisted in localStorage.
@@ -734,7 +731,7 @@ function Hero() {
             </Reveal>
             <Reveal delay={0.32}>
               <div className="mt-14 flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-5 font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">
-                <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70]" /> {YEARS_EXPERIENCE}+ years in real operations</span>
+                <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#c7ef70]" /> Free 7-day trial · no card</span>
                 <span className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-brand-cyan" /> 3 tools · one bundle license</span>
                 <span className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5 text-brand-magenta" /> Running in dealerships daily</span>
               </div>
@@ -812,7 +809,7 @@ const features = [
   {
     index: '04',
     title: 'Multi-store operations',
-    description: `Our home turf — inventory, procurement, rebates and claims across many locations, designed by people with ${YEARS_EXPERIENCE}+ years running retail operations. Not theorists.`,
+    description: 'Our home turf — inventory, procurement, rebates and claims across many locations, built around the same portal workflows the three tools automate.',
     icon: Boxes,
     color: 'magenta',
     detail: ['Inventory & procurement', 'Claims & loss recovery', 'Multi-location operations'],
@@ -1788,7 +1785,7 @@ const TRUST_CARDS = [
   {
     icon: UserCheck,
     title: 'Founder-operated',
-    text: '13+ years of wireless retail operations stand behind every workflow. You are dealing with an operator, not a reseller.',
+    text: 'One person builds, sells, and supports these tools — you always deal with the operator directly, never a reseller or middleman.',
   },
   {
     icon: CreditCard,
