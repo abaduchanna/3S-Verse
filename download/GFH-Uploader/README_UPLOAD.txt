@@ -1,5 +1,5 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.3 (AUTO-MAP + CLEAR + CHUNKED)
-=============================================================================
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.4 (AUTO-PICK + AUTO-MAP + CHUNKED)
+=================================================================================
 
 Ye wo file hai jo lost ho gayi thi. Ye aap ki Excel/CSV data
 padh kar dashboard (gfhinventorydashboard.netlify.app) par
@@ -100,8 +100,12 @@ ZAROORI BAATEIN
   chahiye (District, Store name, ESN number, Rebate, ...).
   Jo dashboard columns aap ki file mein nahi hain wo dashboard
   par khaali dikhenge - data oocha nahi jayega.
-- Sab se nayi .xlsx/.csv file khud pakdi jati hai folder se
-  (Excel ki temporary ~$ files ignore hoti hain).
+- Bina drag-drop chalao to script folder ki saari Excel/CSV files ko
+  headers se check kar ke SAB SE ZYADA MATCH wali inventory file
+  uthati hai (sab se nayi nahi!) - poori list print hoti hai.
+  Agar koi file 5/25 se kam match ho to auto-pick refuse kar deti hai.
+- Best tareeqa: inventory file ko RUN_UPLOAD.bat par DRAG & DROP karo
+  - phir koi guessing hi nahi hoti.
 - Upload ke baad dashboard kholo aur refresh karo.
 
 TEST (bina upload ke)

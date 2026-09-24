@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================
-#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.3 (AUTO-MAP + CLEAR + CHUNKED)
+#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.4 (AUTO-PICK + AUTO-MAP + CHUNKED)
 # ============================================================
 #  Kya karta hai:
 #    Aap ki Excel (.xlsx) ya CSV file ke SAARE rows read kar ke
@@ -511,8 +511,38 @@ def backup():
     print("     Ye file upload ke liye bhi use kar sakte ho (safety copy).")
 
 
-def find_latest_file(folder):
-    """Folder ki newest .xlsx / .csv (Excel temp ~$ files skip)."""
+def score_file_headers(path):
+    """File ke headers dashboard ke 25 columns se kitne match karte hain -
+    sirf pehli row peek (fast). xlsx mein sab sheets check hoti hain.
+    Returns: score int (0-25), error par -1."""
+    try:
+        want_set = {h.lower() for h in EXPECTED_HEADERS}
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".csv":
+            with open(path, "r", encoding="utf-8-sig", newline="") as f:
+                header = next(csv.reader(f), [])
+            got = [("" if h is None else str(h).strip().lower()) for h in header]
+            return sum(1 for c in got if c in want_set)
+        if not ensure_openpyxl():
+            return -1
+        from openpyxl import load_workbook
+        wb = load_workbook(path, data_only=True, read_only=True)
+        best = 0
+        for ws in wb.worksheets:
+            got = norm_first_row(ws)
+            sc = sum(1 for c in got if c in want_set)
+            best = max(best, sc)
+        wb.close()
+        return best
+    except Exception:
+        return -1
+
+
+def find_best_file(folder):
+    """Folder ki saari .xlsx/.csv ko headers ke match par score karta hai.
+    Sab se zyada match wali file return karta hai (tie = newest).
+    Poori list print hoti hai - koi guess nahi. Best < 5 match ho to None
+    (galat file auto-pick nahi hogi)."""
     cands = []
     for fn in os.listdir(folder):
         if fn.startswith("~$"):
@@ -522,14 +552,24 @@ def find_latest_file(folder):
             cands.append((os.path.getmtime(p), p))
     if not cands:
         return None
-    return sorted(cands)[-1][1]
+    scored = []
+    for mt, p in sorted(cands, reverse=True):   # newest first
+        scored.append((score_file_headers(p), mt, p))
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)  # score pehle, phir newest
+    print("\n[FOUND] Folder ki files (dashboard headers se match):")
+    for sc, _mt, p in scored:
+        mark = "  <-- AUTO-PICK" if (sc, _mt, p) == scored[0] and scored[0][0] >= 5 else ""
+        print(f"    {os.path.basename(p)}  - {sc}/25 headers match{mark}")
+    if scored[0][0] < 5:
+        return None
+    return scored[0][2]
 
 
 def main():
     global AUTO_CONFIRM
     args = sys.argv[1:]
     print("=" * 58)
-    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.3")
+    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.4")
     print("=" * 58)
 
     if "--backup" in args:
@@ -549,18 +589,19 @@ def main():
     files = [a for a in args if not a.startswith("--")]
 
     if not files:
-        latest = find_latest_file(os.path.dirname(os.path.abspath(__file__)))
+        latest = find_best_file(os.path.dirname(os.path.abspath(__file__)))
         if latest is None:
-            print("\nIs folder mein koi .xlsx / .csv file nahi mili.")
-            print("Upload karne ke liye apni Excel file ka path likho:")
-            p = input("   Path: ").strip().strip('"')
+            print("\nFolder mein inventory data wali file nahi mili (headers match nahi hue).")
+            print("Inventory file is folder mein rakho, ya file ko RUN_UPLOAD.bat par")
+            print("DRAG & DROP karo - phir guessing hi nahi hogi.")
+            p = input("   Ya poora path likho: ").strip().strip('"')
             if not p or not os.path.exists(p):
                 print("[CANCEL] File nahi mili.")
                 return
             files = [p]
         else:
-            print(f"\n[FOUND] Sab se nayi file: {os.path.basename(latest)}")
-            print("        (Backup ke liye RUN_BACKUP.bat use karo)")
+            print(f"\n[AUTO-PICK] {os.path.basename(latest)}")
+            print("           (Backup ke liye RUN_BACKUP.bat use karo)")
             files = [latest]
 
     path = files[0]
