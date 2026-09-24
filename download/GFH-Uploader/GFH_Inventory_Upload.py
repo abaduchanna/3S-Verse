@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ============================================================
-#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.2 (CLEAR + CHUNKED UPLOAD)
+#  GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.3 (AUTO-MAP + CLEAR + CHUNKED)
 # ============================================================
 #  Kya karta hai:
 #    Aap ki Excel (.xlsx) ya CSV file ke SAARE rows read kar ke
@@ -21,7 +21,9 @@
 #  Zaroori:
 #    - Data 'database' naam ke TAB mein hona chahiye (ya jis sheet ke
 #      headers dashboard se match karein - script khud dhoond leti hai).
-#    - Us sheet mein 25 columns BILKUL isi order mein hone chahiye.
+#    - Columns ka ORDER ab farak nahi parta: script columns ko NAAM
+#      se pehchan kar dashboard ke order mein khud set karti hai.
+#      Missing columns khaali jati hain, extra drop (report ke sath).
 #    - Upload pehle PURANA DATA CLEAR karta hai, phir naya data
 #      chhote-chhote chunks mein charhta hai (badi files par bhi
 #      size/timeout error nahi aata). Pehli baar RUN_BACKUP.bat
@@ -192,31 +194,38 @@ def read_csv(path):
     return rows
 
 
-def check_headers(header):
-    """Column order verify - galat order par data dashboard mein ghalat jagah jata."""
+def map_columns(header, data):
+    """File columns ko dashboard ke 25-column order mein NAAM se map karta hai.
+    - Order kuch bhi ho, data sahi jagah jata hai (naam match hona chahiye).
+    - Jo dashboard columns file mein nahi wo khaali (None) jate hain.
+    - File ke extra columns drop hote hain (report mein dikhte hain).
+    Returns: (payload, matched_count, missing, extra)"""
     norm = lambda x: ("" if x is None else str(x).strip().lower())
     got = [norm(h) for h in header]
     want = [h.lower() for h in EXPECTED_HEADERS]
-    if got[:len(want)] == want:
-        return True
-    print("\n[WARNING] Column order EXPECTED se match nahi kar raha!")
-    print(f"    Expected columns: {len(want)} | File mein mile: {len(got)}")
-    shown = 0
-    for i in range(max(len(want), len(got))):
-        w = want[i] if i < len(want) else "(nahi)"
-        g = got[i] if i < len(got) else "(nahi)"
-        if w != g:
-            if shown < 30:
-                print(f"    col {i + 1:2d}: dashboard='{w}'  file='{g}'  <-- MISMATCH")
-            shown += 1
-    if shown > 30:
-        print(f"    ... aur {shown - 30} columns mismatch (sirf pehle 30 dikhaye)")
-    print("\n    Agar order galat hai to pehle Excel theek karo (columns ka order")
-    print("    upar wale se same karo), warna dashboard ghalat figures dikhayega.")
-    if not AUTO_CONFIRM:
-        ans = input("\n    Phir bhi upload karna hai? (yes / no): ").strip().lower()
-        return ans in ("y", "yes")
-    return False
+    want_set = set(want)
+
+    index_by_name = {}
+    for i, g in enumerate(got):
+        if g and g not in index_by_name:
+            index_by_name[g] = i
+
+    matched = [w for w in want if w in index_by_name]
+    missing = [w for w in want if w not in index_by_name]
+    extra, seen = [], set()
+    for g in got:
+        if g and g not in want_set and g not in seen:
+            extra.append(g)
+            seen.add(g)
+
+    ncols = len(header)
+    mapped = []
+    for r in data:
+        r = list(r[:ncols]) + [None] * (ncols - len(r))
+        mapped.append([r[index_by_name[w]] if w in index_by_name else None for w in want])
+
+    payload = [list(EXPECTED_HEADERS)] + mapped
+    return payload, len(matched), missing, extra
 
 
 def build_payload(path):
@@ -232,17 +241,24 @@ def build_payload(path):
         sys.exit(1)
 
     header, data = rows[0], rows[1:]
-    ncols = max(len(header), max((len(r) for r in data), default=0))
-    if not check_headers(header):
-        print("\n[CANCEL] Upload cancel kar diya. Excel column order theek karo.")
+
+    print("[MAP] Columns ko naam se dashboard ke order mein set kar raha hoon...")
+    payload, nmatch, missing, extra = map_columns(header, data)
+
+    if nmatch < 5:
+        print(f"[ERROR] File ke headers dashboard se match nahi karte (sirf {nmatch}/25 mile).")
+        print("        Ye shayad dashboard wali data file nahi hai.")
+        fl = ", ".join(str(h) for h in header if h is not None)
+        print(f"        File ke headers the: {fl[:300]}")
         sys.exit(1)
 
-    fixed = []
-    for r in data:
-        r = list(r[:ncols]) + [None] * (ncols - len(r))
-        fixed.append(r)
-
-    payload = [list(header[:ncols]) + [None] * (ncols - len(header))] + fixed
+    print(f"[MAP] {nmatch}/25 columns file se map ho gaye.")
+    if missing:
+        ml = ", ".join(missing)
+        print(f"      File mein nahi the ({len(missing)}) - khaali jayengi: {ml[:220]}{'...' if len(ml) > 220 else ''}")
+    if extra:
+        el = ", ".join(extra)
+        print(f"      Extra drop hui ({len(extra)}): {el[:220]}{'...' if len(el) > 220 else ''}")
     return payload
 
 
@@ -513,7 +529,7 @@ def main():
     global AUTO_CONFIRM
     args = sys.argv[1:]
     print("=" * 58)
-    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.2")
+    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.3")
     print("=" * 58)
 
     if "--backup" in args:

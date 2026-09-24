@@ -1,5 +1,5 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.2 (CLEAR + CHUNKED UPLOAD)
-=========================================================================
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.3 (AUTO-MAP + CLEAR + CHUNKED)
+=============================================================================
 
 Ye wo file hai jo lost ho gayi thi. Ye aap ki Excel/CSV data
 padh kar dashboard (gfhinventorydashboard.netlify.app) par
@@ -14,16 +14,25 @@ SHEET (TAB) KA RULE (v3 naya)
 - Jo sheet aap khol kar dikhti hai (Dashboard/Summary wali) us se
   data NAHI uthaya jayega - sirf data wala tab.
 
-NAYA (v3.2): UPLOAD KA TARIKA BADAL GAYA HAI
---------------------------------------------
+NAYA (v3.3): COLUMNS KA ORDER AB FARAK NAHI PARTA
+-------------------------------------------------
+Script columns ko NAAM se pehchanti hai: file mein order kuch bhi ho,
+data dashboard ke sahi column mein jata hai.
+  - Jo dashboard columns file mein nahi hote: khaali jate hain
+  - File ke extra columns: drop (report print hoti hai)
+  - Header ke naam sahi hon, bas (spacing/capital farak nahi parta)
+
+NAYA (v3.2): UPLOAD KA TARIKA
+-----------------------------
 Pehle script poora data EK saath bhejta tha - badi files (~11 MB)
 par Firebase error de deta tha.
 
-Ab 3 steps hain:
-  STEP A: Purana data poora CLEAR (delete) hota hai
-  STEP B: Naya data chhote-chhote CHUNKS mein (400 rows per
-          request) charhta hai - size/timeout error khatam
-  VERIFY: Aakhir mein Firebase se rows count check hota hai
+Ab flow ye hai:
+  MAP    : Columns naam se dashboard ke order mein set
+  STEP A : Purana data poora CLEAR (delete) hota hai
+  STEP B : Naya data chhote-chhote CHUNKS mein (400 rows per
+           request) charhta hai - size/timeout error khatam
+  VERIFY : Aakhir mein Firebase se rows count check hota hai
 
 Is liye ab badi Excel files par bhi upload error nahi aayega.
 Agar beech mein network fail bhi ho jaye to dobara RUN_UPLOAD.bat
@@ -86,15 +95,11 @@ ZAROORI BAATEIN
 - Upload POORA database REPLACE karta hai. Purana data hat kar
   aap ki file ka data aa jata hai. Is liye file mein HAMESHA
   poora data hona chahiye (purana + naya sab).
-- Excel ke 25 columns ka ORDER same rehna chahiye:
-  District | Store name | Date | Order details | Product description |
-  ESN number | Tracking number | Tracking status | Cost | Due date |
-  Payment due status | Stock status | Ext Price | Expected Commission |
-  ER Exp Comm | Rebate | SP Exp Comm | 1st Month Spiff | Rebate variance |
-  Spiff Variance | Device missing status | Device sale location |
-  Device sale date | Device sold by | External Order ID
-- Agar order different hua to script khud warn karega aur
-  yes/no puchega. Jab tak pakka nahi, "no" likh kar cancel karo.
+- Columns ka order zaroori NAHI hai (v3.3) - script naam se
+  khud map karti hai. Sirf header ke naam dashboard jaise hone
+  chahiye (District, Store name, ESN number, Rebate, ...).
+  Jo dashboard columns aap ki file mein nahi hain wo dashboard
+  par khaali dikhenge - data oocha nahi jayega.
 - Sab se nayi .xlsx/.csv file khud pakdi jati hai folder se
   (Excel ki temporary ~$ files ignore hoti hain).
 - Upload ke baad dashboard kholo aur refresh karo.
