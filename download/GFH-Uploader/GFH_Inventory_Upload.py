@@ -1,36 +1,37 @@
 #!/usr/bin/env python3
 # ============================================================
-#  GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.5 (ZERO-PROMPT + AUTO-PICK + AUTO-MAP + CHUNKED)
+#  GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.6 (ZERO-PROMPT + MEMORY-PICK + AUTO-MAP + CHUNKED)
 # ============================================================
 #  Kya karta hai:
 #    Aap ki Excel (.xlsx) ya CSV file ke SAARE rows read kar ke
 #    dashboard (gfhinventorydashboard.netlify.app) ke Firebase
 #    database par upload kar deta hai.
 #
-#  2 MODES (khud choose karta hai):
-#    1) CREDENTIAL MODE (secure): Folder mein agar Firebase ki
-#       service-account JSON mili (naam: credential.json - bas itna
-#       hi naam kaafi hai, lamba naam ki zaroorat nahi)
-#       to usi se login kar ke upload karta hai.
-#       -> Is mode mein chahe Firebase rules lock hon, chalega.
-#       -> Credential file SIRF apne paas rakho, kisi ko na do,
-#          kabhi chat/email pe paste na karo.
-#    2) DIRECT MODE (fallback): Credential na miley to bina login
-#       ke upload karta hai (tab tak jab tak rules khule hain).
+#  CREDENTIAL (zaroori hai - rules lock hain):
+#    Firebase ki service-account JSON chahiye. v3.6 ab poora dhoondta
+#    hai: is folder + Desktop + Downloads + Documents mein
+#    credential.json / credential.txt / credential.json.txt ya koi bhi
+#    *credential* naam wali .json/.txt. Notepad wali (BOM/UTF-16/ANSI)
+#    files bhi read ho jati hain. Milti hai to copy is folder mein bhi
+#    bana deta hai (agle run ko instant).
+#
+#  FILE PICK (bina scan circus):
+#    - Pichli baar jo file upload hui thi, wohi agle run par seedha
+#      uthata hai (LAST_UPLOAD.txt memory - koi 23-file scan NAHI).
+#    - Memory na ho to seedha 'gfh database.xlsx' (.xlsm/.csv bhi).
+#    - Wo bhi na miley to chup-chaap best-match scan (sirf winner
+#      print hota hai, poori list nahi).
+#    - Drag & drop wala tareeqa pehle jaisa hai.
 #
 #  Zaroori:
 #    - 'gfh database.xlsx' (tab: database, 25 columns) seedha chalti hai.
 #    - KOI SAWAL / ENTER / yes-no NAHI: file mili to foran purana data
 #      clear + naya upload. Bas RUN_UPLOAD.bat chalao.
-#    - Data 'database' naam ke TAB mein hona chahiye (ya jis sheet ke
-#      headers dashboard se match karein - script khud dhoond leti hai).
 #    - Columns ka ORDER ab farak nahi parta: script columns ko NAAM
 #      se pehchan kar dashboard ke order mein khud set karti hai.
-#      Missing columns khaali jati hain, extra drop (report ke sath).
 #    - Upload pehle PURANA DATA CLEAR karta hai, phir naya data
-#      chhote-chhote chunks mein charhta hai (badi files par bhi
-#      size/timeout error nahi aata). Pehli baar RUN_BACKUP.bat
-#      zaroor chalao.
+#      chhote-chhote chunks mein charhta hai. Pehli baar
+#      RUN_BACKUP.bat zaroor chalao.
 #
 #  Use:
 #    RUN_UPLOAD.bat double-click karo
@@ -336,16 +337,15 @@ def fb_verify(node):
 
 
 def find_credential():
-    """Folder mein Firebase service-account JSON dhundta hai.
-       STEP 1: credential.json (exact naam - chhota naam kaafi hai)
-       STEP 2: baaki .json files (backup/temp files ignore)
-       Notepad se save hui files (BOM / UTF-16 / ANSI) bhi read hoti hain.
-       Returns: (path, data, issue)
-         - path+data : credential mili
-         - issue     : file mili thi par valid service-account key NAHI (wajah ke sath)
-         - teeno None: folder mein koi credential nahi"""
-    folder = os.path.dirname(os.path.abspath(__file__))
-
+    """Firebase service-account JSON dhoondta hai - v3.6 poori search.
+    Places: script folder, CWD, Desktop, Downloads, Documents.
+    Names : credential.json / credential.txt / credential.json.txt /
+            koi bhi *credential* naam wali .json/.txt / folder ki .json
+    Notepad se save hui files (BOM / UTF-16 / ANSI) bhi read hoti hain.
+    Returns: (path, data, issue)
+      - path+data : credential mili
+      - issue     : file mili thi par service-account key nahi (wajah)
+      - teeno None: kahin nahi mili"""
     def load_json(p):
         last_err = None
         for enc in ("utf-8-sig", "utf-16", "cp1252"):
@@ -369,45 +369,99 @@ def find_credential():
         if isinstance(data, dict):
             missing = [k for k in ("private_key", "client_email")
                        if not str(data.get(k) or "").strip()]
-            return None, (f"{os.path.basename(p)} mili thi lekin ye Firebase "
-                          f"service-account key nahi lagti (missing/corrupt: "
+            return None, (f"{p} mili thi lekin ye Firebase service-account "
+                          f"key nahi lagti (missing/corrupt: "
                           f"{', '.join(missing) if missing else 'private_key khali hai'})")
-        return None, (f"{os.path.basename(p)} mili thi lekin read nahi ho saki "
+        return None, (f"{p} mili thi lekin read nahi ho saki "
                       f"(sahi JSON nahi hai: {str(err)[:100]})")
 
-    # STEP 1: user ka standard naam - credential.json
-    p = os.path.join(folder, "credential.json")
-    if os.path.isfile(p):
+    home = os.path.expanduser("~")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    folders = [script_dir, os.getcwd()]
+    folders += [os.path.join(home, sub)
+                for sub in ("Desktop", "Downloads", "Documents")]
+
+    first_issue = None
+    # PASS 1: *credential* naam wali files (sab jagah, .txt variant samet)
+    for folder in folders:
+        if not os.path.isdir(folder):
+            continue
+        try:
+            names = sorted(os.listdir(folder))
+        except Exception:
+            continue
+        for fn in names:
+            low = fn.lower()
+            if "credential" not in low or fn.startswith("~$"):
+                continue
+            if not (low.endswith(".json") or low.endswith(".txt")):
+                continue
+            p = os.path.join(folder, fn)
+            data, issue = check_file(p)
+            if data is not None:
+                return p, data, None
+            if issue and first_issue is None:
+                first_issue = issue
+
+    # PASS 1b: is folder ke SUBFOLDERS (2 level deep) - credential
+    # idhar-udhar wale folder mein bhi mil jaye
+    base_depth = script_dir.rstrip(os.sep).count(os.sep)
+    for root, dirs, files in os.walk(script_dir):
+        depth = root.rstrip(os.sep).count(os.sep) - base_depth
+        if depth >= 2:
+            dirs[:] = []          # isi se aage nahi
+        if depth > 2:
+            continue              # ye root scan hi nahi hota
+        for fn in files:
+            low = fn.lower()
+            if "credential" not in low or fn.startswith("~$"):
+                continue
+            if not (low.endswith(".json") or low.endswith(".txt")):
+                continue
+            p = os.path.join(root, fn)
+            data, issue = check_file(p)
+            if data is not None:
+                return p, data, None
+            if issue and first_issue is None:
+                first_issue = issue
+
+    # PASS 2: script folder ki doosri .json files (alphabetical)
+    for fn in sorted(os.listdir(script_dir)):
+        if not fn.lower().endswith(".json") or fn.startswith("~$"):
+            continue
+        p = os.path.join(script_dir, fn)
         data, issue = check_file(p)
         if data is not None:
             return p, data, None
-        return None, None, issue
-
-    # STEP 2: folder ki doosri .json files (alphabetical)
-    for fn in sorted(os.listdir(folder)):
-        if not fn.lower().endswith(".json") or fn.startswith("~$"):
-            continue
-        p2 = os.path.join(folder, fn)
-        data, issue = check_file(p2)
-        if data is not None:
-            return p2, data, None
-    return None, None, None
+        if issue and first_issue is None:
+            first_issue = issue
+    return None, None, first_issue
 
 
 def try_admin_upload(node, payload):
-    """Mode 1: service-account credential se secure upload.
-       Returns: (True, None) kamyaab | (False, None) fail -> fallback
-                | (None, issue) credential nahi mili (issue = wajah ya None)"""
+    """Credential se secure upload (rules lock ho tab bhi chalta hai).
+       Returns: (True, None) kamyaab | (False, wajah) fail
+                | (None, issue) credential nahi mili"""
     cred_path, cred, cred_issue = find_credential()
     if not cred_path:
         return None, cred_issue
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.dirname(os.path.abspath(cred_path)) != script_dir:
+        try:
+            import shutil
+            dst = os.path.join(script_dir, "credential.json")
+            if not os.path.isfile(dst):
+                shutil.copyfile(cred_path, dst)
+                print(f"[OK] {os.path.basename(cred_path)} ka copy is folder "
+                      f"mein bana diya (credential.json) - agle run instant.")
+        except Exception:
+            pass
     print(f"[MODE] Credential file mili: {os.path.basename(cred_path)}")
     pid = (cred.get("project_id") or "").strip()
     if pid and pid != PROJECT_ID:
         print(f"[WARN] Credential ka project '{pid}' hai, expected '{PROJECT_ID}' - phir bhi try karta hoon.")
     if not ensure_firebase_admin():
-        print("[WARN] firebase-admin install nahi ho saka - direct mode use karunga.")
-        return False, None
+        return False, "firebase-admin install nahi ho saka (internet check kar ke dobara chalao)"
     try:
         import firebase_admin
         from firebase_admin import credentials as fbcred
@@ -431,15 +485,11 @@ def try_admin_upload(node, payload):
         got = fdb.reference(node).get(shallow=True)
         count = len(got) if isinstance(got, dict) else -1
         if count == total:
-            print(f"[OK] Upload ho gaya + verify: {count:,} rows (credential mode, {time.time() - t0:.0f} sec)")
+            print(f"[OK] Upload ho gaya + verify: {count:,} rows ({time.time() - t0:.0f} sec)")
             return True, None
-        print(f"[WARN] Credential mode verify fail: expected {total:,}, mila {count:,}")
-        print("       Direct method se dobara poora try karta hoon...")
-        return False, None
+        return False, f"verify fail: expected {total:,}, mila {count:,} - dobara chalao"
     except Exception as e:
-        print(f"[WARN] Credential se upload fail: {str(e)[:200]}")
-        print("       Direct method se try karta hoon...")
-        return False, None
+        return False, f"credential se upload fail: {str(e)[:200]}"
 
 
 def upload(payload, dry_run=False, node=DATA_NODE):
@@ -459,41 +509,29 @@ def upload(payload, dry_run=False, node=DATA_NODE):
 
     print("\n  Purana data delete ho kar is file ka data charhega - shuru...")
 
-    admin_ok, cred_issue = try_admin_upload(node, payload)
+    admin_ok, info = try_admin_upload(node, payload)
     if admin_ok is True:
         print("\n  Dashboard kholo aur refresh karo:  https://gfhinventorydashboard.netlify.app")
         return
     if admin_ok is None:
-        if cred_issue:
-            print(f"[MODE] {cred_issue}")
-            print("[MODE] Direct method use kar raha hoon (bina login).")
-        else:
-            print("[MODE] Credential file nahi mili - direct method (bina login).")
-
-    try:
-        print(f"[STEP A] Purana data clear kar raha hoon ({node} node delete)...")
-        fb_clear(node)
-        print("[OK] Purana data clear ho gaya.")
-        print(f"[STEP B] Naya data chunks mein charha raha hoon ({CHUNK_ROWS} rows/chunk)...")
-        fb_put_chunks(payload, node)
-    except RuntimeError as e:
-        print(f"\n[ERROR] Upload beech mein fail hua: {str(e)[:300]}")
-        print("        Dobara RUN_UPLOAD.bat chalao - wo pehle clear kar ke poora dobara charhega.")
-        if "HTTP 401" in str(e) or "HTTP 403" in str(e):
-            print("        Rules ne mana kiya: credential file folder mein rakho")
-            print("        (Firebase Console > Project settings > Service accounts > Generate new private key)")
+        print(LINE)
+        if info:
+            print(f"[ERROR] {info}")
+        print("[ERROR] Credential file nahi mili - upload ROAK diya.")
+        print("        Firebase ke rules LOCK hain, bina credential (direct)")
+        print("        upload 401 Unauthorized deta hai - is liye try karne ka")
+        print("        koi faida nahi, data corrupt nahi hoga.")
+        print("        Fix: Firebase Console > Project settings > Service")
+        print("        accounts > Generate new private key -> JSON file ko is")
+        print("        folder mein 'credential.json' naam se save karo.")
+        print("        (Ya apni credential.json ko Desktop/Downloads se is")
+        print("        folder mein copy kar lo - phir dobara chalao.)")
+        print(LINE)
         return
-
-    total = len(payload)
-    vok, count = fb_verify(node)
-    if vok and count == total:
-        print(f"\n[OK] Upload complete + verify: {count:,} rows (header samet).")
-        print("\n  Dashboard kholo aur refresh karo:  https://gfhinventorydashboard.netlify.app")
-    elif vok:
-        print(f"\n[WARN] Verify: expected {total:,} rows, Firebase par {count:,} mile.")
-        print("       Dobara RUN_UPLOAD.bat chalao - pehle clear kar ke poora dobara charhega.")
-    else:
-        print("\n[WARN] Verify nahi ho saka (shallow GET fail). Dashboard refresh kar ke check karo.")
+    print(f"\n[ERROR] Credential se upload fail ho gaya: {info}")
+    print("        Purana data safe hai (clear ke baad hi fail hota hai).")
+    print("        Dobara RUN_UPLOAD.bat chalao - poora dobara charhega.")
+    return
 
 
 def backup():
@@ -540,11 +578,9 @@ def score_file_headers(path):
 
 
 def find_best_file(folder):
-    """Folder ki saari .xlsx/.csv ko headers ke match par score karta hai.
-    Sab se zyada match wali file return karta hai (tie = newest).
-    Poori list print hoti hai - koi guess nahi. Best < 15 match ho to None
-    (Rebate-type report ~13/25 hoti hai - wo auto-pick NAHI hogi;
-    ghalat file auto-upload ho kar dashboard ujala nahi sakti)."""
+    """Folder ki saari .xlsx/.xlsm/.csv ko headers match par score karta hai
+    (SILENT - koi poori list print nahi hoti, v3.5 wala circus khatam).
+    Best < 15 match ho to None (ghalat file auto-upload nahi hogi)."""
     cands = []
     for fn in os.listdir(folder):
         if fn.startswith("~$"):
@@ -558,19 +594,46 @@ def find_best_file(folder):
     for mt, p in sorted(cands, reverse=True):   # newest first
         scored.append((score_file_headers(p), mt, p))
     scored.sort(key=lambda x: (x[0], x[1]), reverse=True)  # score pehle, phir newest
-    print("\n[FOUND] Folder ki files (dashboard headers se match):")
-    for sc, _mt, p in scored:
-        mark = "  <-- AUTO-PICK" if (sc, _mt, p) == scored[0] and scored[0][0] >= AUTO_PICK_MIN else ""
-        print(f"    {os.path.basename(p)}  - {sc}/25 headers match{mark}")
     if scored[0][0] < AUTO_PICK_MIN:
         return None
     return scored[0][2]
 
 
+LAST_FILE_MEM = "LAST_UPLOAD.txt"
+
+
+def remember_last_file(path):
+    """Pichli file ka naam memory file mein - agle run par zero scan."""
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               LAST_FILE_MEM), "w", encoding="utf-8") as f:
+            f.write(os.path.basename(path))
+    except Exception:
+        pass
+
+
+def find_default_file(folder):
+    """'gfh database.xlsx' naam ki file seedha uthata hai
+    (case-insensitive, .xlsx/.xlsm/.csv - newest jeet ta hai)."""
+    best = None
+    try:
+        for fn in os.listdir(folder):
+            if fn.startswith("~$"):
+                continue
+            base, ext = os.path.splitext(fn.lower())
+            if ext in (".xlsx", ".xlsm", ".csv") and base.strip() == "gfh database":
+                p = os.path.join(folder, fn)
+                if best is None or os.path.getmtime(p) > os.path.getmtime(best):
+                    best = p
+    except Exception:
+        pass
+    return best
+
+
 def main():
     args = sys.argv[1:]
     print("=" * 58)
-    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.5")
+    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.6")
     print("=" * 58)
 
     if "--backup" in args:
@@ -588,18 +651,37 @@ def main():
     files = [a for a in args if not a.startswith("--")]
 
     if not files:
-        latest = find_best_file(os.path.dirname(os.path.abspath(__file__)))
-        if latest is None:
-            print("\nFolder mein inventory wali file nahi mili (kisi file ke headers")
-            print(f"dashboard ke 25 columns se {AUTO_PICK_MIN}+ match nahi hue - sirf Rebate-type")
-            print("report wali file kaafi nahi hoti, wo jaan boojh kar refuse hoti hai).")
-            print("\nApni 'gfh database' file is folder mein rakho, ya file ko")
-            print("RUN_UPLOAD.bat par DRAG & DROP karo - seedha upload ho jayega.")
+        folder = os.path.dirname(os.path.abspath(__file__))
+        path = None
+        # 1) memory: pichli baar jo file thi, wohi (ZERO scan)
+        try:
+            with open(os.path.join(folder, LAST_FILE_MEM), "r",
+                      encoding="utf-8") as f:
+                lastname = f.read().strip()
+        except Exception:
+            lastname = None
+        if lastname:
+            for fn in os.listdir(folder):
+                if fn.lower() == lastname.lower() and not fn.startswith("~$"):
+                    path = os.path.join(folder, fn)
+                    print(f"[PICK] {fn}  (pichli baar wahi file upload hui thi)")
+                    break
+        # 2) default naam: gfh database.xlsx
+        if path is None:
+            path = find_default_file(folder)
+            if path is not None:
+                print(f"[PICK] {os.path.basename(path)}  (default 'gfh database' file)")
+        # 3) ab bhi nahi -> chup-chaap scan, sirf winner print
+        if path is None:
+            path = find_best_file(folder)
+            if path is not None:
+                print(f"[PICK] {os.path.basename(path)}  (folder scan se best match)")
+        if path is None:
+            print("\n[ERROR] 'gfh database.xlsx' is folder mein nahi mili.")
+            print("        File is folder mein rakho YA file ko RUN_UPLOAD.bat")
+            print("        par DRAG & DROP karo - seedha upload ho jayega.")
             return
-        else:
-            print(f"\n[AUTO-PICK] {os.path.basename(latest)}")
-            print("           (Backup ke liye RUN_BACKUP.bat use karo)")
-            files = [latest]
+        files = [path]
 
     path = files[0]
     if not os.path.exists(path):
@@ -609,6 +691,8 @@ def main():
         print(f"[ERROR] '{os.path.basename(path)}' upload ke liye sahi format nahi (.xlsx/.xlsm/.csv chahiye).")
         print("        Agar file .xls (purana format) hai to Excel mein Save As > .xlsx kar lo.")
         return
+
+    remember_last_file(path)   # agli baar yehi file seedha pick hogi
 
     print(f"\n[STEP 1/2] File read + check kar raha hoon...")
     payload = build_payload(path)

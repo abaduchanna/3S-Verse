@@ -1,5 +1,16 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.5 (ZERO-PROMPT + AUTO-PICK + AUTO-MAP + CHUNKED)
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.6 (ZERO-PROMPT + MEMORY-PICK + AUTO-MAP + CHUNKED)
 =================================================================================
+
+NAYA (v3.6): CREDENTIAL PAKKA MILEGI + SCAN CIRCUS KHATAM
+--------------------------------------------------------
+- credential.json ab 5 jagah dhoondti hai: is folder, Desktop,
+  Downloads, Documents (aur credential.json.txt / credential.txt
+  jaisi Notepad files bhi). Milti hi nahi to script UPLOAD ROAK
+  deta hai - 401 Unauthorized ka BEKAR circus nahi hota.
+  Mili to copy is folder mein bhi bana deta hai (agle run instant).
+- File pick: pichli baar jo file upload hui thi, agli baar WAHI
+  file seedha uthayega (LAST_UPLOAD.txt) - 23 files ka score-circus
+  khatam. Pehli baar 'gfh database.xlsx' seedha pick hogi.
 
 NAYA (v3.5): KOI SAWAL HI NAHI
 ------------------------------
