@@ -18,7 +18,7 @@
  *
  * HOW A REQUEST IS HANDLED
  *   1. Normalize the order number (trim + uppercase).
- *   2. Load ledger/orders.json from the PRIVATE vidapay-license-server
+ *   2. Load ledger/orders.json from the PRIVATE 3SVerse_License_Server
  *      repo through the GitHub Contents API (in-memory cache, 5 min).
  *   3. Validate: order exists → status "active" → package not expired
  *      ("expiry" model must have expires >= today) → requested product is
@@ -30,14 +30,14 @@
  * SETUP (summary — full walkthrough in README.md)
  *   Secrets (Worker → Settings → Variables):
  *     GH_TOKEN            fine-grained PAT, Contents: Read-only on
- *                         vidapay-license-server, vidapay-extractor,
- *                         vidapay-ordering, vidapay-rebate-filing
+ *                         3SVerse_License_Server, VidaPay_Incentive_Extractor,
+ *                         VidaPay_Device_Ordering, VidaPay_Rebate_Filing
  *     LEDGER_WRITE_TOKEN  fine-grained PAT, Contents: Read+Write on
- *                         vidapay-license-server ONLY (the Studio
+ *                         3SVerse_License_Server ONLY (the Studio
  *                         admin token works) — used by POST /order to
  *                         file orders into the inbox
  *   Variables (plain text):
- *     LEDGER_REPO   "abaduchanna/vidapay-license-server"
+ *     LEDGER_REPO   "abaduchanna/3SVerse_License_Server"
  *     LEDGER_PATH   "ledger/orders.json"
  *     OWNER         "abaduchanna"
  *   Then paste this worker's URL into the website config:
@@ -50,7 +50,7 @@
  */
 
 const OWNER_DEFAULT = "abaduchanna";
-const LEDGER_REPO_DEFAULT = "abaduchanna/vidapay-license-server";
+const LEDGER_REPO_DEFAULT = "abaduchanna/3SVerse_License_Server";
 const LEDGER_PATH_DEFAULT = "ledger/orders.json";
 const INBOX_DIR_DEFAULT = "ledger/orders_inbox";
 const CACHE_SECONDS = 300;
@@ -175,9 +175,9 @@ function inboxIp(request) {
 /* product → private repo + release asset name (the FULL builds).
    "bundle" is expanded to all three products at validation time. */
 const ASSET_MAP = {
-  extractor: { repo: "vidapay-extractor", asset: "VidaPay_Incentive_Extractor_FULL.exe" },
-  ordering: { repo: "vidapay-ordering", asset: "VidaPay_Device_Ordering_FULL.exe" },
-  rebate: { repo: "vidapay-rebate-filing", asset: "VidaPay_Rebate_Filing_FULL.exe" },
+  extractor: { repo: "VidaPay_Incentive_Extractor", asset: "VidaPay_Incentive_Extractor_FULL.exe" },
+  ordering: { repo: "VidaPay_Device_Ordering", asset: "VidaPay_Device_Ordering_FULL.exe" },
+  rebate: { repo: "VidaPay_Rebate_Filing", asset: "VidaPay_Rebate_Filing_FULL.exe" },
 };
 const PRODUCT_NAMES = {
   extractor: "VidaPay Incentive Extractor",

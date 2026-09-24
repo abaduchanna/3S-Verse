@@ -8,7 +8,7 @@ touch anything public.
 
 ```
 worker.js        the whole gateway (one file, no build step)
-orders.json      EXAMPLE ledger/orders.json (also pushed to vidapay-license-server)
+orders.json      EXAMPLE ledger/orders.json (also pushed to 3SVerse_License_Server)
 README.md        this guide
 ```
 
@@ -29,7 +29,7 @@ README.md        this guide
 1. GitHub → Settings → Developer settings → Fine-grained tokens → **Generate new token**.
 2. Name: `3sverse-download-gateway`. Expiration: 1 year (calendar reminder to rotate).
 3. **Repository access → Only select repositories**:
-   `vidapay-license-server`, `vidapay-extractor`, `vidapay-ordering`, `vidapay-rebate-filing`.
+   `3SVerse_License_Server`, `VidaPay_Incentive_Extractor`, `VidaPay_Device_Ordering`, `VidaPay_Rebate_Filing`.
 4. Permissions → Repository permissions → **Contents: Read-only**. Nothing else.
 5. Generate and copy the token (`github_pat_…`).
 
@@ -37,7 +37,7 @@ README.md        this guide
 
 > **Variables used by this worker:**
 > `GH_TOKEN` (secret, read-only, downloads) · `LEDGER_WRITE_TOKEN`
-> (secret, Contents Read+Write on vidapay-license-server only — the
+> (secret, Contents Read+Write on 3SVerse_License_Server only — the
 > Studio admin token works — used by `POST /order` intake) ·
 > `OWNER` · `LEDGER_REPO` · `LEDGER_PATH`.
 
@@ -66,12 +66,12 @@ Do this, in order:
 6. Back on the worker's page → **Settings → Variables and Secrets → Add**:
    * Type **Secret** — `GH_TOKEN` = the token from step 1.
    * Type **Secret** — `LEDGER_WRITE_TOKEN` = a token with Contents
-     Read+Write on `vidapay-license-server` (the Studio admin token
+     Read+Write on `3SVerse_License_Server` (the Studio admin token
      works). Powers the website order intake (`POST /order`) — without
      it orders still arrive by email but the Studio Orders tab stays
      empty.
    * Type **Text** — `OWNER` = `abaduchanna`.
-   * Type **Text** — `LEDGER_REPO` = `abaduchanna/vidapay-license-server`.
+   * Type **Text** — `LEDGER_REPO` = `abaduchanna/3SVerse_License_Server`.
    * Type **Text** — `LEDGER_PATH` = `ledger/orders.json`.
    Save each one (Cloudflare asks to redeploy — accept; redeploying after
    variables is normal and instant).
@@ -84,7 +84,7 @@ Do this, in order:
 
 ### 3. Register the customer's order
 
-Edit `ledger/orders.json` in `vidapay-license-server` (GitHub web editor is fine)
+Edit `ledger/orders.json` in `3SVerse_License_Server` (GitHub web editor is fine)
 and add one entry per paid order:
 
 ```json
