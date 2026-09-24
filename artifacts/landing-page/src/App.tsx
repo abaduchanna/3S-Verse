@@ -2414,14 +2414,14 @@ function Contact() {
           </form>
         </Reveal>
         <Reveal delay={0.16}>
-          <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-x-7 gap-y-3" data-testid="contact-socials">
-            <span className="font-mono-tech text-[10px] uppercase tracking-[.2em] text-muted-foreground">Prefer social? Follow the build —</span>
+          <div className="mx-auto mt-10 flex flex-wrap items-center justify-center gap-x-5 gap-y-3" data-testid="contact-socials">
+            <span className="hidden font-mono-tech text-[10px] uppercase tracking-[.2em] text-muted-foreground sm:inline">Follow the build —</span>
             {wa ? (
-              <a href={wa} target="_blank" rel="noopener noreferrer" data-testid="link-contact-whatsapp" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-wa"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
+              <a href={wa} target="_blank" rel="noopener noreferrer" data-testid="link-contact-whatsapp" className="inline-flex items-center gap-2 whitespace-nowrap text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-wa"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
             ) : null}
-            <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-contact-linkedin" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-cyan"><Linkedin className="h-4 w-4" /> LinkedIn</a>
-            <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-magenta"><Instagram className="h-4 w-4" /> Instagram</a>
-            <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-periwinkle"><Facebook className="h-4 w-4" /> Facebook</a>
+            <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-contact-linkedin" className="inline-flex items-center gap-2 whitespace-nowrap text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-cyan"><Linkedin className="h-4 w-4" /> LinkedIn</a>
+            <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 whitespace-nowrap text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-magenta"><Instagram className="h-4 w-4" /> Instagram</a>
+            <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 whitespace-nowrap text-[13.5px] font-medium text-foreground/85 transition-colors hover:text-brand-periwinkle"><Facebook className="h-4 w-4" /> Facebook</a>
           </div>
         </Reveal>
       </div>
@@ -2450,13 +2450,8 @@ function Footer() {
               </div>
             </div>
             <div>
-              <div className="font-mono-tech text-[10px] uppercase tracking-[.22em] text-muted-foreground">Follow</div>
-              <div className="mt-4 flex items-center gap-4">
-                <a href={LINKEDIN_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-linkedin" aria-label="3S Verse on LinkedIn" className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-foreground/85 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-cyan/60 hover:text-brand-cyan"><Linkedin className="h-4 w-4" /></a>
-                <a href={INSTAGRAM_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-instagram" aria-label="3S Verse on Instagram" className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-foreground/85 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-magenta/60 hover:text-brand-magenta"><Instagram className="h-4 w-4" /></a>
-                <a href={FACEBOOK_URL} target="_blank" rel="noopener noreferrer" data-testid="link-footer-facebook" aria-label="3S Verse on Facebook" className="flex h-10 w-10 items-center justify-center rounded-xl border border-border text-foreground/85 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-periwinkle/60 hover:text-brand-periwinkle"><Facebook className="h-4 w-4" /></a>
-              </div>
-              <a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle mt-5 inline-block font-mono-tech text-[12px] tracking-wider text-brand-cyan dark:bg-none dark:bg-gradient-to-r dark:from-[#6ee7ef] dark:via-[#78a6ff] dark:to-[#e44bd7] dark:bg-clip-text dark:text-transparent">{CONTACT_EMAIL}</a>
+              <div className="font-mono-tech text-[10px] uppercase tracking-[.22em] text-muted-foreground">Support</div>
+              <a href={`mailto:${CONTACT_EMAIL}`} data-testid="link-footer-email" className="animate-jiggle mt-4 inline-block font-mono-tech text-[12px] tracking-wider text-brand-cyan dark:bg-none dark:bg-gradient-to-r dark:from-[#6ee7ef] dark:via-[#78a6ff] dark:to-[#e44bd7] dark:bg-clip-text dark:text-transparent">{CONTACT_EMAIL}</a>
             </div>
           </div>
         </div>
