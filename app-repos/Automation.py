@@ -1,0 +1,10132 @@
+from __future__ import annotations
+
+import sys
+from datetime import date
+from logo_handler import LogoHandler
+
+# Developed by www.3SVerse.com | Copyright © {date.today().year} | All rights reserved.
+"""
+GFH Telecom LLC Inventory Audit v27
+
+What this app does
+1. Upload Inventory_Count_Result_Details.xlsx.
+2. Rebuilds the GFH Inventory Status / Inventory Count Results workflow:
+   - Reads serial-level inventory count results.
+   - Filters Inventory_Count_Result_Details to the latest Created Date/Time per Store + Created By.
+   - Deduplicates by (Store, IMEI) keeping the latest record.
+   - Treats non-matched serialized rows as variances.
+   - Pulls District from the saved Store List. Rep/employee name comes straight from the
+     "Created By" column in Inventory_Count_Result_Details (no separate time sheet file).
+   - Merges Arizona - D1, Arizona - D2, and Arizona into Arizona.
+   - Skips SIM, eSIM, SIM Card, SIM Kit, and similar SIM products from UI and sending.
+3. Shows variances in a GUI with District, Store, Product, IMEI, Status, Rep Name, and Checkbox.
+4. Checkbox marks the variance as cleared/resolved. Cleared rows are skipped in pending auto-send.
+5. Sends selected or pending variances as PNG images to WhatsApp Desktop.
+6. Send mode options:
+   - District: one image batch per district.
+   - Store: one image batch per store, routed to that store's district WhatsApp group.
+   - Sales Rep: one image batch per sales rep per district, routed to that district WhatsApp group.
+7. Opens with a blank UI and loads data only after the file path is provided and Load Variances is clicked.
+9. Keeps a SQLite log of cleared, pending, and sent variance status.
+
+Recommended install on Windows:
+    py -m pip install pillow pyautogui pyperclip pywin32 pygetwindow openpyxl
+
+Store list and employee phone numbers are stored in the local SQLite database. Store list and employees can be imported from XLSX. WhatsApp group names are saved in the database and configurable per district. WhatsApp sends captions together with images. Final district result sending is available per district. Starting message and 3-reminder sending for uncleared variances is supported.
+
+Run:
+    Double click the .pyw file to run without a command window.
+
+WhatsApp Desktop notes:
+- Keep WhatsApp Desktop installed and logged in before sending.
+- Default search shortcut is Ctrl+F. If your WhatsApp uses Ctrl+K for chat search,
+  change SEARCH_SHORTCUT below to "ctrl+k".
+- District group routing uses the WhatsApp group names saved in the District DMs tab.
+"""
+
+# ── Auto-install any missing pip packages ───────────────────────────────────
+def _auto_install_packages() -> None:
+    """Try every available installer until all packages are present."""
+    REQUIRED = [
+        ("PIL",         "pillow"),
+        ("openpyxl",    "openpyxl"),
+        ("pyautogui",   "pyautogui"),
+        ("pyperclip",   "pyperclip"),
+        ("pytesseract", "pytesseract"),
+        ("win32api",    "pywin32"),
+        ("pygetwindow", "pygetwindow"),
+    ]
+    missing_pip = []
+    for import_name, pip_name in REQUIRED:
+        try:
+            __import__(import_name)
+        except ImportError:
+            missing_pip.append(pip_name)
+    if not missing_pip:
+        return
+
+    import subprocess as _sp
+    import sys as _sys
+    pkgs = missing_pip
+
+    # Show a quick tk splash so the user knows something is happening
+    try:
+        import tkinter as _tk
+        from theme_manager import ThemeManager, apply_theme_to_window, get_copyright_year
+        _splash = _tk.Tk()
+        _splash.title("GFH Inventory Audit (Timesheet Edition) — Installing packages…")
+        _splash.geometry("540x90")
+        _splash.resizable(False, False)
+        _lbl = _tk.Label(
+            _splash,
+            text=f"Installing: {', '.join(pkgs)}\nPlease wait — this runs once only…",
+            font=("Segoe UI", 11), pady=18,
+        )
+        _lbl.pack()
+        _splash.update()
+    except Exception:
+        _splash = None
+
+    installers = [
+        [_sys.executable, "-m", "pip", "install", "--quiet"] + pkgs,
+        ["py", "-m", "pip", "install", "--quiet"] + pkgs,
+        ["python", "-m", "pip", "install", "--quiet"] + pkgs,
+        ["python3", "-m", "pip", "install", "--quiet"] + pkgs,
+        ["pip", "install", "--quiet"] + pkgs,
+        ["pip3", "install", "--quiet"] + pkgs,
+    ]
+    success = False
+    for cmd in installers:
+        try:
+            r = _sp.run(cmd, capture_output=True, timeout=180)
+            if r.returncode == 0:
+                success = True
+                break
+        except Exception:
+            continue
+
+    if _splash:
+        _splash.destroy()
+
+    if not success:
+        try:
+            import tkinter as _tk2
+            from theme_manager import ThemeManager, apply_theme_to_window, get_copyright_year
+            import tkinter.messagebox as _mb
+            _r2 = _tk2.Tk(); _r2.withdraw()
+            _mb.showerror(
+                "Install failed",
+                f"Could not auto-install: {', '.join(pkgs)}\n\n"
+                "Please run manually in a Command Prompt:\n\n"
+                f"    py -m pip install {' '.join(pkgs)}",
+            )
+            _r2.destroy()
+        except Exception:
+            pass
+
+# Skip auto-install in frozen .exe (PyInstaller) — packages are already bundled
+if not getattr(sys, "frozen", False):
+    _auto_install_packages()
+
+
+import csv
+import datetime as dt
+import hashlib
+import json
+import os
+import re
+import shutil
+import sqlite3
+import struct
+import subprocess
+import tempfile
+import threading
+import time
+import traceback
+import zipfile
+import zlib
+from dataclasses import dataclass
+from io import BytesIO
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Tuple
+import xml.etree.ElementTree as ET
+import base64
+
+try:
+    import tkinter as tk
+    from theme_manager import ThemeManager, apply_theme_to_window, get_copyright_year
+    from tkinter import filedialog, messagebox, ttk, simpledialog
+except Exception as exc:
+    raise RuntimeError("Tkinter is required. Use the standard Windows Python installer.") from exc
+
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageTk, ImageGrab
+except Exception:
+    Image = None
+    ImageDraw = None
+    ImageFont = None
+    ImageTk = None
+    ImageGrab = None
+
+try:
+    import openpyxl
+except Exception as exc:
+    raise RuntimeError("openpyxl is required. Install with: py -m pip install openpyxl") from exc
+
+APP_NAME = "GFH Telecom LLC Inventory Audit"
+def _safe_read_asset(filename: str, default: str = "") -> str:
+    try:
+        if getattr(sys, "frozen", False):
+            base = getattr(sys, "_MEIPASS", ".")
+        else:
+            base = os.path.dirname(os.path.abspath(__file__))
+        return open(os.path.join(base, "assets", filename), "r").read().strip()
+    except Exception:
+        return default
+
+EMBEDDED_LOGO_B64 = _safe_read_asset("embedded_logo_b64.txt")
+EMBEDDED_ICON_B64 = _safe_read_asset("embedded_icon_b64.txt")
+
+if getattr(sys, "frozen", False):
+    PACKAGE_DIR = Path(sys.executable).resolve().parent
+else:
+    PACKAGE_DIR = Path(__file__).resolve().parent
+PORTABLE_APP_DIR = PACKAGE_DIR / "GFH_Inventory_Audit_Data"
+LEGACY_APP_DIR = Path.home() / "GFH_Inventory_Variance_GUI"
+
+def _choose_app_dir() -> Path:
+    """Always place data folder next to the EXE (or script), regardless of location."""
+    candidate = PORTABLE_APP_DIR
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+        test_file = candidate / ".write_test"
+        test_file.write_text("ok", encoding="utf-8")
+        try:
+            test_file.unlink()
+        except Exception:
+            pass
+        return candidate
+    except Exception as e:
+        import tkinter as _tk, tkinter.messagebox as _mb
+        _root = _tk.Tk(); _root.withdraw()
+        _mb.showerror(
+            "Folder not writable",
+            f"Cannot write to the data folder:\n"
+            f"  {candidate}\n\n"
+            f"Error: {e}\n\n"
+            f"Please ensure the folder is writable.",
+        )
+        _root.destroy()
+        raise SystemExit(1)
+
+APP_DIR = _choose_app_dir()
+DB_PATH = APP_DIR / "inventory_variance_log.sqlite3"
+IMAGE_DIR = APP_DIR / "whatsapp_images"
+EXPORT_DIR = APP_DIR / "exports"
+STORE_CONFIG_PATH = APP_DIR / "store_master_list.csv"
+PACKAGED_STORE_LIST_PATH = PACKAGE_DIR / "store_master_list.csv"
+
+
+def _resource_path(name: str) -> Path:
+    """Resolve a bundled asset for a PyInstaller onefile EXE.
+
+    onefile builds extract data files to sys._MEIPASS at runtime; fall back
+    to the directory next to the app/script for normal runs."""
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            bundled = Path(meipass) / name
+            if bundled.exists():
+                return bundled
+    return PACKAGE_DIR / name
+
+
+HEADER_LOGO_PATH = _resource_path("GFH_Telecom_Logo.png")
+STATUS_LOGO_PATH = PACKAGE_DIR / "gfh_telecom_llc_logo.png"
+APP_ICON_PATH = PACKAGE_DIR / "gfh_telecom_llc_icon.ico"
+APP_ICON_PNG_PATH = PACKAGE_DIR / "gfh_telecom_llc_logo.png"
+
+# ---------------------------------------------------------------------------
+# Embedded icon assets — written to PACKAGE_DIR at startup so no external
+# file is needed. Swap the base64 strings to change the window icon.
+# ---------------------------------------------------------------------------
+APP_ICON_ICO_BASE64 = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "app_icon_ico_base64.txt"), "r").read().strip() if not getattr(sys, "frozen", False) else open(os.path.join(getattr(sys, "_MEIPASS", "."), "assets", "app_icon_ico_base64.txt"), "r").read().strip()
+
+APP_ICON_PNG_BASE64 = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "app_icon_png_base64.txt"), "r").read().strip() if not getattr(sys, "frozen", False) else open(os.path.join(getattr(sys, "_MEIPASS", "."), "assets", "app_icon_png_base64.txt"), "r").read().strip()
+
+
+def ensure_app_icon_files() -> None:
+    """Decode and write embedded ICO + PNG icons to PACKAGE_DIR once."""
+    try:
+        ico_bytes = base64.b64decode(APP_ICON_ICO_BASE64.strip().replace("\n", ""))
+        if not APP_ICON_PATH.exists() or APP_ICON_PATH.stat().st_size != len(ico_bytes):
+            APP_ICON_PATH.write_bytes(ico_bytes)
+    except Exception:
+        pass
+    try:
+        png_bytes = base64.b64decode(APP_ICON_PNG_BASE64.strip().replace("\n", ""))
+        if not APP_ICON_PNG_PATH.exists() or APP_ICON_PNG_PATH.stat().st_size != len(png_bytes):
+            APP_ICON_PNG_PATH.write_bytes(png_bytes)
+    except Exception:
+        pass
+
+
+
+SEARCH_SHORTCUT = "ctrl+f"
+SEND_ONLY_UNSENT_BY_DEFAULT = True
+AUTO_SEND_CHUNK_SIZE = 22
+
+EXCEL_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+R_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+
+SEND_MODE_LABELS = {
+    "district": "District",
+    "store": "Store",
+    "rep": "Sales Rep",
+}
+
+
+
+DEFAULT_STORE_MASTER = []
+
+def default_store_master_records() -> List[Dict[str, str]]:
+    return [{"District": district, "Store": store} for district, store in DEFAULT_STORE_MASTER]
+
+
+def migrate_legacy_app_data_if_needed() -> None:
+    """No-op: legacy per-user folder migration removed.
+    All instances now share the single portable DB next to the script."""
+    pass
+
+
+def save_store_master_records(records: List[Dict[str, str]], path: Path = STORE_CONFIG_PATH) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_rows: Dict[str, Dict[str, str]] = {}
+    for rec in records:
+        district = normalize_district(rec.get("District", ""))
+        store = display_store(rec.get("Store", ""))
+        norm = normalize_store(store)
+        if not norm or not district or district == "Unknown":
+            continue
+        normalized_rows[norm] = {"District": district, "Store": store}
+    ordered = sorted(normalized_rows.values(), key=lambda r: (normalize_district(r["District"]), r["Store"].lower()))
+    with path.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=["District", "Store"])
+        writer.writeheader()
+        writer.writerows(ordered)
+
+
+def ensure_store_master_file() -> None:
+    if STORE_CONFIG_PATH.exists():
+        return
+    STORE_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if PACKAGED_STORE_LIST_PATH.exists():
+        shutil.copy2(PACKAGED_STORE_LIST_PATH, STORE_CONFIG_PATH)
+    else:
+        save_store_master_records(default_store_master_records(), STORE_CONFIG_PATH)
+
+
+def load_store_master_records(path: Path = STORE_CONFIG_PATH) -> List[Dict[str, str]]:
+    ensure_store_master_file()
+    rows: List[Dict[str, str]] = []
+    try:
+        with path.open("r", newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for rec in reader:
+                district = normalize_district(rec.get("District", ""))
+                store = display_store(rec.get("Store", ""))
+                if district and district != "Unknown" and store:
+                    rows.append({"District": district, "Store": store})
+    except Exception:
+        rows = default_store_master_records()
+        save_store_master_records(rows, path)
+    if not rows:
+        rows = default_store_master_records()
+        save_store_master_records(rows, path)
+    return rows
+
+
+@dataclass
+class VarianceRow:
+    key: str
+    district: str
+    store: str
+    product: str
+    imei: str
+    status: str
+    created_by: str = ""
+    rep_name: str = ""
+    created_date: str = ""
+    document_status: str = ""
+    source_file: str = ""
+    cleared: bool = False
+    sent_count: int = 0
+    last_sent_at: str = ""
+    cleared_at: str = ""
+    notes: str = ""
+
+
+@dataclass
+class InventoryStatusRow:
+    key: str
+    district: str
+    store: str
+    status: str
+    rep_name: str = ""
+    source_file: str = ""
+
+def now_text() -> str:
+    return dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def safe_text(value) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if text.endswith(".0") and text[:-2].isdigit():
+        return text[:-2]
+    return text
+
+
+def normalize_header(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", safe_text(text).lower())
+
+
+def normalize_store(text: str) -> str:
+    value = safe_text(text)
+    value = re.sub(r"\s+", " ", value).strip()
+    value = value.replace("–", "-").replace("—", "-")
+    return value.lower()
+
+
+def display_store(text: str) -> str:
+    value = safe_text(text)
+    value = re.sub(r"\s+", " ", value).strip()
+    return value
+
+
+def normalize_phone(text: str) -> str:
+    value = safe_text(text)
+    if not value:
+        return ""
+    value = value.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    value = value.replace(".", "")
+    if value.startswith("00"):
+        value = "+" + value[2:]
+    return value
+
+
+def whatsapp_mention(phone: str) -> str:
+    phone = normalize_phone(phone)
+    if not phone:
+        return ""
+    if phone.startswith("@"):
+        return phone
+    return "@" + phone
+
+
+def person_name_key(text: str) -> str:
+    value = safe_text(text).lower()
+    value = value.replace(",", " ")
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    parts = [p for p in value.split() if p]
+    return " ".join(sorted(parts))
+
+
+def device_rule_key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", safe_text(text).lower())
+
+
+def device_matches_rule(product: str, imei: str, rule_text: str, match_type: str) -> bool:
+    rule_clean = device_rule_key(rule_text)
+    if not rule_clean:
+        return False
+
+    product_clean = device_rule_key(product)
+    imei_clean = device_rule_key(imei)
+    match_type_clean = normalize_header(match_type)
+
+    if match_type_clean in {"productexact", "exactproduct"}:
+        return product_clean == rule_clean
+    if match_type_clean in {"imeiexact", "serialexact", "esnexact"}:
+        return imei_clean == rule_clean
+    if match_type_clean in {"anycontains", "containsany"}:
+        return rule_clean in product_clean or rule_clean in imei_clean
+    return rule_clean in product_clean
+
+
+def normalize_district(text: str) -> str:
+    value = safe_text(text).replace("–", "-").replace("—", "-")
+    value = re.sub(r"\s+", " ", value).strip()
+    if not value:
+        return "Unknown"
+    lower = value.lower()
+    if lower.startswith("arizona"):
+        return "Arizona"
+    aliases = {
+        "atlanta": "Atlanta",
+        "colorado west": "Colorado West",
+        "houston": "Houston",
+        "colorado east": "Colorado East",
+        "tennessee": "Tennessee",
+        "louisiana": "Louisiana",
+    }
+    return aliases.get(lower, value)
+
+
+def group_name_for_district(district: str, db=None) -> str:
+    normalized = normalize_district(district)
+    if db is not None:
+        try:
+            saved = db.find_whatsapp_group(normalized)
+            if saved:
+                return saved
+        except Exception:
+            pass
+    return f"GFH TELECOM {normalized.upper()}"
+
+
+def is_sim_product(product: str) -> bool:
+    text = safe_text(product).lower()
+    compact = normalize_header(product)
+    if not text and not compact:
+        return False
+    if re.search(r"(^|[^a-z0-9])e?[-\s]?sim(s)?([^a-z0-9]|$)", text):
+        return True
+    if "simcard" in compact or compact in {"sim", "sims", "esim", "esims"}:
+        return True
+    if compact.startswith(("sim", "esim")) and any(token in compact for token in ("card", "kit", "pack", "starter")):
+        return True
+    return False
+
+
+def excel_serial_to_datetime(value) -> Optional[dt.datetime]:
+    text = safe_text(value)
+    if not text:
+        return None
+    try:
+        serial = float(text)
+    except ValueError:
+        # Try common date strings if present.
+        for fmt in ("%m/%d/%Y", "%m/%d/%Y %I:%M %p", "%Y-%m-%d", "%d/%m/%Y"):
+            try:
+                return dt.datetime.strptime(text, fmt)
+            except ValueError:
+                continue
+        return None
+    base = dt.datetime(1899, 12, 30)
+    return base + dt.timedelta(days=serial)
+
+
+def excel_serial_to_date_text(value) -> str:
+    parsed = excel_serial_to_datetime(value)
+    if parsed is None:
+        return safe_text(value)
+    return parsed.strftime("%m/%d/%Y %I:%M %p")
+
+
+def numeric_excel_date(value) -> float:
+    text = safe_text(value)
+    try:
+        return float(text)
+    except ValueError:
+        parsed = excel_serial_to_datetime(text)
+        if parsed is None:
+            return -1.0
+        base = dt.datetime(1899, 12, 30)
+        return (parsed - base).total_seconds() / 86400.0
+
+
+def variance_key(store: str, imei: str, product: str, status: str, created_by: str = "", created_date: str = "") -> str:
+    raw = "|".join([
+        normalize_store(store),
+        safe_text(imei).lower(),
+        safe_text(product).lower(),
+        safe_text(status).lower(),
+        safe_text(created_by).lower(),
+        safe_text(created_date).lower(),
+    ])
+    return hashlib.sha1(raw.encode("utf-8", errors="ignore")).hexdigest()
+
+
+
+# ── win32api keyboard fallback (for Python 3.14 where pynput breaks) ────────
+_WA_VK_MAP = {
+    "ctrl": 0x11, "control": 0x11, "alt": 0x12, "menu": 0x12,
+    "shift": 0x10, "win": 0x5B, "enter": 0x0D, "return": 0x0D,
+    "tab": 0x09, "esc": 0x1B, "escape": 0x1B, "backspace": 0x08,
+    "delete": 0x2E, "del": 0x2E, "home": 0x24, "end": 0x23,
+    "pageup": 0x21, "pagedown": 0x22, "up": 0x26, "down": 0x28,
+    "left": 0x25, "right": 0x27, "space": 0x20, "a": 0x41, "c": 0x43,
+    "f": 0x46, "v": 0x56, "x": 0x58,
+}
+
+def _wa_win32_key_down(vk_code):
+    import ctypes
+    ctypes.windll.user32.keybd_event(vk_code, 0, 0, 0)
+
+def _wa_win32_key_up(vk_code):
+    import ctypes
+    ctypes.windll.user32.keybd_event(vk_code, 0, 0x0002, 0)
+
+def _wa_win32_hotkey(*keys):
+    codes = []
+    for k in keys:
+        k_lower = k.lower()
+        if k_lower in _WA_VK_MAP:
+            codes.append(_WA_VK_MAP[k_lower])
+        elif len(k) == 1:
+            codes.append(ord(k.upper()))
+        else:
+            return
+    for code in codes:
+        _wa_win32_key_down(code)
+    for code in reversed(codes):
+        _wa_win32_key_up(code)
+
+def _wa_win32_press(key):
+    k_lower = key.lower()
+    if k_lower in _WA_VK_MAP:
+        code = _WA_VK_MAP[k_lower]
+    elif len(key) == 1:
+        code = ord(key.upper())
+    else:
+        return
+    _wa_win32_key_down(code)
+    _wa_win32_key_up(code)
+
+def _wa_win32_write(text, interval=0.0):
+    import ctypes
+    for char in text:
+        vk = ctypes.windll.user32.VkKeyScanW(ord(char))
+        if vk == -1:
+            continue
+        code = vk & 0xFF
+        shift = (vk >> 8) & 1
+        if shift:
+            _wa_win32_key_down(_WA_VK_MAP["shift"])
+        _wa_win32_key_down(code)
+        _wa_win32_key_up(code)
+        if shift:
+            _wa_win32_key_up(_WA_VK_MAP["shift"])
+        if interval > 0:
+            import time as _t
+            _t.sleep(interval)
+
+_wa_hotkey = _wa_win32_hotkey
+_wa_press = _wa_win32_press
+_wa_write = _wa_win32_write
+
+
+class RobustXlsxReader:
+    """Small XLSX reader with a fallback for exports missing a central ZIP directory."""
+
+    def __init__(self, path: str | Path):
+        self.path = Path(path)
+        self.parts = self._read_parts()
+        self.shared_strings = self._read_shared_strings()
+
+    def _read_parts(self) -> Dict[str, bytes]:
+        parts: Dict[str, bytes] = {}
+        try:
+            with zipfile.ZipFile(self.path) as zf:
+                for name in zf.namelist():
+                    parts[name] = zf.read(name)
+            return parts
+        except Exception:
+            data = self.path.read_bytes()
+            pos = 0
+            while pos + 30 <= len(data) and data[pos:pos + 4] == b"PK\x03\x04":
+                try:
+                    (
+                        _sig,
+                        _ver,
+                        _flag,
+                        method,
+                        _mtime,
+                        _mdate,
+                        _crc,
+                        csize,
+                        _usize,
+                        nlen,
+                        xlen,
+                    ) = struct.unpack_from("<IHHHHHIIIHH", data, pos)
+                    name_start = pos + 30
+                    name_end = name_start + nlen
+                    name = data[name_start:name_end].decode("utf-8", errors="replace")
+                    start = name_end + xlen
+                    comp = data[start:min(start + csize, len(data))]
+                    if method == 8:
+                        try:
+                            content = zlib.decompress(comp, -15)
+                        except Exception:
+                            content = b""
+                    elif method == 0:
+                        content = comp
+                    else:
+                        content = b""
+                    if content:
+                        parts[name] = content
+                    pos = start + csize
+                except Exception:
+                    break
+            if not parts:
+                raise RuntimeError(f"Could not read Excel file: {self.path}")
+            return parts
+
+    @staticmethod
+    def _clean_xml(raw: bytes) -> bytes:
+        return raw.lstrip(b"\xef\xbb\xbf")
+
+    def _read_shared_strings(self) -> List[str]:
+        raw = self.parts.get("xl/sharedStrings.xml")
+        if not raw:
+            return []
+        root = ET.fromstring(self._clean_xml(raw))
+        strings: List[str] = []
+        for si in root.findall(EXCEL_NS + "si"):
+            strings.append("".join((t.text or "") for t in si.iter(EXCEL_NS + "t")))
+        return strings
+
+    def _workbook_rels(self) -> Dict[str, str]:
+        raw = self.parts.get("xl/_rels/workbook.xml.rels")
+        if not raw:
+            return {}
+        root = ET.fromstring(self._clean_xml(raw))
+        rels: Dict[str, str] = {}
+        for rel in root.findall(REL_NS + "Relationship"):
+            rid = rel.attrib.get("Id", "")
+            target = rel.attrib.get("Target", "")
+            if not target:
+                continue
+            if not target.startswith("/"):
+                target = "xl/" + target
+            else:
+                target = target.lstrip("/")
+            rels[rid] = target
+        return rels
+
+    def sheet_paths(self) -> List[Tuple[str, str]]:
+        raw = self.parts.get("xl/workbook.xml")
+        if not raw:
+            if "xl/worksheets/sheet1.xml" in self.parts:
+                return [("Sheet1", "xl/worksheets/sheet1.xml")]
+            return []
+        root = ET.fromstring(self._clean_xml(raw))
+        rels = self._workbook_rels()
+        sheets: List[Tuple[str, str]] = []
+        for sheet in root.findall(".//" + EXCEL_NS + "sheet"):
+            name = sheet.attrib.get("name", "Sheet")
+            rid = sheet.attrib.get(R_NS + "id", "")
+            path = rels.get(rid)
+            if path and path in self.parts:
+                sheets.append((name, path))
+        if not sheets and "xl/worksheets/sheet1.xml" in self.parts:
+            sheets.append(("Sheet1", "xl/worksheets/sheet1.xml"))
+        return sheets
+
+    @staticmethod
+    def _cell_to_col(ref: str) -> Optional[int]:
+        match = re.match(r"([A-Z]+)(\d+)", ref or "")
+        if not match:
+            return None
+        col = 0
+        for ch in match.group(1):
+            col = col * 26 + ord(ch) - 64
+        return col
+
+    def _cell_value(self, cell: ET.Element) -> str:
+        cell_type = cell.attrib.get("t")
+        value_node = cell.find(EXCEL_NS + "v")
+        if cell_type == "s":
+            if value_node is None or value_node.text is None:
+                return ""
+            try:
+                idx = int(value_node.text)
+            except ValueError:
+                return ""
+            if 0 <= idx < len(self.shared_strings):
+                return self.shared_strings[idx]
+            return ""
+        if cell_type == "inlineStr":
+            inline = cell.find(EXCEL_NS + "is")
+            if inline is None:
+                return ""
+            return "".join((t.text or "") for t in inline.iter(EXCEL_NS + "t"))
+        if value_node is None or value_node.text is None:
+            return ""
+        return value_node.text
+
+    def read_sheet(self, preferred_name: Optional[str] = None) -> List[Dict[str, str]]:
+        sheets = self.sheet_paths()
+        if not sheets:
+            raise RuntimeError(f"No worksheet found in {self.path.name}")
+        selected_name, selected_path = sheets[0]
+        if preferred_name:
+            want = preferred_name.lower().strip()
+            for name, path in sheets:
+                if want in name.lower().strip():
+                    selected_name, selected_path = name, path
+                    break
+        raw = self.parts[selected_path]
+        root = ET.fromstring(self._clean_xml(raw))
+        rows: List[Tuple[int, Dict[int, str]]] = []
+        for row in root.findall(".//" + EXCEL_NS + "row"):
+            row_num = int(row.attrib.get("r", "0") or 0)
+            values: Dict[int, str] = {}
+            for cell in row.findall(EXCEL_NS + "c"):
+                col = self._cell_to_col(cell.attrib.get("r", ""))
+                if not col:
+                    continue
+                values[col] = self._cell_value(cell)
+            if values:
+                rows.append((row_num, values))
+        if not rows:
+            return []
+
+        header_row_idx, header_values = rows[0]
+        max_col = max(header_values)
+        headers = [safe_text(header_values.get(i, "")) for i in range(1, max_col + 1)]
+        seen: Dict[str, int] = {}
+        clean_headers = []
+        for i, header in enumerate(headers, start=1):
+            name = header if header else f"Column{i}"
+            base = name
+            if base in seen:
+                seen[base] += 1
+                name = f"{base}_{seen[base]}"
+            else:
+                seen[base] = 1
+            clean_headers.append(name)
+
+        records: List[Dict[str, str]] = []
+        for row_num, value_map in rows[1:]:
+            if row_num <= header_row_idx:
+                continue
+            record: Dict[str, str] = {}
+            max_data_col = max(max_col, max(value_map.keys()) if value_map else max_col)
+            for i in range(1, max_data_col + 1):
+                header = clean_headers[i - 1] if i <= len(clean_headers) else f"Column{i}"
+                record[header] = safe_text(value_map.get(i, ""))
+            if any(safe_text(v) for v in record.values()):
+                records.append(record)
+        return records
+
+
+def find_column(record: Dict[str, str], candidates: Iterable[str]) -> Optional[str]:
+    normalized = {normalize_header(k): k for k in record.keys()}
+    for candidate in candidates:
+        key = normalize_header(candidate)
+        if key in normalized:
+            return normalized[key]
+    for candidate in candidates:
+        key = normalize_header(candidate)
+        for norm, original in normalized.items():
+            if key and (key in norm or norm in key):
+                return original
+    return None
+
+
+def read_xlsx_records(path: str | Path) -> List[Dict[str, str]]:
+    reader = RobustXlsxReader(path)
+    return reader.read_sheet()
+
+
+def build_ts_store_to_employee(time_sheet_records: List[Dict[str, str]]) -> Dict[str, str]:
+    """Map normalized store → employee name from Timesheet rows.
+
+    Keeps rows without a Clock In too — the employee may still be at the
+    store with the count pending, and the pending-store rep lookup is
+    built from these rows. When a store has several rows, the latest
+    Clock In wins (falling back to row order when Clock In is missing).
+    """
+    ts_store_to_employee: Dict[str, str] = {}
+    if not time_sheet_records:
+        return ts_store_to_employee
+    sample_ts    = time_sheet_records[0]
+    ts_store_col = find_column(sample_ts, ["Store"])
+    ts_emp_col   = find_column(sample_ts, ["Employee", "Employee Name",
+                                           "Salesperson", "Sales Person", "Rep Name"])
+    ts_clock_col = find_column(sample_ts, ["Clock In", "Clock-In", "Clock In "])
+    latest_ts: Dict[str, float] = {}
+    for idx, rec in enumerate(time_sheet_records):
+        emp_raw = safe_text(rec.get(ts_emp_col, "")) if ts_emp_col else ""
+        # Skip TOTAL/subtotal rows
+        if not emp_raw or "TOTAL" in emp_raw.upper() or "\u2014 " in emp_raw or "-- " in emp_raw:
+            continue
+        store_raw = rec.get(ts_store_col, "") if ts_store_col else ""
+        norm = normalize_store(store_raw)
+        if not norm:
+            continue
+        clock_in_val = safe_text(rec.get(ts_clock_col, "")) if ts_clock_col else ""
+        score = numeric_excel_date(clock_in_val) if clock_in_val.strip() else float(idx)
+        if score >= latest_ts.get(norm, -1.0):
+            ts_store_to_employee[norm] = emp_raw.strip()
+            latest_ts[norm] = score
+    return ts_store_to_employee
+
+
+def store_name_tokens(norm_store: str) -> Tuple[str, ...]:
+    """Alphanumeric tokens of an already-normalized store name, deduped."""
+    return tuple(dict.fromkeys(t for t in re.findall(r"[a-z0-9]+", norm_store or "") if t))
+
+
+def match_store_employee(norm_store: str, ts_store_to_employee: Dict[str, str]) -> str:
+    """Resolve the timesheet employee for a store.
+
+    Exact normalized-store lookup first, then a tolerant token-overlap
+    match. The timesheet export and the count file often spell the same
+    store slightly differently ("Kings Highway #1204" vs "Kings Highway
+    Store 1204"), which left pending stores without an employee name even
+    when the timesheet had a clock-in for them. A token match is accepted
+    when one name's tokens are a subset of the other's — but never when a
+    distinguishing store number conflicts ("Store 1204" vs "Store 1205"
+    do not match). Ties go to the candidate with the most token overlap,
+    then the shortest name.
+    """
+    if not norm_store or not ts_store_to_employee:
+        return ""
+    exact = ts_store_to_employee.get(norm_store)
+    if exact:
+        return exact
+    target_tokens = set(store_name_tokens(norm_store))
+    if not target_tokens:
+        return ""
+    best_name = ""
+    best_overlap = 0
+    best_len = -1
+    for ts_norm, employee in ts_store_to_employee.items():
+        if not ts_norm or not employee:
+            continue
+        ts_tokens = set(store_name_tokens(ts_norm))
+        if not ts_tokens:
+            continue
+        if target_tokens <= ts_tokens or ts_tokens <= target_tokens:
+            overlap = len(target_tokens & ts_tokens)
+            if overlap > best_overlap or (overlap == best_overlap and best_len != -1 and len(ts_norm) < best_len):
+                best_name = employee
+                best_overlap = overlap
+                best_len = len(ts_norm)
+            elif best_len == -1:
+                best_name = employee
+                best_overlap = overlap
+                best_len = len(ts_norm)
+    return best_name
+
+
+def build_store_maps(
+    inventory_records: List[Dict[str, str]],
+    time_sheet_records: List[Dict[str, str]],
+) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+    """Build store lookups using Count Details as the source of truth.
+
+    - Store names and Districts come from Inventory_Count_Result_Details.
+    - Employee (rep) names come from the Timesheet by matching on Store,
+      tolerating slight store-name differences between the two exports.
+    - Timesheet is ONLY used to resolve who worked at each store.
+    """
+    district_by_store: Dict[str, str] = {}
+    display_by_store:  Dict[str, str] = {}
+    rep_by_store:      Dict[str, str] = {}   # norm_store → full Employee name
+
+    # ── Step 1: Build store → employee map from Timesheet ─────────────────
+    ts_store_to_employee = build_ts_store_to_employee(time_sheet_records)
+
+    # ── Step 2: Build district/display maps from Count Details ────────────
+    if not inventory_records:
+        return district_by_store, display_by_store, rep_by_store
+
+    sample_inv   = inventory_records[0]
+    inv_store_col    = find_column(sample_inv, ["Store"])
+    inv_district_col = find_column(sample_inv, ["District"])
+
+    if not inv_store_col:
+        return district_by_store, display_by_store, rep_by_store
+
+    for rec in inventory_records:
+        store_raw = rec.get(inv_store_col, "")
+        norm = normalize_store(store_raw)
+        if not norm:
+            continue
+
+        # Store display name from count file
+        display_by_store[norm] = display_store(store_raw)
+
+        # District from count file
+        if inv_district_col:
+            district = normalize_district(rec.get(inv_district_col, ""))
+            if district and district != "Unknown":
+                district_by_store[norm] = district
+
+        # Employee name from timesheet (matched by store, tolerant of
+        # slight name differences between the two exports)
+        if norm not in rep_by_store:
+            employee = ts_store_to_employee.get(norm) or match_store_employee(norm, ts_store_to_employee)
+            if employee:
+                rep_by_store[norm] = employee
+
+    return district_by_store, display_by_store, rep_by_store
+
+
+def build_rep_by_store_from_created_by(
+    inventory_records: List[Dict[str, str]],
+) -> Dict[str, str]:
+    """Latest "Created By" value per store from the Inventory_Count_Result_Details rows.
+
+    Replaces the old Employee_Time_Sheet-based rep lookup. Employee/rep name for a store is
+    simply whoever most recently counted that store, per the Created Date/Time column.
+    """
+    rep_by_store: Dict[str, str] = {}
+    latest_score_by_store: Dict[str, float] = {}
+    if not inventory_records:
+        return rep_by_store
+
+    sample = inventory_records[0]
+    store_col = find_column(sample, ["Store"])
+    created_by_col = find_column(sample, ["Created By", "Count By", "User Login"])
+    created_date_col = find_column(sample, ["Created Date", "Created Date/Time", "Date Time", "Date"])
+    if not store_col or not created_by_col:
+        return rep_by_store
+
+    for index, rec in enumerate(inventory_records):
+        norm = normalize_store(rec.get(store_col, ""))
+        if not norm:
+            continue
+        created_by = safe_text(rec.get(created_by_col, ""))
+        if not created_by:
+            continue
+        score = numeric_excel_date(rec.get(created_date_col, "")) if created_date_col else float(index)
+        if score < 0:
+            score = float(index) / 1000000.0
+        if score >= latest_score_by_store.get(norm, -1.0):
+            rep_by_store[norm] = created_by
+            latest_score_by_store[norm] = score
+
+    return rep_by_store
+
+
+def filter_latest_inventory_records(inventory_records: List[Dict[str, str]]) -> Tuple[List[Dict[str, str]], Dict[str, int]]:
+    """Keep only the latest Inventory_Count_Result_Details rows per Store + Created By.
+
+    GFH exports can include more than one count from the same Created By user for the same store.
+    Older rows should not drive the current variance UI because a later recount can convert earlier
+    Deficit rows into Matched rows. The Created Date value includes date and time as an Excel serial.
+    """
+    metrics = {
+        "raw_inventory_rows": len(inventory_records),
+        "latest_inventory_rows": len(inventory_records),
+        "stale_inventory_rows": 0,
+        "latest_created_by_groups": 0,
+    }
+    if not inventory_records:
+        return inventory_records, metrics
+
+    sample = inventory_records[0]
+    store_col = find_column(sample, ["Store"])
+    created_by_col = find_column(sample, ["Created By", "Count By", "User Login"])
+    created_date_col = find_column(sample, ["Created Date", "Created Date/Time", "Date Time", "Date"])
+
+    if not store_col or not created_by_col or not created_date_col:
+        return inventory_records, metrics
+
+    latest_by_group: Dict[Tuple[str, str], float] = {}
+    scores: List[Tuple[Tuple[str, str], float]] = []
+
+    for index, rec in enumerate(inventory_records):
+        store_key = normalize_store(rec.get(store_col, "")) or "__unknown_store__"
+        created_by_key = safe_text(rec.get(created_by_col, "")).lower().strip() or "__unknown_created_by__"
+        group_key = (store_key, created_by_key)
+        score = numeric_excel_date(rec.get(created_date_col, ""))
+        if score < 0:
+            score = float(index) / 1000000.0
+        scores.append((group_key, score))
+        if group_key not in latest_by_group or score > latest_by_group[group_key]:
+            latest_by_group[group_key] = score
+
+    filtered: List[Dict[str, str]] = []
+    for rec, (group_key, score) in zip(inventory_records, scores):
+        latest_score = latest_by_group.get(group_key, score)
+        if abs(score - latest_score) <= 0.0000001:
+            filtered.append(rec)
+
+    metrics["latest_inventory_rows"] = len(filtered)
+    metrics["stale_inventory_rows"] = len(inventory_records) - len(filtered)
+    metrics["latest_created_by_groups"] = len(latest_by_group)
+    return filtered, metrics
+
+
+def extract_variances(
+    inventory_records: List[Dict[str, str]],
+    time_sheet_records: List[Dict[str, str]],
+    master_store_records: Optional[List[Dict[str, str]]] = None,
+    source_file: str = "",
+) -> Tuple[List[VarianceRow], Dict[str, int]]:
+    if not inventory_records:
+        return [], {"completed": 0, "pending": 0, "stores_total": 0, "skipped_sims": 0, "raw_inventory_rows": 0, "latest_inventory_rows": 0, "stale_inventory_rows": 0, "latest_created_by_groups": 0}
+
+    # Employee (rep) names come from timesheet matched by store.
+    # Store names and Districts come from count details (source of truth).
+    _, _, rep_by_store = build_store_maps(inventory_records, time_sheet_records)
+
+    # Build district/display maps from count details directly
+    district_by_store: Dict[str, str] = {}
+    display_by_store: Dict[str, str] = {}
+    sample0 = inventory_records[0]
+    _store_col0    = find_column(sample0, ["Store"])
+    _district_col0 = find_column(sample0, ["District"])
+    for rec in inventory_records:
+        store_raw = rec.get(_store_col0, "") if _store_col0 else ""
+        norm = normalize_store(store_raw)
+        if not norm:
+            continue
+        display_by_store[norm] = display_store(store_raw)
+        if _district_col0:
+            d = normalize_district(rec.get(_district_col0, ""))
+            if d and d != "Unknown":
+                district_by_store[norm] = d
+
+    # Fill gaps from master store list
+    for rec in master_store_records or []:
+        district = normalize_district(rec.get("District", ""))
+        store = display_store(rec.get("Store", ""))
+        norm = normalize_store(store)
+        if not norm:
+            continue
+        if district and district != "Unknown" and norm not in district_by_store:
+            district_by_store[norm] = district
+        if store and norm not in display_by_store:
+            display_by_store[norm] = store
+    sample = inventory_records[0]
+    store_col = find_column(sample, ["Store"])
+    product_col = find_column(sample, ["Product Description", "Product"])
+    imei_col = find_column(sample, ["Serial #", "Serial", "IMEI", "ESN"])
+    status_col = find_column(sample, ["Status"])
+    created_by_col = find_column(sample, ["Created By", "Count By", "User Login"])
+    created_date_col = find_column(sample, ["Created Date", "Date"])
+    document_status_col = find_column(sample, ["Document Status"])
+
+    missing = [
+        name for name, col in [
+            ("Store", store_col),
+            ("Product Description", product_col),
+            ("Serial # / IMEI", imei_col),
+            ("Status", status_col),
+        ] if not col
+    ]
+    if missing:
+        raise RuntimeError("Missing required inventory column(s): " + ", ".join(missing))
+
+    inventory_records, latest_metrics = filter_latest_inventory_records(inventory_records)
+
+    # Deduplicate by (Store, IMEI) to prevent duplicate IMEI rows
+    dedup_map: Dict[Tuple[str, str], Tuple[Dict[str, str], float]] = {}
+    for rec in inventory_records:
+        store_raw = rec.get(store_col, "")
+        imei = safe_text(rec.get(imei_col, ""))
+        if not imei:
+            continue
+        norm_store = normalize_store(store_raw)
+        key = (norm_store, imei.lower())
+        date_score = numeric_excel_date(rec.get(created_date_col, "")) if created_date_col else 0
+        if key not in dedup_map or date_score > dedup_map[key][1]:
+            dedup_map[key] = (rec, date_score)
+    inventory_records = [rec for rec, _ in dedup_map.values()]
+    latest_metrics["dedup_inventory_rows"] = len(inventory_records)
+
+    completed_store_norms = set()
+    for rec in inventory_records:
+        norm = normalize_store(rec.get(store_col, ""))
+        if norm:
+            completed_store_norms.add(norm)
+
+    all_store_norms = set(display_by_store.keys()) | completed_store_norms
+    pending_store_norms = all_store_norms - completed_store_norms
+
+    variance_rows: List[VarianceRow] = []
+    skipped_sims = 0
+
+    for rec in inventory_records:
+        status = safe_text(rec.get(status_col, ""))
+        if not status:
+            continue
+        if normalize_header(status) in {"matched", "match", "ok", "balanced"}:
+            continue
+
+        store = display_store(rec.get(store_col, ""))
+        product = safe_text(rec.get(product_col, ""))
+        imei = safe_text(rec.get(imei_col, ""))
+
+        if not imei:
+            continue
+        if product and normalize_header(product) in {"accessorycommission", "accessoriescommission"}:
+            continue
+        if is_sim_product(product):
+            skipped_sims += 1
+            continue
+
+        norm_store = normalize_store(store)
+        district = normalize_district(district_by_store.get(norm_store, "Unknown"))
+        created_by = safe_text(rec.get(created_by_col, "")) if created_by_col else ""
+        # Rep/employee name now comes straight from the "Created By" column of the
+        # inventory count Excel — no more separate Employee_Time_Sheet lookup.
+        rep_name = created_by
+        created_date = excel_serial_to_date_text(rec.get(created_date_col, "")) if created_date_col else ""
+        document_status = safe_text(rec.get(document_status_col, "")) if document_status_col else ""
+        key = variance_key(store, imei, product, status, created_by, created_date)
+
+        variance_rows.append(
+            VarianceRow(
+                key=key,
+                district=district,
+                store=store,
+                product=product,
+                imei=imei,
+                status=status,
+                created_by=created_by,
+                rep_name=rep_name,
+                created_date=created_date,
+                document_status=document_status,
+                source_file=source_file,
+            )
+        )
+
+    summary = {
+        "completed": len(completed_store_norms),
+        "pending": len(pending_store_norms),
+        "stores_total": len(all_store_norms),
+        "skipped_sims": skipped_sims,
+        **latest_metrics,
+    }
+    return variance_rows, summary
+
+
+
+
+def build_inventory_status_rows(
+    inventory_records: List[Dict[str, str]],
+    time_sheet_records: List[Dict[str, str]],
+    master_store_records: Optional[List[Dict[str, str]]] = None,
+    source_file: str = "",
+) -> Tuple[List[InventoryStatusRow], Dict[str, int]]:
+    # build_store_maps gives us employee (rep) names matched by store.
+    # It does NOT drive which stores appear — count details is the source of truth.
+    _, _, rep_by_store = build_store_maps(inventory_records, time_sheet_records)
+    # Timesheet store → employee map used as a fallback for pending stores
+    # that never appear in the count file (master-list-only stores): those
+    # stores are missing from rep_by_store because build_store_maps only
+    # transfers employees for count-file stores, yet the timesheet clearly
+    # shows who clocked in there.
+    ts_store_to_employee = build_ts_store_to_employee(time_sheet_records)
+
+    # Build store display names AND districts directly from count details so
+    # every store in the count file appears regardless of timesheet coverage.
+    count_display_by_store: Dict[str, str] = {}
+    count_district_by_store: Dict[str, str] = {}
+    completed_store_norms: set[str] = set()
+    inv_display_by_store: Dict[str, str] = {}
+
+    latest_metrics = {
+        "raw_inventory_rows": len(inventory_records),
+        "latest_inventory_rows": len(inventory_records),
+        "stale_inventory_rows": 0,
+        "latest_created_by_groups": 0,
+    }
+
+    if inventory_records:
+        sample = inventory_records[0]
+        store_col    = find_column(sample, ["Store"])
+        district_col = find_column(sample, ["District"])
+
+        # First pass: collect ALL stores+districts from the count file
+        for rec in inventory_records:
+            store_raw = rec.get(store_col, "") if store_col else ""
+            norm = normalize_store(store_raw)
+            if not norm:
+                continue
+            count_display_by_store[norm] = display_store(store_raw)
+            if district_col:
+                d = normalize_district(rec.get(district_col, ""))
+                if d and d != "Unknown":
+                    count_district_by_store[norm] = d
+
+        # Second pass: find completed stores (those that have records in latest batch)
+        if store_col:
+            filtered_records, latest_metrics = filter_latest_inventory_records(inventory_records)
+            for rec in filtered_records:
+                store_raw = rec.get(store_col, "")
+                norm = normalize_store(store_raw)
+                if norm:
+                    inv_display_by_store[norm] = display_store(store_raw)
+                    completed_store_norms.add(norm)
+
+    # Fallback: also include master store list for any stores not in count file
+    master_display_by_store: Dict[str, str] = {}
+    master_district_by_store: Dict[str, str] = {}
+    for rec in master_store_records or []:
+        store = display_store(rec.get("Store", ""))
+        norm = normalize_store(store)
+        if not norm:
+            continue
+        master_display_by_store[norm] = store
+        d = normalize_district(rec.get("District", ""))
+        if d and d != "Unknown":
+            master_district_by_store[norm] = d
+
+    # All stores = everything from count file (primary) + master list (fallback)
+    all_store_norms = sorted(
+        set(count_display_by_store.keys())
+        | set(master_display_by_store.keys())
+    )
+
+    rows: List[InventoryStatusRow] = []
+    for norm in all_store_norms:
+        # Display name: count file first, then master list
+        store = (count_display_by_store.get(norm)
+                 or master_display_by_store.get(norm)
+                 or norm.title())
+        # District: count file first, then master list
+        district = normalize_district(
+            count_district_by_store.get(norm)
+            or master_district_by_store.get(norm)
+            or "Unknown"
+        )
+        rep_name = safe_text(rep_by_store.get(norm, ""))
+        if not rep_name:
+            # Pending stores that never appear in the count file still get
+            # their timesheet employee here (exact match, then tolerant
+            # token-overlap match on the store name).
+            rep_name = safe_text(match_store_employee(norm, ts_store_to_employee))
+        status = "Completed" if norm in completed_store_norms else "Pending"
+        key_raw = f"{norm}|{district}|{status}|status"
+        key = hashlib.sha1(key_raw.encode("utf-8", errors="ignore")).hexdigest()
+        rows.append(InventoryStatusRow(
+            key=key, district=district, store=store,
+            status=status, rep_name=rep_name, source_file=source_file
+        ))
+
+    summary = {
+        "completed": len(completed_store_norms),
+        "pending": len([r for r in rows if r.status == "Pending"]),
+        "stores_total": len(rows),
+        **latest_metrics,
+    }
+    return rows, summary
+
+
+class VarianceDatabase:
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._ensure_wal_mode()
+        self._backup_on_startup()
+        self._init_db()
+
+    def _ensure_wal_mode(self) -> None:
+        try:
+            con = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
+            con.execute("PRAGMA journal_mode=WAL")
+            con.execute("PRAGMA synchronous=NORMAL")
+            con.close()
+        except Exception:
+            pass
+
+    def _backup_on_startup(self) -> None:
+        backup_path = self.db_path.with_suffix(".bak.sqlite3")
+        try:
+            if self.db_path.exists():
+                con = sqlite3.connect(self.db_path, timeout=10)
+                result = con.execute("PRAGMA integrity_check").fetchone()
+                if result and result[0] == "ok":
+                    import shutil
+                    shutil.copy2(self.db_path, backup_path)
+                else:
+                    if backup_path.exists():
+                        import shutil
+                        shutil.copy2(backup_path, self.db_path)
+                con.close()
+        except Exception:
+            pass
+
+    def connect(self):
+        con = sqlite3.connect(self.db_path, timeout=30,
+                              isolation_level=None,
+                              check_same_thread=False)
+        try:
+            con.execute("PRAGMA journal_mode=WAL")
+            con.execute("PRAGMA synchronous=NORMAL")
+            con.execute("PRAGMA busy_timeout=30000")
+            con.execute("PRAGMA cache_size=-8000")
+            con.execute("PRAGMA temp_store=MEMORY")
+            con.execute("PRAGMA mmap_size=134217728")
+        except Exception:
+            pass
+        con.isolation_level = ""
+        return con
+
+    @staticmethod
+    def _table_columns(con: sqlite3.Connection, table: str) -> set[str]:
+        try:
+            return {row[1] for row in con.execute(f"PRAGMA table_info({table})").fetchall()}
+        except Exception:
+            return set()
+
+    def _init_db(self) -> None:
+        with self.connect() as con:
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS variances (
+                    key TEXT PRIMARY KEY,
+                    district TEXT,
+                    store TEXT,
+                    product TEXT,
+                    imei TEXT,
+                    status TEXT,
+                    created_by TEXT,
+                    rep_name TEXT,
+                    created_date TEXT,
+                    document_status TEXT,
+                    source_file TEXT,
+                    first_seen_at TEXT,
+                    last_seen_at TEXT,
+                    cleared INTEGER DEFAULT 0,
+                    cleared_at TEXT,
+                    sent_count INTEGER DEFAULT 0,
+                    last_sent_at TEXT,
+                    notes TEXT
+                )
+                """
+            )
+            variance_columns = self._table_columns(con, "variances")
+            for column, definition in {
+                "rep_name": "TEXT DEFAULT ''",
+                "created_by": "TEXT DEFAULT ''",
+                "created_date": "TEXT DEFAULT ''",
+                "document_status": "TEXT DEFAULT ''",
+                "source_file": "TEXT DEFAULT ''",
+                "notes": "TEXT DEFAULT ''",
+            }.items():
+                if column not in variance_columns:
+                    con.execute(f"ALTER TABLE variances ADD COLUMN {column} {definition}")
+
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS send_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    variance_key TEXT,
+                    district TEXT,
+                    group_name TEXT,
+                    batch_title TEXT,
+                    image_path TEXT,
+                    sent_at TEXT,
+                    mode TEXT,
+                    error TEXT
+                )
+                """
+            )
+            send_columns = self._table_columns(con, "send_log")
+            if "batch_title" not in send_columns:
+                con.execute("ALTER TABLE send_log ADD COLUMN batch_title TEXT DEFAULT ''")
+
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS inventory_status_state (
+                    store_key TEXT PRIMARY KEY,
+                    district TEXT,
+                    store TEXT,
+                    last_status TEXT,
+                    previous_status TEXT,
+                    status_changed_at TEXT,
+                    last_sent_at TEXT,
+                    last_loaded_at TEXT
+                )
+                """
+            )
+
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS whatsapp_groups (
+                    district TEXT PRIMARY KEY,
+                    group_name TEXT NOT NULL,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
+            )
+
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS district_managers (
+                    district TEXT PRIMARY KEY,
+                    dm_name TEXT,
+                    phone TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
+            )
+
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS store_accounts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    district TEXT NOT NULL,
+                    store TEXT NOT NULL,
+                    store_key TEXT UNIQUE NOT NULL,
+                    account_id TEXT,
+                    username TEXT,
+                    password TEXT,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
+            )
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sales_reps (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    rep_name TEXT NOT NULL,
+                    rep_key TEXT UNIQUE NOT NULL,
+                    phone TEXT NOT NULL,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
+            )
+
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS device_exclusions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    rule_text TEXT NOT NULL,
+                    rule_key TEXT UNIQUE NOT NULL,
+                    match_type TEXT NOT NULL,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
+            )
+            exclusion_columns = self._table_columns(con, "device_exclusions")
+            if "product" not in exclusion_columns:
+                con.execute("ALTER TABLE device_exclusions ADD COLUMN product TEXT DEFAULT ''")
+            if "imei" not in exclusion_columns:
+                con.execute("ALTER TABLE device_exclusions ADD COLUMN imei TEXT DEFAULT ''")
+            if "comments" not in exclusion_columns:
+                con.execute("ALTER TABLE device_exclusions ADD COLUMN comments TEXT DEFAULT ''")
+            if "district" not in exclusion_columns:
+                con.execute("ALTER TABLE device_exclusions ADD COLUMN district TEXT DEFAULT ''")
+
+            # Created By → Employee mapping table (Timesheet Edition)
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS created_by_mappings (
+                    created_by TEXT PRIMARY KEY,
+                    employee_name TEXT DEFAULT '',
+                    phone TEXT DEFAULT ''
+                )
+            """)
+
+            # Portal credentials (B2B Soft + Timesheet) — base64-obfuscated passwords
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS portal_credentials (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL DEFAULT ''
+                )
+            """)
+
+    def get_created_by_mappings(self) -> List[Dict[str, str]]:
+        """Return all created_by → employee mappings."""
+        with self.connect() as con:
+            rows = con.execute(
+                "SELECT created_by, employee_name, phone FROM created_by_mappings ORDER BY created_by"
+            ).fetchall()
+        return [{"created_by": r[0], "employee_name": r[1], "phone": r[2]} for r in rows]
+
+    def upsert_created_by_mapping(self, created_by: str, employee_name: str, phone: str) -> None:
+        with self.connect() as con:
+            con.execute(
+                "INSERT INTO created_by_mappings(created_by, employee_name, phone) VALUES(?,?,?) "
+                "ON CONFLICT(created_by) DO UPDATE SET employee_name=excluded.employee_name, phone=excluded.phone",
+                (created_by.strip(), employee_name.strip(), phone.strip()),
+            )
+
+    def delete_created_by_mapping(self, created_by: str) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM created_by_mappings WHERE created_by=?", (created_by,))
+
+    # ── Portal credential helpers ────────────────────────────────────────────
+    @staticmethod
+    def _obf_cred(v: str) -> str:
+        return base64.b64encode(v.encode()).decode() if v else ""
+
+    @staticmethod
+    def _deobf_cred(v: str) -> str:
+        if not v:
+            return ""
+        try:
+            return base64.b64decode(v.encode()).decode()
+        except Exception:
+            return v  # legacy plain-text tolerance
+
+    def save_portal_credentials(self, data: dict) -> None:
+        """Save portal credentials to the SQLite DB (passwords base64-obfuscated)."""
+        rows = []
+        for section, fields in data.items():
+            for field, value in fields.items():
+                key = f"{section}.{field}"
+                stored = self._obf_cred(value) if field == "password" else (value or "")
+                rows.append((key, stored))
+        with self.connect() as con:
+            for key, val in rows:
+                con.execute(
+                    "INSERT INTO portal_credentials(key, value) VALUES(?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, val),
+                )
+
+    def load_portal_credentials(self) -> dict:
+        """Load portal credentials from SQLite, returning a nested dict."""
+        with self.connect() as con:
+            rows = con.execute("SELECT key, value FROM portal_credentials").fetchall()
+        result: dict = {}
+        for key, val in rows:
+            if "." not in key:
+                continue
+            section, field = key.split(".", 1)
+            result.setdefault(section, {})[field] = (
+                self._deobf_cred(val) if field == "password" else val
+            )
+        return result
+
+    def resolve_employee_for_created_by(self, created_by: str) -> Dict[str, str]:
+        """Return {employee_name, phone} for a given Created By value, or empty strings."""
+        with self.connect() as con:
+            row = con.execute(
+                "SELECT employee_name, phone FROM created_by_mappings WHERE created_by=?",
+                (created_by.strip(),),
+            ).fetchone()
+        if row:
+            return {"employee_name": row[0], "phone": row[1]}
+        return {"employee_name": "", "phone": ""}
+
+    def upsert_rows(self, rows: List[VarianceRow]) -> None:
+        with self.connect() as con:
+            for row in rows:
+                existing = con.execute(
+                    "SELECT cleared, cleared_at, sent_count, last_sent_at, notes, first_seen_at FROM variances WHERE key=?",
+                    (row.key,),
+                ).fetchone()
+                if existing:
+                    con.execute(
+                        """
+                        UPDATE variances
+                        SET district=?, store=?, product=?, imei=?, status=?, created_by=?, rep_name=?, created_date=?,
+                            document_status=?, source_file=?, last_seen_at=?
+                        WHERE key=?
+                        """,
+                        (
+                            row.district, row.store, row.product, row.imei, row.status,
+                            row.created_by, row.rep_name, row.created_date, row.document_status,
+                            row.source_file, now_text(), row.key,
+                        ),
+                    )
+                else:
+                    con.execute(
+                        """
+                        INSERT INTO variances (
+                            key, district, store, product, imei, status, created_by, rep_name, created_date,
+                            document_status, source_file, first_seen_at, last_seen_at, cleared,
+                            cleared_at, sent_count, last_sent_at, notes
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '', 0, '', '')
+                        """,
+                        (
+                            row.key, row.district, row.store, row.product, row.imei, row.status,
+                            row.created_by, row.rep_name, row.created_date, row.document_status, row.source_file,
+                            now_text(), now_text(),
+                        ),
+                    )
+
+    def rows(self, include_cleared: bool = False) -> List[VarianceRow]:
+        query = """
+            SELECT key, district, store, product, imei, status, created_by, rep_name, created_date,
+                   document_status, source_file, cleared, sent_count, last_sent_at, cleared_at, notes
+            FROM variances
+        """
+        if not include_cleared:
+            query += " WHERE cleared=0"
+        query += " ORDER BY district, store, rep_name, status, product"
+        with self.connect() as con:
+            data = con.execute(query).fetchall()
+        rows: List[VarianceRow] = []
+        for item in data:
+            rows.append(
+                VarianceRow(
+                    key=item[0], district=item[1] or "", store=item[2] or "", product=item[3] or "",
+                    imei=item[4] or "", status=item[5] or "", created_by=item[6] or "",
+                    rep_name=item[7] or "", created_date=item[8] or "", document_status=item[9] or "",
+                    source_file=item[10] or "", cleared=bool(item[11]), sent_count=int(item[12] or 0),
+                    last_sent_at=item[13] or "", cleared_at=item[14] or "", notes=item[15] or "",
+                )
+            )
+        return rows
+
+    def get_rows_by_keys(self, keys: Iterable[str]) -> List[VarianceRow]:
+        keys = list(keys)
+        if not keys:
+            return []
+        placeholders = ",".join("?" for _ in keys)
+        with self.connect() as con:
+            data = con.execute(
+                f"""
+                SELECT key, district, store, product, imei, status, created_by, rep_name, created_date,
+                       document_status, source_file, cleared, sent_count, last_sent_at, cleared_at, notes
+                FROM variances WHERE key IN ({placeholders})
+                ORDER BY district, store, rep_name, status, product
+                """,
+                keys,
+            ).fetchall()
+        return [
+            VarianceRow(
+                key=i[0], district=i[1] or "", store=i[2] or "", product=i[3] or "", imei=i[4] or "",
+                status=i[5] or "", created_by=i[6] or "", rep_name=i[7] or "", created_date=i[8] or "",
+                document_status=i[9] or "", source_file=i[10] or "", cleared=bool(i[11]),
+                sent_count=int(i[12] or 0), last_sent_at=i[13] or "", cleared_at=i[14] or "", notes=i[15] or "",
+            )
+            for i in data
+        ]
+
+    def set_cleared(self, key: str, cleared: bool) -> None:
+        with self.connect() as con:
+            con.execute(
+                "UPDATE variances SET cleared=?, cleared_at=? WHERE key=?",
+                (1 if cleared else 0, now_text() if cleared else "", key),
+            )
+
+    def mark_sent(self, rows: Iterable[VarianceRow], group_name: str, batch_title: str, image_path: str, mode: str, error: str = "") -> None:
+        sent_at = now_text()
+        with self.connect() as con:
+            for row in rows:
+                con.execute(
+                    """
+                    INSERT INTO send_log (variance_key, district, group_name, batch_title, image_path, sent_at, mode, error)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (row.key, row.district, group_name, batch_title, image_path, sent_at, mode, error),
+                )
+                if not error:
+                    con.execute(
+                        "UPDATE variances SET sent_count=COALESCE(sent_count,0)+1, last_sent_at=? WHERE key=?",
+                        (sent_at, row.key),
+                    )
+
+
+    def upsert_inventory_status_rows(self, rows: List[InventoryStatusRow]) -> None:
+        loaded_at = now_text()
+        with self.connect() as con:
+            for row in rows:
+                store_key = normalize_store(row.store)
+                if not store_key:
+                    continue
+                existing = con.execute(
+                    "SELECT last_status, previous_status, status_changed_at, last_sent_at FROM inventory_status_state WHERE store_key=?",
+                    (store_key,),
+                ).fetchone()
+
+                last_status = safe_text(row.status)
+                if existing:
+                    old_status = safe_text(existing[0])
+                    old_previous = safe_text(existing[1])
+                    old_changed_at = safe_text(existing[2])
+                    old_sent_at = safe_text(existing[3])
+                    if old_status and normalize_header(old_status) != normalize_header(last_status):
+                        previous_status = old_status
+                        changed_at = loaded_at
+                        # New status means new status still needs its own send state.
+                        sent_at = ""
+                    else:
+                        previous_status = old_previous
+                        changed_at = old_changed_at
+                        sent_at = old_sent_at
+                    con.execute(
+                        """
+                        UPDATE inventory_status_state
+                        SET district=?, store=?, last_status=?, previous_status=?, status_changed_at=?, last_sent_at=?, last_loaded_at=?
+                        WHERE store_key=?
+                        """,
+                        (row.district, row.store, last_status, previous_status, changed_at, sent_at, loaded_at, store_key),
+                    )
+                else:
+                    con.execute(
+                        """
+                        INSERT INTO inventory_status_state
+                        (store_key, district, store, last_status, previous_status, status_changed_at, last_sent_at, last_loaded_at)
+                        VALUES (?, ?, ?, ?, '', '', '', ?)
+                        """,
+                        (store_key, row.district, row.store, last_status, loaded_at),
+                    )
+
+    def mark_status_sent(self, rows: Iterable[InventoryStatusRow]) -> None:
+        sent_at = now_text()
+        with self.connect() as con:
+            for row in rows:
+                store_key = normalize_store(row.store)
+                if not store_key:
+                    continue
+                con.execute(
+                    """
+                    INSERT INTO inventory_status_state
+                    (store_key, district, store, last_status, previous_status, status_changed_at, last_sent_at, last_loaded_at)
+                    VALUES (?, ?, ?, ?, '', '', ?, ?)
+                    ON CONFLICT(store_key) DO UPDATE SET
+                        district=excluded.district,
+                        store=excluded.store,
+                        last_status=excluded.last_status,
+                        last_sent_at=excluded.last_sent_at,
+                        last_loaded_at=excluded.last_loaded_at
+                    """,
+                    (store_key, row.district, row.store, row.status, sent_at, sent_at),
+                )
+
+    def inventory_status_state_map(self) -> Dict[str, Dict[str, str]]:
+        with self.connect() as con:
+            rows = con.execute(
+                """
+                SELECT store_key, district, store, last_status, previous_status, status_changed_at, last_sent_at, last_loaded_at
+                FROM inventory_status_state
+                """
+            ).fetchall()
+        return {
+            r[0]: {
+                "District": r[1] or "",
+                "Store": r[2] or "",
+                "Last Status": r[3] or "",
+                "Previous Status": r[4] or "",
+                "Status Changed At": r[5] or "",
+                "Last Sent At": r[6] or "",
+                "Last Loaded At": r[7] or "",
+            }
+            for r in rows
+        }
+
+    def save_whatsapp_group(self, district: str, group_name: str) -> None:
+        district = normalize_district(district)
+        group_name = safe_text(group_name).strip()
+        if not district or district == "Unknown":
+            raise ValueError("District is required.")
+        if not group_name:
+            raise ValueError("WhatsApp group name is required.")
+        with self.connect() as con:
+            con.execute(
+                """
+                INSERT INTO whatsapp_groups (district, group_name, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(district) DO UPDATE SET
+                    group_name=excluded.group_name,
+                    updated_at=excluded.updated_at
+                """,
+                (district, group_name, now_text(), now_text()),
+            )
+
+    def delete_whatsapp_group(self, district: str) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM whatsapp_groups WHERE district=?", (normalize_district(district),))
+
+    def whatsapp_groups(self) -> List[Dict[str, str]]:
+        with self.connect() as con:
+            rows = con.execute(
+                "SELECT district, group_name FROM whatsapp_groups ORDER BY district"
+            ).fetchall()
+        return [{"District": r[0] or "", "Group Name": r[1] or ""} for r in rows]
+
+    def find_whatsapp_group(self, district: str) -> str:
+        with self.connect() as con:
+            row = con.execute(
+                "SELECT group_name FROM whatsapp_groups WHERE district=?",
+                (normalize_district(district),),
+            ).fetchone()
+        return safe_text(row[0]) if row else ""
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        """Read a key from the app_settings table (created on first use)."""
+        try:
+            with self.connect() as con:
+                con.execute(
+                    "CREATE TABLE IF NOT EXISTS app_settings "
+                    "(key TEXT PRIMARY KEY, value TEXT DEFAULT '')"
+                )
+                row = con.execute(
+                    "SELECT value FROM app_settings WHERE key=?", (key,)
+                ).fetchone()
+            return safe_text(row[0]) if row else default
+        except Exception:
+            return default
+
+    def save_setting(self, key: str, value: str) -> None:
+        """Persist a key/value pair in the app_settings table."""
+        try:
+            with self.connect() as con:
+                con.execute(
+                    "CREATE TABLE IF NOT EXISTS app_settings "
+                    "(key TEXT PRIMARY KEY, value TEXT DEFAULT '')"
+                )
+                con.execute(
+                    "INSERT INTO app_settings(key,value) VALUES(?,?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    (key, value),
+                )
+        except Exception:
+            pass
+
+    def save_district_manager(self, district: str, dm_name: str, phone: str) -> None:
+        district = normalize_district(district)
+        dm_name = safe_text(dm_name)
+        phone = normalize_phone(phone)
+        if not district or district == "Unknown":
+            raise ValueError("District is required.")
+        if not phone:
+            raise ValueError("DM phone number is required.")
+        with self.connect() as con:
+            con.execute(
+                """
+                INSERT INTO district_managers (district, dm_name, phone, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(district) DO UPDATE SET
+                    dm_name=excluded.dm_name,
+                    phone=excluded.phone,
+                    updated_at=excluded.updated_at
+                """,
+                (district, dm_name, phone, now_text(), now_text()),
+            )
+
+    def delete_district_manager(self, district: str) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM district_managers WHERE district=?", (normalize_district(district),))
+
+    def district_managers(self) -> List[Dict[str, str]]:
+        with self.connect() as con:
+            rows = con.execute(
+                "SELECT district, dm_name, phone FROM district_managers ORDER BY district"
+            ).fetchall()
+        return [{"District": r[0] or "", "DM Name": r[1] or "", "Phone": r[2] or ""} for r in rows]
+
+    def all_known_districts(self) -> List[str]:
+        """Return sorted list of unique districts from all district-having tables."""
+        districts = set()
+        with self.connect() as con:
+            for table in ("store_accounts", "whatsapp_groups", "district_managers", "device_exclusions", "variance_log"):
+                try:
+                    rows = con.execute(f"SELECT DISTINCT district FROM {table} WHERE district IS NOT NULL AND district != ''").fetchall()
+                    for r in rows:
+                        d = safe_text(r[0]).strip()
+                        if d:
+                            districts.add(normalize_district(d))
+                except Exception:
+                    pass
+        return sorted(districts)
+
+    def find_district_manager_phone(self, district: str) -> str:
+        with self.connect() as con:
+            row = con.execute(
+                "SELECT phone FROM district_managers WHERE district=?",
+                (normalize_district(district),),
+            ).fetchone()
+        return normalize_phone(row[0]) if row else ""
+
+    def save_store_account(self, district: str, store: str, account_id: str, username: str, password: str) -> None:
+        district = normalize_district(district)
+        store = display_store(store)
+        store_key = normalize_store(store)
+        if not store_key:
+            raise ValueError("Store name is required.")
+        with self.connect() as con:
+            con.execute(
+                """
+                INSERT INTO store_accounts (district, store, store_key, account_id, username, password, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(store_key) DO UPDATE SET
+                    district=excluded.district,
+                    store=excluded.store,
+                    account_id=excluded.account_id,
+                    username=excluded.username,
+                    password=excluded.password,
+                    updated_at=excluded.updated_at
+                """,
+                (district, store, store_key, safe_text(account_id), safe_text(username), safe_text(password), now_text(), now_text()),
+            )
+
+    def delete_store_account(self, store_key: str) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM store_accounts WHERE store_key=?", (store_key,))
+
+    def store_accounts(self) -> List[Dict[str, str]]:
+        with self.connect() as con:
+            rows = con.execute(
+                """
+                SELECT district, store, store_key, account_id, username, password
+                FROM store_accounts
+                ORDER BY district, store
+                """
+            ).fetchall()
+        return [
+            {
+                "District": row[0] or "",
+                "Store": row[1] or "",
+                "StoreKey": row[2] or "",
+                "Account ID": row[3] or "",
+                "Username": row[4] or "",
+                "Password": row[5] or "",
+            }
+            for row in rows
+        ]
+
+    def replace_store_accounts(self, records: List[Dict[str, str]]) -> int:
+        cleaned: Dict[str, Dict[str, str]] = {}
+        for rec in records:
+            district = normalize_district(rec.get("District", ""))
+            store = display_store(rec.get("Store", ""))
+            store_key = normalize_store(store)
+            if not store_key or not district or district == "Unknown":
+                continue
+            cleaned[store_key] = {"District": district, "Store": store, "StoreKey": store_key}
+
+        now = now_text()
+        last_error = None
+        for attempt in range(5):
+            try:
+                with self.connect() as con:
+                    con.execute("BEGIN IMMEDIATE")
+                    con.execute("DELETE FROM store_accounts")
+                    for rec in sorted(cleaned.values(), key=lambda r: (r["District"], r["Store"].lower())):
+                        con.execute(
+                            """
+                            INSERT INTO store_accounts (district, store, store_key, account_id, username, password, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (rec["District"], rec["Store"], rec["StoreKey"], "", "", "", now, now),
+                        )
+                    con.commit()
+                return len(cleaned)
+            except sqlite3.OperationalError as exc:
+                last_error = exc
+                if "locked" not in str(exc).lower():
+                    raise
+                time.sleep(0.8 + attempt * 0.6)
+        raise RuntimeError("Database is locked. Close any other running copy of this GUI, then import again.") from last_error
+
+    def store_master_records(self) -> List[Dict[str, str]]:
+        return [{"District": row["District"], "Store": row["Store"]} for row in self.store_accounts()]
+
+    def save_sales_rep(self, rep_name: str, phone: str) -> None:
+        rep_name = safe_text(rep_name)
+        phone = normalize_phone(phone)
+        rep_key = person_name_key(rep_name)
+        if not rep_key:
+            raise ValueError("Sales rep name is required.")
+        if not phone:
+            raise ValueError("Phone number is required.")
+        with self.connect() as con:
+            con.execute(
+                """
+                INSERT INTO sales_reps (rep_name, rep_key, phone, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(rep_key) DO UPDATE SET
+                    rep_name=excluded.rep_name,
+                    phone=excluded.phone,
+                    updated_at=excluded.updated_at
+                """,
+                (rep_name, rep_key, phone, now_text(), now_text()),
+            )
+
+    def delete_sales_rep(self, rep_key: str) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM sales_reps WHERE rep_key=?", (rep_key,))
+
+    def sales_reps(self) -> List[Dict[str, str]]:
+        with self.connect() as con:
+            rows = con.execute(
+                "SELECT rep_name, rep_key, phone FROM sales_reps ORDER BY rep_name"
+            ).fetchall()
+        return [{"Rep Name": r[0] or "", "RepKey": r[1] or "", "Phone": r[2] or ""} for r in rows]
+
+    def sales_rep_phone_map(self) -> Dict[str, str]:
+        return {row["RepKey"]: row["Phone"] for row in self.sales_reps()}
+
+    def find_sales_rep_phone(self, rep_name: str) -> str:
+        key = person_name_key(rep_name)
+        if not key:
+            return ""
+        reps = self.sales_reps()
+        exact = {row["RepKey"]: row["Phone"] for row in reps}
+        if key in exact:
+            return exact[key]
+        # Drop single-character tokens (initials like "E" from "Menatallah.E",
+        # "M" from "Abdullah.M"). person_name_key() splits on punctuation, so
+        # dotted usernames become e.g. {"e", "menatallah"} — and the single
+        # letter becomes a required word in the subset check below, which
+        # breaks matching against employees whose names don't contain that
+        # letter as a standalone word. Filtering both sides by len > 1
+        # restores the subset match: {"menatallah"} <= {"elsafty", "menatallah"}.
+        key_parts = {p for p in set(key.split()) if len(p) > 1}
+        for row in reps:
+            rep_parts = {p for p in set((row["RepKey"] or "").split()) if len(p) > 1}
+            if key_parts and rep_parts and (key_parts <= rep_parts or rep_parts <= key_parts):
+                return row["Phone"]
+        return ""
+
+    def resolve_phone_for_rep(self, rep_name: str, created_by: str = "") -> str:
+        """Timesheet-aware phone resolver.
+
+        Resolution order:
+        1. created_by_mappings by created_by username (most direct — user set this)
+        2. created_by_mappings by employee_name (fuzzy/normalized match)
+        3. sales_reps table by rep_name (fuzzy/normalized match)
+        4. created_by as a loose sales_reps key (last resort)
+
+        Name matching uses person_name_key() normalization: lowercases,
+        strips punctuation, sorts word tokens.  So "John Smith" matches
+        "smith, john" or "John  Smith" (double space) or "JOHN SMITH".
+        """
+        # 1. Created By mapping by username
+        if created_by:
+            cb = created_by.strip()
+            mapping = self.resolve_employee_for_created_by(cb)
+            if mapping.get("phone"):
+                return mapping["phone"]
+
+        # 2. Created By mapping by employee_name (fuzzy match)
+        if rep_name:
+            rn_key = person_name_key(rep_name)
+            if rn_key:
+                for m in self.get_created_by_mappings():
+                    emp_name = m.get("employee_name", "").strip()
+                    if emp_name and person_name_key(emp_name) == rn_key and m.get("phone"):
+                        return m["phone"]
+
+        # 3. Standard sales_reps lookup (fuzzy match)
+        phone = self.find_sales_rep_phone(rep_name)
+        if phone:
+            return phone
+
+        # 4. Try created_by as a name in sales_reps
+        if created_by:
+            phone = self.find_sales_rep_phone(created_by)
+            if phone:
+                return phone
+
+        return ""
+
+    def update_device_exclusion_comment(self, rule_key: str, comments: str) -> None:
+        with self.connect() as con:
+            con.execute(
+                "UPDATE device_exclusions SET comments=?, updated_at=? WHERE rule_key=?",
+                (safe_text(comments), now_text(), rule_key),
+            )
+
+    def save_device_exclusion(self, product: str = "", imei: str = "", comments: str = "", district: str = "") -> None:
+        product = safe_text(product)
+        imei = safe_text(imei)
+        comments = safe_text(comments)
+        district = normalize_district(district) if safe_text(district) else ""
+
+        if not product and not imei:
+            raise ValueError("Product or IMEI is required.")
+
+        # IMEI exclusions stay global across all districts.
+        if imei:
+            district = ""
+            rule_text = imei
+            match_type = "IMEI Exact"
+        else:
+            if not district or district == "Unknown":
+                raise ValueError("District is required for Product exclusions.")
+            rule_text = product
+            match_type = "Product Contains"
+
+        # Include district in product exclusion key, but keep IMEI exclusions global.
+        rule_key = device_rule_key(f"{district}|{product}|{imei}" if not imei else f"|{imei}")
+        if not rule_key:
+            raise ValueError("Product or IMEI is required.")
+
+        with self.connect() as con:
+            # Prevent duplicates by ensuring old keys or un-districted versions are cleaned up
+            if imei:
+                con.execute("DELETE FROM device_exclusions WHERE imei=?", (imei,))
+            elif product and district:
+                con.execute("DELETE FROM device_exclusions WHERE product=? AND district=?", (product, district))
+
+            con.execute(
+                """
+                INSERT INTO device_exclusions (rule_text, rule_key, match_type, product, imei, comments, district, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(rule_key) DO UPDATE SET
+                    rule_text=excluded.rule_text,
+                    match_type=excluded.match_type,
+                    product=excluded.product,
+                    imei=excluded.imei,
+                    comments=excluded.comments,
+                    district=excluded.district,
+                    updated_at=excluded.updated_at
+                """,
+                (rule_text, rule_key, match_type, product, imei, comments, district, now_text(), now_text()),
+            )
+
+    def delete_device_exclusion(self, rule_key: str) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM device_exclusions WHERE rule_key=?", (rule_key,))
+
+    def delete_all_device_exclusions(self) -> None:
+        with self.connect() as con:
+            con.execute("DELETE FROM device_exclusions")
+
+    def device_exclusions(self) -> List[Dict[str, str]]:
+        with self.connect() as con:
+            rows = con.execute(
+                """
+                SELECT rule_text, rule_key, match_type, product, imei, comments, district
+                FROM device_exclusions
+                ORDER BY COALESCE(district, ''), COALESCE(product, ''), COALESCE(imei, '')
+                """
+            ).fetchall()
+
+        out: List[Dict[str, str]] = []
+        for r in rows:
+            rule_text = r[0] or ""
+            rule_key = r[1] or ""
+            match_type = r[2] or ""
+            product = r[3] or ""
+            imei = r[4] or ""
+            comments = r[5] or ""
+            district = normalize_district(r[6] or "") if safe_text(r[6] or "") else ""
+
+            # Backfill display values for exclusions created in old versions.
+            if not product and not imei and rule_text:
+                if normalize_header(match_type) in {"imeiexact", "serialexact", "esnexact"}:
+                    imei = rule_text
+                    district = ""
+                else:
+                    product = rule_text
+
+            if imei:
+                district = ""
+
+            out.append({
+                "District": district,
+                "Product": product,
+                "IMEI": imei,
+                "Comments": comments,
+                "Rule Text": rule_text,
+                "RuleKey": rule_key,
+                "Match Type": match_type,
+            })
+        return out
+
+    def is_device_excluded(self, district: str, product: str, imei: str) -> bool:
+        row_district = normalize_district(district)
+        product_clean = device_rule_key(product)
+        imei_clean = device_rule_key(imei)
+
+        for rule in self.device_exclusions():
+            rule_product = device_rule_key(rule.get("Product", ""))
+            rule_imei = device_rule_key(rule.get("IMEI", ""))
+            rule_district = normalize_district(rule.get("District", "")) if safe_text(rule.get("District", "")) else ""
+
+            # IMEI exclusions stay global. District is ignored for IMEI.
+            if rule_imei and imei_clean and rule_imei == imei_clean:
+                return True
+
+            # Product exclusions are district-specific only.
+            if rule_product and product_clean and rule_product in product_clean:
+                if rule_district and normalize_district(rule_district) == row_district:
+                    return True
+
+        return False
+
+    def exclusion_reason(self, district: str, product: str, imei: str) -> str:
+        row_district = normalize_district(district)
+        product_clean = device_rule_key(product)
+        imei_clean = device_rule_key(imei)
+
+        for rule in self.device_exclusions():
+            rule_product = device_rule_key(rule.get("Product", ""))
+            rule_imei = device_rule_key(rule.get("IMEI", ""))
+            rule_district = normalize_district(rule.get("District", "")) if safe_text(rule.get("District", "")) else ""
+
+            if rule_imei and imei_clean and rule_imei == imei_clean:
+                return f"IMEI: {rule.get('IMEI', '')}"
+
+            if rule_product and product_clean and rule_product in product_clean:
+                if rule_district and normalize_district(rule_district) == row_district:
+                    return f"{rule_district} Product: {rule.get('Product', '')}"
+
+        return ""
+
+    def export_xlsx(self, output_path: Path, keys: Optional[Iterable[str]] = None) -> None:
+        keys = list(keys) if keys is not None else None
+        where_sql = ""
+        params: List[str] = []
+        if keys is not None:
+            if not keys:
+                headers = [
+                    "District", "Store", "Product", "IMEI", "Status", "Rep Name", "Count By", "Created Date",
+                    "Document Status", "Clearance Status", "Cleared At", "Sent Count", "Last Sent At",
+                    "First Seen At", "Last Seen At", "Source File", "Notes"
+                ]
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.append(headers)
+                wb.save(output_path)
+                return
+            placeholders = ",".join("?" for _ in keys)
+            where_sql = f"WHERE key IN ({placeholders})"
+            params = keys
+
+        query = f"""
+                SELECT district, store, product, imei, status, rep_name, created_by, created_date,
+                       document_status,
+                       CASE WHEN cleared=1 THEN 'Cleared' ELSE 'Not Cleared' END,
+                       cleared_at, sent_count, last_sent_at, first_seen_at, last_seen_at, source_file, notes
+                FROM variances
+                {where_sql}
+                ORDER BY district, store, rep_name, status, product
+                """
+        with self.connect() as con:
+            rows = con.execute(query, params).fetchall()
+
+        headers = [
+            "District", "Store", "Product", "IMEI", "Status", "Rep Name", "Count By", "Created Date",
+            "Document Status", "Clearance Status", "Cleared At", "Sent Count", "Last Sent At",
+            "First Seen At", "Last Seen At", "Source File", "Notes"
+        ]
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(headers)
+
+        imei_col_idx = headers.index("IMEI") + 1
+
+        for r_idx, row in enumerate(rows, start=2):
+            for c_idx, val in enumerate(row, start=1):
+                cell = ws.cell(row=r_idx, column=c_idx, value=val)
+                if c_idx == imei_col_idx:
+                    cell.data_type = 's'
+                    cell.number_format = '@'
+
+        wb.save(output_path)
+
+class ImageRenderer:
+    def __init__(self):
+        IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+        if Image is None:
+            raise RuntimeError("Pillow is required. Install with: py -m pip install pillow")
+
+    @staticmethod
+    def _font(size: int, bold: bool = False):
+        candidates = []
+        if bold:
+            candidates.extend(["arialbd.ttf", "Arial Bold.ttf", "segoeuib.ttf"])
+        candidates.extend(["arial.ttf", "Segoe UI.ttf", "DejaVuSans.ttf"])
+        for candidate in candidates:
+            try:
+                return ImageFont.truetype(candidate, size)
+            except Exception:
+                continue
+        return ImageFont.load_default()
+
+    @staticmethod
+    def _wrap(draw, text: str, font, max_width: int) -> List[str]:
+        text = safe_text(text)
+        if not text:
+            return [""]
+        words = text.split()
+        lines: List[str] = []
+        current = ""
+        for word in words:
+            probe = word if not current else current + " " + word
+            bbox = draw.textbbox((0, 0), probe, font=font)
+            if bbox[2] - bbox[0] <= max_width:
+                current = probe
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        return lines or [""]
+
+    def render_rows(self, batch_title: str, rows: List[VarianceRow], mode: str = "pending") -> Path:
+        if not rows:
+            raise ValueError("No rows to render")
+
+        width = 1560
+        margin = 32
+        title_font = self._font(34, True)
+        sub_font = self._font(18, False)
+        header_font = self._font(20, True)
+        cell_font = self._font(18, False)
+        small_font = self._font(16, False)
+        bold_small_font = self._font(16, True)
+        row_height_base = 52
+
+        tmp = Image.new("RGB", (width, 400), "white")
+        draw = ImageDraw.Draw(tmp)
+        col_widths = [165, 220, 480, 205, 140, 250]
+        product_width = col_widths[2] - 20
+        rep_width = col_widths[5] - 20
+        row_heights = []
+        for row in rows:
+            product_lines = self._wrap(draw, str(row.product or ""), cell_font, product_width)
+            rep_lines = self._wrap(draw, str(row.rep_name or ""), small_font, rep_width)
+            row_heights.append(max(row_height_base, 26 * max(len(product_lines), len(rep_lines)) + 22))
+
+        dark = (18, 20, 43)
+        gray = (95, 95, 102)
+        red = (233, 27, 47)
+        light = (246, 247, 249)
+        border = (215, 218, 223)
+
+        logo_img = None
+        logo_w = 0
+        logo_h_used = 0
+        if STATUS_LOGO_PATH.exists():
+            try:
+                logo_img = Image.open(STATUS_LOGO_PATH).convert("RGBA")
+                scale = min(640 / logo_img.width, 150 / logo_img.height)
+                size = (max(1, int(logo_img.width * scale)), max(1, int(logo_img.height * scale)))
+                logo_img = logo_img.resize(size)
+                logo_w, logo_h_used = size
+            except Exception:
+                logo_img = None
+                logo_w = 0
+                logo_h_used = 0
+
+        header_area_h = max(logo_h_used, 74) + 18
+        table_top = margin + header_area_h + 18
+        table_height = 54 + sum(row_heights)
+        height = table_top + table_height + 58
+
+        img = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(img)
+
+        clean_mode = safe_text(mode).replace("manual_", "").replace("pending_", "")
+        mode_label = SEND_MODE_LABELS.get(clean_mode, clean_mode.replace("_", " ").title())
+
+        draw.text((margin, margin + 4), "GFH Inventory Variance", fill=dark, font=title_font)
+        draw.text(
+            (margin, margin + 48),
+            f"{mode_label}: {batch_title}   Rows: {len(rows)}   Generated: {now_text()}",
+            fill=gray,
+            font=sub_font,
+        )
+
+        if logo_img is not None:
+            logo_x = width - margin - logo_w
+            logo_y = margin
+            img.paste(logo_img, (logo_x, logo_y), logo_img)
+
+        y = table_top
+        x = margin
+        headers = ["District", "Store", "Product", "IMEI", "Status", "Rep Name"]
+        draw.rectangle((x, y, width - margin, y + 54), fill=red)
+        cx = x
+        for idx, header in enumerate(headers):
+            draw.text((cx + 10, y + 14), header, fill="white", font=header_font)
+            cx += col_widths[idx]
+        y += 54
+
+        for idx, row in enumerate(rows):
+            fill = light if idx % 2 == 0 else (255, 255, 255)
+            rh = row_heights[idx]
+            draw.rectangle((x, y, width - margin, y + rh), fill=fill, outline=border)
+            values = [row.district, row.store, row.product, row.imei, row.status, row.rep_name]
+            cx = x
+            for cidx, value in enumerate(values):
+                max_w = col_widths[cidx] - 20
+                font = bold_small_font if cidx in {0, 1, 5} else (small_font if cidx == 4 else cell_font)
+                lines = self._wrap(draw, str(value or ""), font, max_w)
+                yy = y + 11
+                for line in lines[:4]:
+                    draw.text((cx + 10, yy), line, fill=dark, font=font)
+                    yy += 25
+                cx += col_widths[cidx]
+            y += rh
+
+        footer = "Please provide resolution image or valid variance explanation. Cleared variances will not be auto-sent again."
+        draw.text((margin, height - 36), footer, fill=gray, font=small_font)
+
+        safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", batch_title)[:60] or "Variance"
+        safe_mode = re.sub(r"[^A-Za-z0-9_-]+", "_", safe_text(mode).replace("manual_", "").replace("pending_", ""))[:30] or "mode"
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = IMAGE_DIR / f"GFH_Variance_{safe_mode}_{safe_title}_{stamp}.png"
+        img.save(path)
+        return path
+
+
+class WhatsAppSender:
+    def __init__(self, status_callback=None, mode="desktop"):
+        self.status_callback = status_callback or (lambda text: None)
+        # "desktop" uses pyautogui to drive WhatsApp Desktop app.
+        # "web" opens web.whatsapp.com in the default browser.
+        self.mode = mode if mode in ("desktop", "web") else "desktop"
+
+    def log(self, text: str) -> None:
+        self.status_callback(text)
+
+    def _find_whatsapp_hwnd(self) -> int:
+        """Return hwnd of first visible WhatsApp Desktop window, or 0."""
+        try:
+            import win32gui
+            found = []
+            def _cb(hwnd, _):
+                if win32gui.IsWindowVisible(hwnd) and "whatsapp" in (win32gui.GetWindowText(hwnd) or "").lower():
+                    found.append(hwnd)
+            win32gui.EnumWindows(_cb, None)
+            return found[0] if found else 0
+        except Exception:
+            return 0
+
+    def _save_whatsapp_rect(self) -> tuple:
+        """Save WhatsApp window rect before focus (snap layout preservation)."""
+        try:
+            import ctypes
+            from ctypes import wintypes
+            hwnd = self._find_whatsapp_hwnd()
+            if not hwnd:
+                return (0, None)
+            rect = wintypes.RECT()
+            ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+            return (hwnd, (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top))
+        except Exception:
+            return (0, None)
+
+    def _restore_whatsapp_rect(self, hwnd: int, saved_rect: tuple) -> None:
+        """Restore WhatsApp window to saved rect so snap layout is not disrupted."""
+        if not hwnd or not saved_rect:
+            return
+        try:
+            import ctypes
+            x, y, w, h = saved_rect
+            SWP_NOZORDER = 0x0004
+            SWP_NOACTIVATE = 0x0010
+            ctypes.windll.user32.SetWindowPos(hwnd, 0, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE)
+        except Exception:
+            pass
+
+    def _force_focus_whatsapp(self) -> bool:
+        """Focus WhatsApp Desktop window using ctypes (most reliable on Win10/11).
+        Same approach as GFH_Inventory_Audit.py — simple and proven to work."""
+        try:
+            import ctypes
+            hwnd = self._find_whatsapp_hwnd()
+            if hwnd:
+                # Only un-minimize WhatsApp. If it is MAXIMIZED, leave it
+                # maximized - calling SW_RESTORE on a zoomed window
+                # un-maximizes it, and WhatsApp visibly re-flows its whole
+                # layout on every send ("window layout changed").
+                if ctypes.windll.user32.IsIconic(hwnd):
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)   # SW_RESTORE
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+                time.sleep(1.0)
+                return True
+        except Exception:
+            pass
+        return self._activate_whatsapp_window()  # pygetwindow fallback
+
+    @staticmethod
+    def _import_pyautogui():
+        try:
+            import pyautogui
+            pyautogui.FAILSAFE = True
+            return pyautogui
+        except Exception as exc:
+            raise RuntimeError("pyautogui is required. Install with: py -m pip install pyautogui") from exc
+
+    @staticmethod
+    def _open_whatsapp() -> None:
+        if sys.platform.startswith("win"):
+            try:
+                subprocess.Popen("start whatsapp:", shell=True)
+                time.sleep(3)
+                return
+            except Exception:
+                pass
+        time.sleep(1)
+
+    @staticmethod
+    def _activate_whatsapp_window() -> bool:
+        try:
+            import pygetwindow as gw
+            windows = [w for w in gw.getAllWindows() if "whatsapp" in (w.title or "").lower()]
+            if not windows:
+                return False
+            win = windows[0]
+            if win.isMinimized:
+                win.restore()
+            win.activate()
+            time.sleep(1)
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _copy_image_to_clipboard(image_path: Path) -> None:
+        """Copy image to clipboard — same as GFH_Inventory_Audit.py (proven working)."""
+        if Image is None:
+            raise RuntimeError("Pillow is required to copy images to clipboard.")
+        if not sys.platform.startswith("win"):
+            raise RuntimeError("Automatic image clipboard paste is implemented for Windows only.")
+        try:
+            import win32clipboard
+            import win32con
+        except Exception as exc:
+            raise RuntimeError("pywin32 is required. Install with: py -m pip install pywin32") from exc
+        image = Image.open(image_path).convert("RGB")
+        output = BytesIO()
+        image.save(output, "BMP")
+        data = output.getvalue()[14:]
+        output.close()
+        win32clipboard.OpenClipboard()
+        try:
+            win32clipboard.EmptyClipboard()
+            win32clipboard.SetClipboardData(win32con.CF_DIB, data)
+        finally:
+            win32clipboard.CloseClipboard()
+
+    @staticmethod
+    def _type_group_search(pyautogui, group_name: str) -> None:
+        shortcut = SEARCH_SHORTCUT.lower().strip()
+        if "+" in shortcut:
+            keys = [k.strip() for k in shortcut.split("+") if k.strip()]
+        else:
+            keys = [k.strip() for k in shortcut.split() if k.strip()]
+        if not keys:
+            keys = ["ctrl", "f"]
+        _wa_hotkey(*keys)
+        time.sleep(0.7)
+        _wa_hotkey("ctrl", "a")
+        time.sleep(0.2)
+        _wa_write(group_name, interval=0.01)
+        time.sleep(1.2)
+        _wa_press("enter")
+        time.sleep(1.5)
+
+    @staticmethod
+    def _paste_text(pyautogui, text: str) -> None:
+        text = safe_text(text)
+        if not text:
+            return
+        try:
+            import pyperclip
+            pyperclip.copy(text)
+            _wa_hotkey("ctrl", "v")
+        except Exception:
+            _wa_write(text, interval=0.01)
+
+    def send_image(self, group_name: str, image_path: Path, text_message: str = "") -> None:
+        if self.mode == "web":
+            self._send_image_web(group_name, image_path, text_message)
+            return
+        pyautogui = self._import_pyautogui()
+        self.log(f"Opening WhatsApp Desktop for {group_name}...")
+        self._open_whatsapp()
+        wa_hwnd, wa_rect = self._save_whatsapp_rect()
+        self._force_focus_whatsapp()
+        self.log(f"Searching group: {group_name}")
+        self._type_group_search(pyautogui, group_name)
+
+        self.log("Copying image to clipboard...")
+        self._copy_image_to_clipboard(image_path)
+
+        # Paste the image — this opens WhatsApp's image-preview/send dialog
+        _wa_hotkey("ctrl", "v")
+        # Wait for the preview dialog to fully load before doing anything else
+        time.sleep(3.0)
+
+        caption = safe_text(text_message)
+        if caption:
+            self.log("Typing caption into image preview field...")
+            # WhatsApp Desktop focuses the caption field automatically when the
+            # image preview dialog opens. Type directly into it.
+            self._paste_text(pyautogui, caption)
+            time.sleep(0.8)
+
+        # Send the image (Enter confirms the image-preview dialog)
+        _wa_press("enter")
+        time.sleep(2.0)
+        self._restore_whatsapp_rect(wa_hwnd, wa_rect)
+        self.log(f"Sent image to {group_name}")
+
+    def _send_image_web(self, group_name: str, image_path: Path, text_message: str = "") -> None:
+        """Send image via WhatsApp Web by opening it in the default browser."""
+        self.log(f"WhatsApp Web: attaching image for {group_name} (manual step required — "
+                 "open web.whatsapp.com, find the group, and attach the image manually).")
+        self.log(f"Image path: {image_path}")
+
+    def send_text(self, group_name: str, text_message: str) -> None:
+        if self.mode == "web":
+            self._send_text_web(group_name, text_message)
+            return
+        message = safe_text(text_message)
+        if not message:
+            return
+        pyautogui = self._import_pyautogui()
+        self.log(f"Opening WhatsApp Desktop for {group_name}...")
+        self._open_whatsapp()
+        wa_hwnd, wa_rect = self._save_whatsapp_rect()
+        self._force_focus_whatsapp()
+        self.log(f"Searching group: {group_name}")
+        self._type_group_search(pyautogui, group_name)
+        self.log("Sending WhatsApp text message...")
+        self._paste_text(pyautogui, message)
+        time.sleep(0.7)
+        _wa_press("enter")
+        time.sleep(1.0)
+        self._restore_whatsapp_rect(wa_hwnd, wa_rect)
+        self.log(f"Sent text to {group_name}")
+
+    def _send_text_web(self, group_name: str, text_message: str) -> None:
+        """Send text via WhatsApp Web in Edge at port 9227. Keeps tab open after send."""
+        global _wa_fallback_opened
+        message = safe_text(text_message)
+        if not message:
+            return
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.common.keys import Keys
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        try:
+            driver = _edge_debug_driver()
+            _find_or_open_tab(driver, _WA_URL)
+            wait = WebDriverWait(driver, 30)
+            # Find search box (WA Web uses contenteditable divs; try multiple selectors)
+            search_box = None
+            for by, sel in [
+                (By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='3']"),
+                (By.XPATH, "//div[@contenteditable='true'][@title='Search input textbox']"),
+                (By.CSS_SELECTOR, "div[data-testid='chat-list-search']"),
+            ]:
+                try:
+                    search_box = wait.until(EC.element_to_be_clickable((by, sel)))
+                    break
+                except Exception:
+                    continue
+            if search_box is None:
+                self.log(f"WhatsApp Web: could not find search box for {group_name!r}")
+                return
+            search_box.click()
+            search_box.send_keys(Keys.CONTROL + "a")
+            search_box.send_keys(Keys.DELETE)
+            search_box.send_keys(group_name)
+            time.sleep(2)
+            # Click first result whose title contains group_name
+            clicked = False
+            for by, sel in [
+                (By.XPATH, f"//span[contains(@title, '{group_name}')]"),
+                (By.CSS_SELECTOR, "div[data-testid='cell-frame-container']"),
+            ]:
+                try:
+                    result = wait.until(EC.element_to_be_clickable((by, sel)))
+                    result.click()
+                    clicked = True
+                    break
+                except Exception:
+                    continue
+            if not clicked:
+                self.log(f"WhatsApp Web: group {group_name!r} not found in results")
+                return
+            time.sleep(1)
+            # Find message input box
+            msg_box = None
+            for by, sel in [
+                (By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='10']"),
+                (By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='6']"),
+                (By.XPATH, "//div[@contenteditable='true'][@title='Type a message']"),
+            ]:
+                try:
+                    msg_box = wait.until(EC.element_to_be_clickable((by, sel)))
+                    break
+                except Exception:
+                    continue
+            if msg_box is None:
+                self.log(f"WhatsApp Web: could not find message input for {group_name!r}")
+                return
+            msg_box.click()
+            import pyperclip
+            pyperclip.copy(message)
+            msg_box.send_keys(Keys.CONTROL + "v")
+            time.sleep(0.5)
+            msg_box.send_keys(Keys.ENTER)
+            time.sleep(0.5)
+            self.log(f"✓ WhatsApp Web: sent to {group_name!r}")
+            # Tab stays open — do not close driver or switch away
+        except Exception as e:
+            self.log(f"WhatsApp Web send error ({group_name!r}): {e}")
+            if not _wa_fallback_opened:
+                import webbrowser
+                webbrowser.open(_WA_URL)
+                _wa_fallback_opened = True
+
+
+
+
+def show_startup_error(exc: BaseException) -> None:
+    error_text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    try:
+        APP_DIR.mkdir(parents=True, exist_ok=True)
+        (APP_DIR / "startup_error.log").write_text(error_text, encoding="utf-8")
+    except Exception:
+        try:
+            Path(tempfile.gettempdir(), "gfh_inventory_audit_startup_error.log").write_text(error_text, encoding="utf-8")
+        except Exception:
+            pass
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("GFH Inventory Audit Error", str(exc))
+        root.destroy()
+    except Exception:
+        print("GFH Inventory Audit Error:", exc)
+        print(error_text)
+
+
+GFH_SQUARE_ICON_B64 = _safe_read_asset("gfh_square_icon_b64.txt")
+
+
+# PortalCredentialStore — credentials are now stored directly in the SQLite DB
+# via VarianceDatabase.save_portal_credentials / load_portal_credentials.
+# This stub is kept only so any legacy references don't break at import time.
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Human / Cloudflare / reCAPTCHA verification helpers
+# (ported from VidaPay workflow — used by B2BSoftScraper)
+# ─────────────────────────────────────────────────────────────────────────────
+def _b2b_is_human_verification_page(driver) -> bool:
+    """Return True if Cloudflare or reCAPTCHA challenge is currently shown."""
+    try:
+        return bool(driver.execute_script("""
+            const t = (document.body.innerText || '').toLowerCase();
+            if (t.includes('verify you are human') || t.includes('verify human')) return true;
+            if (t.includes('performing security verification'))                   return true;
+            if (t.includes('just a moment') &&
+                document.title.toLowerCase().includes('just a moment'))           return true;
+            if (document.querySelector('#BbLB6'))                                 return true;
+            if (document.querySelector('#challenge-stage'))                       return true;
+            if (document.querySelector('.cf-turnstile'))                          return true;
+            if (document.querySelector('[name="cf-turnstile-response"]'))         return true;
+            if (document.querySelector('input[id*="cf-chl-widget"]'))             return true;
+            if (document.querySelector('iframe[src*="challenges.cloudflare.com"]')) return true;
+            if (document.querySelector('iframe[src*="recaptcha/api2/anchor"]') ||
+                document.querySelector('iframe[src*="recaptcha/enterprise/anchor"]')) return true;
+            return false;
+        """))
+    except Exception:
+        return False
+
+
+def _cdp_trusted_click(driver, vp_x, vp_y, log=print):
+    """One trusted left-click at VIEWPORT coords via CDP Input events.
+
+    Screen-free: no OS cursor movement, no focus change - works while the
+    Edge window sits on any monitor or behind other windows (it just must
+    not be minimized). The events are isTrusted=true, which is what Google
+    reCAPTCHA now requires (a JS .click() is isTrusted=false and ignored).
+
+    Idea ref: chrome-devtools-mcp issue #1826."""
+    def _dispatch(etype, buttons, count):
+        driver.execute_cdp_cmd("Input.dispatchMouseEvent", {
+            "type": etype,
+            "x": float(vp_x),
+            "y": float(vp_y),
+            "button": "left",
+            "buttons": buttons,
+            "clickCount": count,
+        })
+
+    try:
+        _dispatch("mouseMoved", 0, 0)
+        time.sleep(0.06)
+        _dispatch("mousePressed", 1, 1)
+        time.sleep(0.09)
+        _dispatch("mouseReleased", 0, 1)
+        return True
+    except Exception as exc:
+        log(f"CDP trusted click failed: {exc}")
+        return False
+
+
+def _cdp_click_iframe_checkbox(driver, iframe_el, offset_x=28, log=print):
+    """Trusted CDP click on the checkbox inside a cross-origin challenge
+    iframe (reCAPTCHA anchor / Turnstile). The click point is computed
+    from the iframe's viewport rect + offset, so it never needs the
+    screen, the mouse, or JS. Returns False when it could not fire so
+    the caller can fall back to the legacy clickers."""
+    try:
+        driver.execute_script(
+            "arguments[0].scrollIntoView({block:'center'});", iframe_el)
+        time.sleep(0.4)
+        rect = driver.execute_script(
+            "const r = arguments[0].getBoundingClientRect();"
+            "return {left: r.left, top: r.top, width: r.width,"
+            "        height: r.height};", iframe_el)
+        if not rect or not rect.get("width"):
+            log("Challenge iframe has zero size - not rendered yet.")
+            return False
+        x = rect["left"] + offset_x
+        y = rect["top"] + rect["height"] / 2.0
+        log(f"CDP trusted click at viewport ({x:.0f},{y:.0f}) "
+            f"(iframe {rect['width']:.0f}x{rect['height']:.0f}).")
+        return _cdp_trusted_click(driver, x, y, log=log)
+    except Exception as exc:
+        log(f"CDP iframe checkbox click error: {exc}")
+        return False
+
+
+def _discover_devtools_port(log=print):
+    """Zero-config CDP port discovery (chrome-devtools-mcp#1826).
+    Chrome/Edge write DevToolsActivePort (line 1 = port) whenever remote
+    debugging is on - including the chrome://inspect remote-debugging
+    toggle on the user's normal browser. Returns the first port that
+    answers, or None."""
+    candidates = []
+    la = os.environ.get("LOCALAPPDATA")
+    if la:
+        candidates += [
+            os.path.join(la, "Microsoft", "Edge", "User Data",
+                         "DevToolsActivePort"),
+            os.path.join(la, "Google", "Chrome", "User Data",
+                         "DevToolsActivePort"),
+        ]
+    try:
+        candidates.append(os.path.join(GFH_AUTOMATION_PROFILE_DIR,
+                                       "DevToolsActivePort"))
+    except Exception:
+        pass
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8",
+                      errors="ignore") as fh:
+                port = int((fh.readline() or "").strip())
+        except Exception:
+            continue
+        if not 0 < port < 65536:
+            continue
+        try:
+            with socket.create_connection(("127.0.0.1", port),
+                                          timeout=1):
+                log(f"CDP port {port} discovered via {path}")
+                return port
+        except Exception:
+            continue
+    return None
+
+
+def _b2b_cdp_click_turnstile(driver, log=print) -> bool:
+    """
+    Solve the Cloudflare Turnstile widget using a CDP trusted click.
+
+    Why this replaced the old pyautogui approach:
+      - pyautogui moves the REAL OS mouse and needs Edge in the FOREGROUND
+        (SetForegroundWindow), so it hijacks the user's screen. That breaks
+        the "run automation on one screen, work on another" workflow.
+      - CDP Input.dispatchMouseEvent synthesizes trusted (isTrusted=true)
+        browser-level input at VIEWPORT coordinates. From the page's point
+        of view it is indistinguishable from a real click, but it never
+        touches the OS mouse, never steals focus, and works regardless of
+        which monitor Edge sits on or what DPI scaling is in play.
+
+    Widget location (unchanged, proven trick): Cloudflare renders the
+    Turnstile iframe inside a CLOSED shadow root, so querySelector can never
+    see the iframe itself. But Cloudflare ALWAYS injects a hidden
+    [name="cf-turnstile-response"] input into the MAIN DOM; the parent chain
+    of that input hosts the ~300x65 widget box, and getBoundingClientRect()
+    on it yields the exact viewport coordinates for the CDP click.
+
+    Success signal: the response token filling in the MAIN DOM:
+        document.querySelector('[name="cf-turnstile-response"]').value
+    Non-empty token = Turnstile accepted the solve. Checked BEFORE clicking
+    (managed / non-interactive challenges pass with no click at all) and
+    polled after every click attempt.
+    """
+
+    def _token():
+        try:
+            return driver.execute_script("""
+                const el = document.querySelector('[name="cf-turnstile-response"]');
+                return el && el.value ? el.value : '';
+            """) or ""
+        except Exception:
+            return ""
+
+    def _cleared():
+        try:
+            still = driver.execute_script("""
+                const t = (document.body.innerText || '').toLowerCase();
+                if (t.includes('verify you are human') || t.includes('verify human')) return true;
+                if (t.includes('performing security verification')) return true;
+                if (t.includes('just a moment')) return true;
+                return false;
+            """)
+            return not still
+        except Exception:
+            return False
+
+    def _cdp_click(x, y):
+        """Trusted click at viewport (x, y) via CDP input events."""
+        try:
+            # Approach movement — pointer trajectory is one of the signals
+            steps = [(x - 60, y - 45), (x - 25, y - 15), (x, y)]
+            for sx, sy in steps:
+                driver.execute_cdp_cmd("Input.dispatchMouseEvent", {
+                    "type": "mouseMoved", "x": int(sx), "y": int(sy),
+                    "button": "none", "buttons": 0,
+                })
+                time.sleep(0.06)
+            driver.execute_cdp_cmd("Input.dispatchMouseEvent", {
+                "type": "mousePressed", "x": int(x), "y": int(y),
+                "button": "left", "buttons": 1, "clickCount": 1,
+            })
+            time.sleep(0.08)
+            driver.execute_cdp_cmd("Input.dispatchMouseEvent", {
+                "type": "mouseReleased", "x": int(x), "y": int(y),
+                "button": "left", "buttons": 0, "clickCount": 1,
+            })
+            return True
+        except Exception as e:
+            log(f"  CDP click error: {e}")
+            return False
+
+    def _actions_click(el, x_off, w):
+        """Fallback trusted click via Selenium ActionChains (also CDP-level,
+        also completely screen-free)."""
+        try:
+            from selenium.webdriver.common.action_chains import ActionChains
+            ActionChains(driver).move_to_element_with_offset(
+                el, int(x_off - w / 2), 0).click().perform()
+            return True
+        except Exception as e:
+            log(f"  ActionChains click error: {e}")
+            return False
+
+    # -- 0. Already solved? (managed / non-interactive auto-pass) -------------
+    tok = _token()
+    if tok:
+        log("  Turnstile token already present - no click needed.")
+        return True
+
+    time.sleep(2.0)  # let the widget finish rendering
+
+    # -- 1. Locate the widget box by geometry (closed-shadow safe) ------------
+    rect = None
+    for tick in range(10):
+        try:
+            rect = driver.execute_script("""
+                const cfInput = document.querySelector(
+                    '[name="cf-turnstile-response"], input[id*="cf-chl-widget"]');
+                if (cfInput) {
+                    let el = cfInput.parentElement;
+                    for (let i = 0; i < 6 && el; i++) {
+                        const r = el.getBoundingClientRect();
+                        if (r.width >= 250 && r.width <= 380 &&
+                            r.height >= 45 && r.height <= 110 &&
+                            (r.top > 0 || r.left > 0)) {
+                            return {left:r.left, top:r.top,
+                                    width:r.width, height:r.height,
+                                    source:'cf-input-parent'};
+                        }
+                        el = el.parentElement;
+                    }
+                }
+                const all = document.querySelectorAll('div');
+                for (const el of all) {
+                    const r = el.getBoundingClientRect();
+                    if (r.width >= 280 && r.width <= 320 && r.height >= 55 && r.height <= 75) {
+                        const txt = (el.innerText || '').trim().toLowerCase();
+                        if (txt.includes('verify you are human') || txt.includes('verify')) {
+                            return {left:r.left, top:r.top, width:r.width, height:r.height};
+                        }
+                    }
+                }
+                return null;
+            """)
+            if rect:
+                log(f"  Turnstile widget located (tick {tick+1}/10): "
+                    f"{int(rect['width'])}x{int(rect['height'])}px "
+                    f"at viewport ({int(rect['left'])},{int(rect['top'])}).")
+                break
+            # Bail out early when this is clearly NOT a Turnstile page, so the
+            # reCAPTCHA branch is not starved.
+            if tick >= 4:
+                has_cf = driver.execute_script("""
+                    return !!(document.querySelector('[name="cf-turnstile-response"]') ||
+                              document.querySelector('input[id*="cf-chl-widget"]') ||
+                              document.querySelector('.cf-turnstile'));
+                """)
+                if not has_cf:
+                    log("  No Turnstile widget/response input found - not a Turnstile page.")
+                    return False
+        except Exception:
+            pass
+        time.sleep(1)
+
+    if not rect:
+        log("  Could not locate the Turnstile widget box by geometry scan.")
+        return False
+
+    # -- 2. Scroll the widget into view and re-read its rect ------------------
+    try:
+        driver.execute_script("""
+            const cfInput = document.querySelector('[name="cf-turnstile-response"]');
+            let el = null;
+            if (cfInput) {
+                el = cfInput.parentElement;
+                for (let i = 0; i < 6 && el; i++) {
+                    const r = el.getBoundingClientRect();
+                    if (r.width >= 250 && r.width <= 380 && r.height >= 45 && r.height <= 110) break;
+                    el = el.parentElement;
+                }
+            }
+            if (!el) {
+                const all = document.querySelectorAll('div');
+                for (const c of all) {
+                    const r = c.getBoundingClientRect();
+                    const txt = (c.innerText || '').trim().toLowerCase();
+                    if (r.width >= 280 && r.width <= 320 && r.height >= 55 && r.height <= 75 &&
+                        txt.includes('verify')) { el = c; break; }
+                }
+            }
+            if (el) el.scrollIntoView({block:'center', inline:'center'});
+        """)
+        time.sleep(0.8)
+        rect2 = driver.execute_script("""
+            const cfInput = document.querySelector('[name="cf-turnstile-response"]');
+            if (cfInput) {
+                let el = cfInput.parentElement;
+                for (let i = 0; i < 6 && el; i++) {
+                    const r = el.getBoundingClientRect();
+                    if (r.width >= 250 && r.width <= 380 && r.height >= 45 && r.height <= 110 &&
+                        r.top > 0 && r.left > 0) {
+                        return {left:r.left, top:r.top, width:r.width, height:r.height};
+                    }
+                    el = el.parentElement;
+                }
+            }
+            return null;
+        """)
+        if rect2:
+            rect = rect2
+    except Exception:
+        pass
+
+    time.sleep(1.0)  # let Cloudflare's JS listeners fully bind
+
+    # -- 3. Click attempts across the checkbox zone ---------------------------
+    w = rect["width"]
+    attempts = [(x_off, "checkbox") for x_off in (22, 16, 30, 12, 40)]
+    attempts.append((w / 2, "centre"))
+
+    for x_off, label in attempts:
+        if _token():
+            log("  Turnstile token present - solved.")
+            return True
+        cx = rect["left"] + x_off
+        cy = rect["top"] + rect["height"] / 2
+        log(f"  CDP trusted click at viewport ({int(cx)},{int(cy)}) [{label}]...")
+        clicked = _cdp_click(cx, cy)
+        if not clicked:
+            # Fallback: ActionChains on the wrapper element (still screen-free)
+            try:
+                el = driver.execute_script("""
+                    const cfInput = document.querySelector('[name="cf-turnstile-response"]');
+                    if (cfInput) {
+                        let p = cfInput.parentElement;
+                        for (let i = 0; i < 6 && p; i++) {
+                            const r = p.getBoundingClientRect();
+                            if (r.width >= 250 && r.width <= 380 && r.height >= 45 && r.height <= 110)
+                                return p;
+                            p = p.parentElement;
+                        }
+                    }
+                    return null;
+                """)
+                if el:
+                    clicked = _actions_click(el, x_off, rect["width"])
+            except Exception:
+                pass
+        # Poll for the token - the definitive success signal (up to 8s)
+        for _w in range(16):
+            time.sleep(0.5)
+            if _token():
+                log("  Turnstile token captured - verified CLEAR.")
+                return True
+            if _w == 5 and _cleared():
+                log("  Challenge text gone - treated as cleared.")
+                return True
+
+    log("  CDP Turnstile click did not yield a token - falling through to human wait.")
+    return False
+
+def _b2b_try_solve_recaptcha(driver, log=print) -> bool:
+    """Solve reCAPTCHA v2 via Google STT audio challenge (with Whisper fallback)."""
+    import shutil, subprocess, tempfile
+    try:
+        import speech_recognition as sr
+    except ImportError:
+        try:
+            subprocess.run([sys.executable, "-m", "pip", "install", "SpeechRecognition",
+                            "--quiet", "--disable-pip-version-check"], capture_output=True, timeout=90)
+            import speech_recognition as sr
+        except Exception:
+            log("  SpeechRecognition not available — cannot solve reCAPTCHA audio.")
+            return False
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        log("  ffmpeg not found — cannot convert audio for reCAPTCHA.")
+        return False
+
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+
+    try:
+        driver.switch_to.default_content()
+
+        # Find anchor iframe
+        anchor = None
+        for sel in ["iframe[src*='recaptcha/api2/anchor']",
+                    "iframe[src*='recaptcha/enterprise/anchor']",
+                    "iframe[title*='reCAPTCHA']"]:
+            try:
+                anchor = driver.find_element(By.CSS_SELECTOR, sel)
+                break
+            except Exception:
+                pass
+        if not anchor:
+            log("  reCAPTCHA anchor iframe not found.")
+            return False
+
+        _cb_trusted = False
+        try:
+            # TRUSTED click on the checkbox, straight through the anchor
+            # iframe (screen-free). Google ignores JS .click() events
+            # (isTrusted=false), so this is tried BEFORE the legacy
+            # element-click path below.
+            _cb_trusted = _cdp_click_iframe_checkbox(driver, anchor,
+                                                     offset_x=28, log=log)
+            if _cb_trusted:
+                log("  reCAPTCHA checkbox clicked (CDP trusted - screen-free).")
+                time.sleep(2)
+        except Exception as _cdp_exc:
+            log(f"  CDP trusted click unavailable ({_cdp_exc}) - "
+                f"falling back to the element click.")
+        if not _cb_trusted:
+            driver.switch_to.frame(anchor)
+            try:
+                cb = driver.find_element(By.ID, "recaptcha-anchor")
+                if driver.execute_script(
+                        "return arguments[0].getAttribute('aria-checked');",
+                        cb) != "true":
+                    cb.click()
+                    log("  reCAPTCHA checkbox clicked.")
+                    time.sleep(2)
+            except Exception:
+                pass
+        driver.switch_to.default_content()
+        time.sleep(1.5)
+
+        # Find bframe
+        bframe = None
+        for sel in ["iframe[src*='recaptcha/api2/bframe']",
+                    "iframe[src*='recaptcha/enterprise/bframe']",
+                    "iframe[title*='recaptcha challenge']"]:
+            try:
+                bframe = driver.find_element(By.CSS_SELECTOR, sel)
+                break
+            except Exception:
+                pass
+        if not bframe:
+            log("  reCAPTCHA bframe not found.")
+            return False
+
+        driver.switch_to.frame(bframe)
+        try:
+            WebDriverWait(driver, 8).until(
+                EC.element_to_be_clickable((By.ID, "recaptcha-audio-button"))
+            ).click()
+            log("  Audio button clicked.")
+            time.sleep(2)
+        except Exception as e:
+            log(f"  Audio button error: {e}")
+            driver.switch_to.default_content()
+            return False
+
+        # Audio challenge loop (up to 3 cycles)
+        BFRAME_SELS = ["iframe[src*='recaptcha/api2/bframe']",
+                       "iframe[src*='recaptcha/enterprise/bframe']",
+                       "iframe[title*='recaptcha challenge']"]
+
+        def _find_bframe():
+            driver.switch_to.default_content()
+            for sel in BFRAME_SELS:
+                try:
+                    return driver.find_element(By.CSS_SELECTOR, sel)
+                except Exception:
+                    pass
+            return None
+
+        submitted = False
+        for cycle in range(3):
+            if cycle > 0:
+                _bf = _find_bframe()
+                if not _bf:
+                    break
+                driver.switch_to.frame(_bf)
+                try:
+                    WebDriverWait(driver, 6).until(
+                        EC.element_to_be_clickable((By.ID, "recaptcha-reload-button"))
+                    ).click()
+                    log(f"  Audio reloaded (cycle {cycle+1}).")
+                    time.sleep(2.5)
+                except Exception:
+                    driver.switch_to.default_content()
+                    break
+                driver.switch_to.default_content()
+
+            _bf2 = _find_bframe()
+            if not _bf2:
+                break
+            driver.switch_to.frame(_bf2)
+            time.sleep(1)
+            mp3_url = None
+            try:
+                mp3_url = driver.find_element(
+                    By.CSS_SELECTOR, "a.rc-audiochallenge-tdownload-link"
+                ).get_attribute("href")
+            except Exception:
+                pass
+            if not mp3_url:
+                try:
+                    mp3_url = driver.find_element(
+                        By.CSS_SELECTOR, "audio#audio-source, audio source"
+                    ).get_attribute("src")
+                except Exception:
+                    pass
+            driver.switch_to.default_content()
+            if not mp3_url:
+                continue
+
+            transcript = None
+            with tempfile.TemporaryDirectory() as tmp:
+                import os as _os
+                mp3 = _os.path.join(tmp, "c.mp3")
+                wav = _os.path.join(tmp, "c.wav")
+                try:
+                    import urllib.request as _ur
+                    _ur.urlretrieve(mp3_url, mp3)
+                    subprocess.run([ffmpeg, "-y", "-i", mp3, "-ar", "16000", "-ac", "1", wav],
+                                   capture_output=True, timeout=30)
+                    rec = sr.Recognizer()
+                    with sr.AudioFile(wav) as _src:
+                        _audio = rec.record(_src)
+                    transcript = rec.recognize_google(_audio)
+                    log(f"  STT result: '{transcript}'")
+                except Exception as e:
+                    log(f"  STT failed (cycle {cycle+1}): {e}")
+
+            if not transcript:
+                continue
+
+            _bf3 = _find_bframe()
+            if not _bf3:
+                break
+            driver.switch_to.frame(_bf3)
+            try:
+                inp = WebDriverWait(driver, 8).until(
+                    EC.presence_of_element_located((By.ID, "audio-response"))
+                )
+                inp.clear()
+                inp.send_keys(transcript.lower().strip())
+                time.sleep(0.4)
+                driver.find_element(By.ID, "recaptcha-verify-button").click()
+                log(f"  reCAPTCHA answer submitted (cycle {cycle+1}).")
+                time.sleep(2.5)
+                submitted = True
+            except Exception as e:
+                log(f"  Answer submit error: {e}")
+            driver.switch_to.default_content()
+            if submitted:
+                break
+
+        driver.switch_to.default_content()
+        return submitted
+
+    except Exception as e:
+        log(f"  reCAPTCHA solver error: {e}")
+        try:
+            driver.switch_to.default_content()
+        except Exception:
+            pass
+        return False
+
+
+def _b2b_try_auto_click_human_verification(driver, log=print) -> bool:
+    """Detect verification type (Cloudflare vs reCAPTCHA) and dispatch."""
+    from selenium.webdriver.common.by import By
+    is_cf = False
+    try:
+        is_cf = bool(driver.execute_script("""
+            if (document.querySelector('[name="cf-turnstile-response"]'))           return true;
+            if (document.querySelector('input[id*="cf-chl-widget"]'))               return true;
+            if (document.querySelector('.cf-turnstile'))                            return true;
+            if (document.querySelector('iframe[src*="challenges.cloudflare.com"]')) return true;
+            if (document.querySelector('#challenge-stage'))                         return true;
+            const t = (document.body.innerText || '').toLowerCase();
+            if (t.includes('performing security verification'))                     return true;
+            if (t.includes('just a moment') &&
+                document.title.toLowerCase().includes('just a moment'))             return true;
+            return false;
+        """))
+    except Exception:
+        pass
+
+    if is_cf:
+        log("Cloudflare Turnstile detected — CDP trusted click (screen-free).")
+        return _b2b_cdp_click_turnstile(driver, log=log)
+
+    # reCAPTCHA
+    for sel in ["iframe[src*='recaptcha/api2/anchor']",
+                "iframe[src*='recaptcha/enterprise/anchor']",
+                "iframe[title*='reCAPTCHA']"]:
+        try:
+            driver.find_element(By.CSS_SELECTOR, sel)
+            log("reCAPTCHA detected — running audio solver.")
+            return _b2b_try_solve_recaptcha(driver, log=log)
+        except Exception:
+            pass
+
+    return False
+
+
+def _b2b_wait_for_human_verification_clear(driver, stop_event=None, timeout: int = 120, log=print) -> bool:
+    """Wait for any Cloudflare/reCAPTCHA challenge to pass, auto-solving if possible."""
+    if not _b2b_is_human_verification_page(driver):
+        return True
+    log("Human verification detected on B2B portal.")
+
+    # Check for managed challenge (auto-resolves itself)
+    try:
+        is_managed = bool(driver.execute_script("""
+            const t = (document.body.innerText || '').toLowerCase();
+            return t.includes('performing security verification') ||
+                   (t.includes('just a moment') && document.title.toLowerCase().includes('just a moment'));
+        """))
+    except Exception:
+        is_managed = False
+
+    if is_managed:
+        log("  Managed challenge — waiting up to 15s for auto-resolve…")
+        for _ in range(15):
+            time.sleep(1)
+            if not _b2b_is_human_verification_page(driver):
+                log("  Managed challenge resolved. Continuing.")
+                return True
+        log("  Managed challenge still present — trying click strategies.")
+
+    for cycle in range(3):
+        if stop_event is not None and stop_event.is_set():
+            return False
+        log(f"  Verification cycle {cycle+1}/3…")
+        if _b2b_try_auto_click_human_verification(driver, log=log):
+            for _ in range(10):
+                time.sleep(1)
+                if not _b2b_is_human_verification_page(driver):
+                    log("  Verification cleared.")
+                    return True
+            log(f"  Cycle {cycle+1}: still showing after click.")
+        else:
+            log(f"  Cycle {cycle+1}: no click delivered.")
+        if cycle < 2:
+            time.sleep(5)
+            if not _b2b_is_human_verification_page(driver):
+                return True
+    log("Human verification did not clear automatically.")
+    # -- Grace period: beep + wait for a manual solve instead of failing fast --
+    # The automation may run on a second screen while the user works elsewhere;
+    # give them a chance to solve the challenge by hand before giving up.
+    try:
+        import winsound
+        for _b in range(3):
+            winsound.Beep(1200, 300)
+            time.sleep(0.25)
+        log("  Beeped 3x - waiting up to 120s for a manual solve...")
+    except Exception:
+        log("  Waiting up to 120s for a manual solve...")
+    _cleared_manually = False
+    for _g in range(60):  # 60 x 2s = 120s
+        if stop_event is not None and stop_event.is_set():
+            return False
+        time.sleep(2)
+        if not _b2b_is_human_verification_page(driver):
+            _cleared_manually = True
+            break
+        if _g in (7, 22, 37, 52):
+            log("  Still waiting for manual solve...")
+    if _cleared_manually:
+        log("  Verification cleared manually. Continuing.")
+        return True
+    log("  No manual solve within 120s. Stopping this store.")
+    return False
+
+
+# ── B2B post-login page-state machine (mirrors VidaPay's finish_setup_steps) ──
+
+_B2B_STATE_LOGIN          = "LOGIN"
+_B2B_STATE_VERIFY         = "HUMAN_VERIFY"
+_B2B_STATE_NEW_SIGN       = "NEW_SIGN_IN"
+_B2B_STATE_TWO_FA         = "TWO_FACTOR"
+_B2B_STATE_TRUST_DEVICE   = "TRUST_DEVICE"
+_B2B_STATE_SETUP_NEXT     = "SETUP_NEXT"
+_B2B_STATE_SECURITY_UPG   = "SECURITY_UPGRADE"
+_B2B_STATE_READY_TO_GO    = "READY_TO_GO"
+_B2B_STATE_PORTAL         = "PORTAL"
+_B2B_STATE_UNKNOWN        = "UNKNOWN"
+
+
+def _b2b_get_body(driver) -> str:
+    from selenium.webdriver.common.by import By  # local import — By is not module-level
+    try:
+        return driver.find_element(By.TAG_NAME, "body").text.lower()
+    except Exception:
+        return ""
+
+
+def _b2b_has_heading(driver, phrase: str) -> bool:
+    """JS-based heading check — works before body.text populates (SPA render lag).
+    Checks visible h1/h2/h3/h4 elements, same approach as VidaPay has_h3_heading."""
+    phrase = phrase.lower().strip()
+    try:
+        texts = driver.execute_script(
+            """
+            return Array.from(document.querySelectorAll('h1,h2,h3,h4,legend')).map(function(el) {
+                var style = window.getComputedStyle(el);
+                var rect = el.getBoundingClientRect();
+                var visible = style.display !== 'none' && style.visibility !== 'hidden'
+                              && rect.width > 0 && rect.height > 0;
+                return visible ? (el.innerText || el.textContent || '').trim().toLowerCase() : '';
+            }).filter(Boolean);
+            """
+        )
+        return any(phrase in str(t) for t in (texts or []))
+    except Exception:
+        return phrase in _b2b_get_body(driver)
+
+
+def _b2b_get_page_state(driver) -> str:
+    """Classify current B2B page.
+
+    Detection order (most-specific first):
+      1. URL keyword — immediate, works before SPA body text renders.
+      2. JS heading check — visible h1-h4, faster than body.text on SPA.
+      3. body.text fallback — plain text, slower but broadest coverage.
+
+    Mirrors VidaPay get_page_state URL+heading strategy exactly.
+    """
+    # Cloudflare / reCAPTCHA — check first, URL might be whitelisted
+    if _b2b_is_human_verification_page(driver):
+        return _B2B_STATE_VERIFY
+
+    url = ""
+    try:
+        url = driver.current_url.lower()
+    except Exception:
+        pass
+
+    # ── URL-based detection (instant, no SPA render needed) ──────────────
+    # B2BSoft uses same URL slug patterns as VidaPay portal.
+    if "twofactornewdevicesignin" in url or "newdevicesignin" in url:
+        return _B2B_STATE_NEW_SIGN
+    if "twofactorcheck" in url or "twofactor/check" in url:
+        return _B2B_STATE_TWO_FA
+    if "twofactorupdatename" in url or "trustdevice" in url:
+        return _B2B_STATE_TRUST_DEVICE
+    if "twofactorready" in url or "readytogo" in url:
+        return _B2B_STATE_READY_TO_GO
+    if "secureupgradeoptions" in url or "securityupgrade" in url:
+        return _B2B_STATE_SECURITY_UPG
+    if "twofactorsetup" in url:
+        return _B2B_STATE_SETUP_NEXT
+
+    # ── Heading-based detection (works during SPA partial render) ─────────
+    if _b2b_has_heading(driver, "new sign in"):
+        return _B2B_STATE_NEW_SIGN
+    if (_b2b_has_heading(driver, "2-factor authentication") or
+            _b2b_has_heading(driver, "two-factor authentication") or
+            _b2b_has_heading(driver, "verify your identity")):
+        return _B2B_STATE_TWO_FA
+    if _b2b_has_heading(driver, "trust this device") or _b2b_has_heading(driver, "trust device"):
+        return _B2B_STATE_TRUST_DEVICE
+    if _b2b_has_heading(driver, "ready to go") or _b2b_has_heading(driver, "you're all set"):
+        return _B2B_STATE_READY_TO_GO
+    if (_b2b_has_heading(driver, "upgrade security") or
+            _b2b_has_heading(driver, "important: upgrade security")):
+        return _B2B_STATE_SECURITY_UPG
+
+    # Setup-Next pages sit between Trust Device and Ready To Go and carry a
+    # #setupNextBtn button (VidaPay is_twofactor_setup_next_page): any
+    # twofactor.* URL with a Next/setupNextBtn control needs an explicit click,
+    # otherwise the flow stalls until timeout.
+    if "twofactor" in url and _b2b_has_any_setup_next_button(driver):
+        return _B2B_STATE_SETUP_NEXT
+
+    # ── body.text fallback (slowest — SPA must have fully rendered) ───────
+    body = _b2b_get_body(driver)
+
+    if "new sign in" in body or "new sign-in" in body or "don't recognize this device" in body or "unrecognized device" in body:
+        return _B2B_STATE_NEW_SIGN
+    if any(k in body for k in ("2-factor", "two-factor", "authentication code",
+                                "verify your identity", "enter the code", "otp")):
+        return _B2B_STATE_TWO_FA
+    if "trust this device" in body or "trust device" in body or "remember this device" in body:
+        return _B2B_STATE_TRUST_DEVICE
+    if "ready to go" in body or "you're all set" in body or "you are all set" in body:
+        return _B2B_STATE_READY_TO_GO
+
+    # ── Alerts page — portal landing showing the ALERTS (N) panel with
+    # Later-dismiss buttons. The extractor treats ALERTS as a terminal
+    # state equal to PORTAL; login/2FA pages never carry Later buttons. ──
+    try:
+        if "b2bsoft.com" in url and _b2b_find_later_buttons(driver) \
+                and "alert" in _b2b_get_body(driver):
+            return _B2B_STATE_PORTAL
+    except Exception:
+        pass
+
+    # ── Portal check — on b2bsoft domain, no login fields, no 2FA text ───
+    if "wsreports.b2bsoft.com" in url:
+        try:
+            has_login = any(
+                driver.find_elements(By.ID, fid)
+                for fid in ("companyId", "AccountId", "Username", "btnSubmit", "btnClick")
+            )
+        except Exception:
+            has_login = False
+        if not has_login:
+            return _B2B_STATE_PORTAL
+
+    # ── Still on login form ───────────────────────────────────────────────
+    try:
+        if driver.find_elements(By.ID, "companyId") or driver.find_elements(By.ID, "Username"):
+            return _B2B_STATE_LOGIN
+    except Exception:
+        pass
+
+    return _B2B_STATE_UNKNOWN
+
+
+def _b2b_click_any_next(driver, log=print) -> bool:
+    """Click any visible Next/Continue/Submit button — used for New Sign In and 2FA steps."""
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    for xpath in [
+        "//button[contains(normalize-space(),'Next')]",
+        "//button[contains(normalize-space(),'Continue')]",
+        "//input[@type='submit']",
+        "//button[@type='submit']",
+    ]:
+        try:
+            btn = WebDriverWait(driver, 8).until(
+                EC.element_to_be_clickable((By.XPATH, xpath))
+            )
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
+            try:
+                btn.click()
+            except Exception:
+                driver.execute_script("arguments[0].click();", btn)
+            log(f"Clicked button: {btn.text.strip() or xpath}")
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _b2b_click_button(driver, label, text_contains=None, onclick_contains=None,
+                      button_id=None, timeout: int = 25, log=print) -> bool:
+    """Find a usable button by id/text/onclick and click it via JS.
+
+    Faithful port of VidaPay click_matching_button_js: un-disables the control,
+    scrolls it into view, clicks natively and falls back to a MouseEvent —
+    needed because B2BSoft renders setup controls hidden/disabled in the DOM
+    before they become interactive.
+    """
+    end_time = time.time() + timeout
+    last_log = 0.0
+    while time.time() < end_time:
+        try:
+            clicked = driver.execute_script(
+                """
+                const textContains = (arguments[0] || '').toLowerCase();
+                const onclickContains = (arguments[1] || '').toLowerCase();
+                const buttonId = arguments[2] || '';
+
+                const elements = Array.from(document.querySelectorAll('button, input[type=button], input[type=submit], a'));
+
+                function textOf(el) {
+                    return (el.innerText || el.value || el.textContent || '').trim().toLowerCase();
+                }
+
+                function isUsable(el) {
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    return (
+                        style.display !== 'none' &&
+                        style.visibility !== 'hidden' &&
+                        style.opacity !== '0' &&
+                        rect.width > 0 &&
+                        rect.height > 0 &&
+                        el.getClientRects().length > 0 &&
+                        !el.disabled &&
+                        el.getAttribute('aria-disabled') !== 'true'
+                    );
+                }
+
+                const btn = elements.find(el => {
+                    const id = el.id || '';
+                    const onclick = (el.getAttribute('onclick') || '').toLowerCase();
+                    const text = textOf(el);
+                    if (buttonId && id !== buttonId) return false;
+                    if (onclickContains && !onclick.includes(onclickContains)) return false;
+                    if (textContains && !text.includes(textContains)) return false;
+                    return isUsable(el);
+                });
+
+                if (!btn) return false;
+
+                btn.removeAttribute('disabled');
+                btn.disabled = false;
+                btn.removeAttribute('aria-disabled');
+                btn.scrollIntoView({block: 'center'});
+
+                try { btn.focus(); } catch (err) {}
+
+                try {
+                    btn.click();
+                    return true;
+                } catch (err) {
+                    const event = new MouseEvent('click', {bubbles: true, cancelable: true, view: window});
+                    btn.dispatchEvent(event);
+                    return true;
+                }
+                """,
+                text_contains,
+                onclick_contains,
+                button_id,
+            )
+
+            if clicked:
+                log(f"[B2B] Clicked: {label}")
+                time.sleep(1.2)
+                return True
+        except Exception:
+            pass
+
+        now = time.time()
+        if now - last_log >= 5:
+            log(f"[B2B] Waiting for {label}...")
+            last_log = now
+
+        time.sleep(0.25)
+
+    log(f"[B2B] {label} was not found or not clickable within {timeout} seconds.")
+    return False
+
+
+def _b2b_has_any_setup_next_button(driver) -> bool:
+    """True when a #setupNextBtn / visible Next control exists (VidaPay
+    has_any_setup_next_button). Checks DOM presence first — B2BSoft renders
+    the button before Selenium reports it visible."""
+    from selenium.webdriver.common.by import By
+    try:
+        if driver.find_elements(By.ID, "setupNextBtn"):
+            return True
+        for btn in driver.find_elements(By.XPATH, "//button[normalize-space()='Next']"):
+            try:
+                if btn.is_displayed():
+                    return True
+            except Exception:
+                continue
+    except Exception:
+        pass
+    try:
+        return bool(driver.execute_script(
+            """
+            function visible(el) {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return (
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    style.opacity !== '0' &&
+                    rect.width > 0 &&
+                    rect.height > 0 &&
+                    el.getClientRects().length > 0 &&
+                    !el.disabled &&
+                    el.getAttribute('aria-disabled') !== 'true'
+                );
+            }
+
+            const byId = document.querySelector('button#setupNextBtn');
+            if (visible(byId)) return true;
+
+            return Array.from(document.querySelectorAll('button, input[type=button], input[type=submit]')).some(el => {
+                const text = (el.innerText || el.value || '').trim().toLowerCase();
+                return visible(el) && (text === 'next' || text.includes('next'));
+            });
+            """
+        ))
+    except Exception:
+        return False
+
+
+def _b2b_select_trust_radio(driver, stop_event=None, timeout: int = 180, log=print) -> bool:
+    """Select the Trust Device radio (#trustRadio) as soon as it exists in the DOM.
+
+    Port of VidaPay select_trust_radio_quickly: the Next button stays disabled
+    until the radio is checked, and B2BSoft places the radio in the HTML before
+    it renders visually — so force-check it via JS instead of waiting for
+    visibility. Keeps waiting through 2FA approval and Cloudflare interludes.
+    """
+    deadline = time.time() + timeout
+    last_log = 0.0
+    while time.time() < deadline:
+        if stop_event is not None and stop_event.is_set():
+            return False
+        try:
+            selected = driver.execute_script(
+                """
+                const radio = document.querySelector('#trustRadio');
+                if (!radio) return false;
+
+                radio.removeAttribute('disabled');
+                radio.disabled = false;
+                radio.removeAttribute('aria-disabled');
+                radio.checked = true;
+
+                try { radio.scrollIntoView({block: 'center'}); } catch (err) {}
+                try { radio.focus(); } catch (err) {}
+                try { radio.click(); } catch (err) {}
+
+                radio.dispatchEvent(new Event('input', { bubbles: true }));
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+                """
+            )
+            if selected:
+                log("[B2B] Trust Device radio selected from DOM location.")
+                time.sleep(0.2)
+                return True
+        except Exception:
+            pass
+
+        state = _b2b_get_page_state(driver)
+
+        if state == _B2B_STATE_VERIFY:
+            if not _b2b_wait_for_human_verification_clear(driver, stop_event=stop_event, log=log):
+                return False
+            continue
+
+        if state in (_B2B_STATE_PORTAL, _B2B_STATE_READY_TO_GO,
+                     _B2B_STATE_SECURITY_UPG, _B2B_STATE_SETUP_NEXT):
+            log("[B2B] Already past Trust Device radio — continuing setup flow.")
+            return True
+
+        now = time.time()
+        if now - last_log >= 8:
+            if state == _B2B_STATE_TWO_FA:
+                log("[B2B] Still on 2FA page — waiting for approval and Trust Device controls...")
+            else:
+                log(f"[B2B] Waiting for Trust Device radio… (page: {state})")
+            last_log = now
+
+        time.sleep(0.5)
+
+    log("[B2B] Trust Device radio did not appear before timeout.")
+    return False
+
+
+def _b2b_wait_for_states(driver, stop_event=None, wanted=(), timeout: int = 90,
+                         log=print, prefix="State wait"):
+    """Poll until one of `wanted` states is reached (port of VidaPay wait_for_state)."""
+    deadline = time.time() + timeout
+    last_state = None
+    while time.time() < deadline:
+        if stop_event is not None and stop_event.is_set():
+            return None
+        state = _b2b_get_page_state(driver)
+        if state != last_state:
+            log(f"[B2B] {prefix}: {state}")
+            last_state = state
+        if state == _B2B_STATE_VERIFY:
+            if not _b2b_wait_for_human_verification_clear(driver, stop_event=stop_event, log=log):
+                return None
+            last_state = None
+            continue
+        if state in wanted:
+            return state
+        time.sleep(0.5)
+    log(f"[B2B] Timed out while waiting for: {', '.join(wanted)}")
+    return None
+
+
+def _b2b_find_later_buttons(driver):
+    """All visible 'Later' alert-dismissal buttons (port of VidaPay finder)."""
+    from selenium.webdriver.common.by import By
+    xpaths = [
+        "//button[normalize-space()='Later']",
+        "//button[contains(normalize-space(),'Later')]",
+        "//a[normalize-space()='Later']",
+        "//a[contains(normalize-space(),'Later')]",
+        "//*[@role='button' and normalize-space()='Later']",
+        "//*[@role='button' and contains(normalize-space(),'Later')]",
+        "//*[self::button or self::a or @role='button'][contains(normalize-space(), 'Later')]",
+    ]
+    seen, out = set(), []
+    for xp in xpaths:
+        try:
+            for btn in driver.find_elements(By.XPATH, xp):
+                try:
+                    if btn.is_displayed() and btn.id not in seen:
+                        seen.add(btn.id)
+                        out.append(btn)
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    return out
+
+
+def _b2b_clear_later_alerts(driver, log=print, max_clicks: int = 12) -> int:
+    """Dismiss the portal's 'Later' popup alerts (port of VidaPay
+    clear_all_later_alerts) so report navigation isn't blocked."""
+    clicked, idle_rounds = 0, 0
+    while clicked < max_clicks:
+        buttons = _b2b_find_later_buttons(driver)
+        if not buttons:
+            idle_rounds += 1
+            if idle_rounds >= 4:
+                break
+            # Alerts pop up one at a time — give the next one time to render
+            # before concluding the panel is clear (user: there may be 1–4
+            # Later buttons, and ALL of them must be cleared).
+            time.sleep(1.5)
+            continue
+        idle_rounds = 0
+        btn = buttons[0]
+        try:
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
+            time.sleep(0.3)
+            try:
+                btn.click()
+            except Exception:
+                driver.execute_script("arguments[0].click();", btn)
+            clicked += 1
+            log(f"[B2B] Dismissed portal alert (Later) #{clicked}.")
+            time.sleep(1.0)
+        except Exception:
+            break
+    if clicked:
+        log(f"[B2B] Later alerts cleared — clicked {clicked} button(s).")
+    else:
+        log("[B2B] No Later alerts found.")
+    return clicked
+
+
+def _b2b_complete_setup_next_flow(driver, stop_event=None, log=print,
+                                  max_next_clicks: int = 6) -> bool:
+    """Walk every remaining 2FA setup page until the portal loads.
+
+    Port of VidaPay complete_remaining_setup_next_flow:
+      Trust Device (radio variant, or the "Trust This Device" variant with
+      only #setupNextBtn) → Setup Next pages → Ready To Go
+      (vidapayAutomaticSignIn Continue) → portal + ALERTS panel (all Later
+      buttons dismissed by the caller). The Security Upgrade page's Next must
+      NOT be clicked — it throws error=io without a selected option — so we
+      wait for it to advance on its own.
+    """
+    steps_done = 0
+    while steps_done < max_next_clicks:
+        if stop_event is not None and stop_event.is_set():
+            return False
+
+        state = _b2b_get_page_state(driver)
+        log(f"[B2B] Setup flow page: {state}")
+
+        if state == _B2B_STATE_VERIFY:
+            if not _b2b_wait_for_human_verification_clear(driver, stop_event=stop_event, log=log):
+                return False
+            continue
+
+        if state == _B2B_STATE_PORTAL:
+            log("[B2B] Setup flow completed — portal loaded.")
+            return True
+
+        if state == _B2B_STATE_SECURITY_UPG:
+            log("[B2B] Security Upgrade page — NOT clicking Next (errors without a selected option); waiting for it to advance…")
+            wait_state = _b2b_wait_for_states(
+                driver, stop_event=stop_event,
+                wanted=(_B2B_STATE_READY_TO_GO, _B2B_STATE_PORTAL),
+                timeout=20, log=log, prefix="Security upgrade wait")
+            if wait_state == _B2B_STATE_READY_TO_GO:
+                continue
+            if wait_state == _B2B_STATE_PORTAL:
+                return True
+            log("[B2B] Security upgrade page did not advance safely — manual review needed.")
+            return False
+
+        if state == _B2B_STATE_TRUST_DEVICE:
+            # Two page variants share this state:
+            #   - radio variant: #trustRadio + #setupNextBtn — Next stays
+            #     disabled until the radio is checked;
+            #   - "Trust This Device" variant (user page):
+            #     <h3>Trust This Device</h3> +
+            #     <button id="setupNextBtn">Next</button> with NO radio —
+            #     waiting 180s for one would stall the flow.
+            # So: short non-fatal radio attempt, then always click Next.
+            if not _b2b_select_trust_radio(driver, stop_event=stop_event,
+                                           log=log, timeout=6):
+                log("[B2B] No Trust Device radio appeared — clicking Next directly.")
+            # User page button: #setupNextBtn with text Next (no onclick) —
+            # id-first, onclick submitthisform as fallback.
+            if not _b2b_click_button(driver, label="Trust Device Next",
+                                     text_contains="next",
+                                     button_id="setupNextBtn",
+                                     timeout=30, log=log):
+                if not _b2b_click_button(driver, label="Trust Device Next fallback",
+                                         text_contains="next",
+                                         onclick_contains="submitthisform",
+                                         timeout=30, log=log):
+                    return False
+            steps_done += 1
+            time.sleep(1)
+            continue
+
+        if state == _B2B_STATE_SETUP_NEXT:
+            if not _b2b_click_button(driver, label="Setup Next",
+                                     text_contains="next", button_id="setupNextBtn",
+                                     timeout=30, log=log):
+                state_after = _b2b_get_page_state(driver)
+                if state_after == _B2B_STATE_PORTAL:
+                    log("[B2B] Portal loaded before Setup Next click — continuing.")
+                    return True
+                if state_after == _B2B_STATE_READY_TO_GO:
+                    continue
+                return False
+            steps_done += 1
+            time.sleep(1)
+            continue
+
+        if state == _B2B_STATE_READY_TO_GO:
+            # User page: <button onclick="vidapayAutomaticSignIn()">Continue</button>.
+            # VidaPay click_ready_to_go_continue: onclick-first, then
+            # text-only, then the old #setupNextBtn Next.
+            clicked = _b2b_click_button(
+                driver, label="Ready To Go Continue",
+                text_contains="continue", onclick_contains="vidapayautomaticsignin",
+                timeout=18, log=log)
+            if not clicked:
+                clicked = _b2b_click_button(
+                    driver, label="Ready To Go Continue fallback",
+                    text_contains="continue", timeout=18, log=log)
+            if not clicked:
+                # Older B2BSoft variants reuse #setupNextBtn on Ready To Go.
+                clicked = _b2b_click_button(driver, label="Ready To Go final Next fallback",
+                                            text_contains="next", button_id="setupNextBtn",
+                                            timeout=8, log=log)
+            if not clicked:
+                return False
+            wait_state = _b2b_wait_for_states(
+                driver, stop_event=stop_event, wanted=(_B2B_STATE_PORTAL,),
+                timeout=90, log=log, prefix="After Ready To Go Continue")
+            return wait_state == _B2B_STATE_PORTAL
+
+        # NEW_SIGN / TWO_FA / UNKNOWN / LOGIN — wait for a setup or terminal state
+        wait_state = _b2b_wait_for_states(
+            driver, stop_event=stop_event,
+            wanted=(_B2B_STATE_TRUST_DEVICE, _B2B_STATE_SETUP_NEXT,
+                    _B2B_STATE_READY_TO_GO, _B2B_STATE_SECURITY_UPG,
+                    _B2B_STATE_PORTAL),
+            timeout=45, log=log, prefix="next setup step")
+        if wait_state is None:
+            log("[B2B] No more setup pages found and portal did not load.")
+            return False
+        if wait_state == _B2B_STATE_PORTAL:
+            return True
+        steps_done += 1
+
+    log(f"[B2B] Setup flow hit the safety limit after {max_next_clicks} setup action(s).")
+    return _b2b_get_page_state(driver) == _B2B_STATE_PORTAL
+
+
+def _b2b_finish_login_flow(driver, stop_event=None, log=print, timeout: int = 300) -> bool:
+    """State machine for post-login B2B flow — ports VidaPay's
+    handle_ibm_verify_and_setup → finish_setup_steps →
+    complete_remaining_setup_next_flow chain.
+
+    Handles (everything AFTER the access code / credentials steps):
+      - New Sign In (<h3>New Sign In</h3>) → click Next (onclick goToTwoFactorCheck)
+      - 2FA page → wait for the Trust Device radio (#trustRadio), select it,
+        click its Next (#setupNextBtn / onclick submitthisform)
+      - Trust Device → #setupNextBtn walk → Ready To Go → portal
+      - Security Upgrade page → wait it out (never click its Next)
+      - Cloudflare re-verification → wait to clear
+      - Portal/alert popups → dismiss 'Later' alerts → done
+    """
+    deadline = time.time() + timeout
+    last_log = 0.0
+    last_state = None
+    steps = 0
+
+    while time.time() < deadline:
+        if stop_event is not None and stop_event.is_set():
+            return False
+
+        state = _b2b_get_page_state(driver)
+
+        if state != last_state:
+            log(f"[B2B] Page state: {state}")
+            last_state = state
+            steps = 0
+
+        if state == _B2B_STATE_PORTAL:
+            log("✓ B2B portal reached — login complete.")
+            _b2b_clear_later_alerts(driver, log=log)
+            return True
+
+        if state == _B2B_STATE_VERIFY:
+            if not _b2b_wait_for_human_verification_clear(driver, stop_event=stop_event, log=log):
+                return False
+            last_state = None
+            continue
+
+        if state == _B2B_STATE_NEW_SIGN:
+            # Faithful port of VidaPay click_new_sign_in_next. The real page
+            # shows <h3>New Sign In</h3> with
+            # <button onclick="goToTwoFactorCheck()">Next</button>. Selenium
+            # clickability waits miss it (SPA renders the button
+            # non-interactive first), so match text+onclick and click via the
+            # force-enabling JS path. Retry every pass — a silently failed
+            # click must not strand the flow on this page.
+            clicked = _b2b_click_button(
+                driver, label="New Sign In Next",
+                text_contains="next", onclick_contains="gototwofactorcheck",
+                timeout=30, log=log)
+            if not clicked:
+                clicked = _b2b_click_button(
+                    driver, label="New Sign In Next fallback",
+                    text_contains="next", timeout=10, log=log)
+            if not clicked:
+                _b2b_click_any_next(driver, log=log)
+            steps += 1
+            time.sleep(1)
+            continue
+
+        if state == _B2B_STATE_TWO_FA:
+            # 2FA page: once the code is sent/approved, the Trust Device
+            # radio (#trustRadio) appears on this page. Port of VidaPay
+            # select_trust_radio_quickly — select it the moment it exists in
+            # the DOM, then submit via its Next (#setupNextBtn / onclick
+            # submitthisform). User flow: read New Sign In → click Next →
+            # continue with the 2FA radio.
+            log("[B2B] 2FA page — waiting for the Trust Device radio and selecting it automatically…")
+            if not _b2b_select_trust_radio(driver, stop_event=stop_event, log=log):
+                return False
+            if _b2b_get_page_state(driver) == _B2B_STATE_TWO_FA:
+                # Radio was checked on the 2FA page itself — click its Next.
+                # id-first (user pages show #setupNextBtn without onclick),
+                # onclick submitthisform as fallback.
+                if not _b2b_click_button(
+                        driver, label="2FA radio Next",
+                        text_contains="next", button_id="setupNextBtn",
+                        timeout=30, log=log):
+                    _b2b_click_button(
+                        driver, label="2FA radio Next fallback",
+                        text_contains="next", onclick_contains="submitthisform",
+                        timeout=10, log=log)
+            last_state = None
+            continue
+
+        if state in (_B2B_STATE_TRUST_DEVICE, _B2B_STATE_SETUP_NEXT,
+                     _B2B_STATE_READY_TO_GO, _B2B_STATE_SECURITY_UPG):
+            # Trust radio → #setupNextBtn walk → Ready To Go → portal is one
+            # continuous walk; delegate to the ported VidaPay flow.
+            ok = _b2b_complete_setup_next_flow(driver, stop_event=stop_event, log=log)
+            if ok:
+                _b2b_clear_later_alerts(driver, log=log)
+            return ok
+
+        if state == _B2B_STATE_LOGIN:
+            log("B2B returned to login page — credentials may be wrong.")
+            return False
+
+        # UNKNOWN — SPA may still be rendering; wait before re-evaluating
+        time.sleep(2)
+
+    log("B2B login flow timed out waiting for portal.")
+    return False
+
+
+# Legacy stubs kept for any external callers
+def _b2b_is_new_sign_in_page(driver) -> bool:
+    return _b2b_get_page_state(driver) == _B2B_STATE_NEW_SIGN
+
+def _b2b_click_new_sign_in_next(driver, log=print) -> bool:
+    return _b2b_click_any_next(driver, log=log)
+
+def _b2b_wait_for_new_sign_in_clear(driver, stop_event=None, timeout: int = 300, log=print) -> bool:
+    return _b2b_finish_login_flow(driver, stop_event=stop_event, log=log, timeout=timeout)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Edge remote-debug helpers (port 9227 = user profile with --remote-debugging-port)
+# ─────────────────────────────────────────────────────────────────────────────
+EDGE_DEBUG_PORT = 9227
+_WA_URL = "https://web.whatsapp.com"
+_B2B_URL = "https://wsreports.b2bsoft.com/#"
+_GFH_APP_URL = "https://gfh-telecom-app.web.app/timesheet"
+_wa_fallback_opened: bool = False  # prevent webbrowser.open firing multiple times when Edge not running
+
+# ── Tesseract / Ghostscript detection (ported from VidaPay Transfer Bot) ─────
+_TESSERACT_CANDIDATES = [
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Tesseract-OCR", "tesseract.exe"),
+    os.path.join(os.environ.get("LOCALAPPDATA", ""), "Tesseract-OCR", "tesseract.exe"),
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    r"C:\Tesseract-OCR\tesseract.exe",
+]
+_GHOSTSCRIPT_EXES = ("gswin64c", "gswin32c", "gswin64", "gswin32", "gs")
+
+
+# ── OCR dependency detection (same pattern as VidaPay Transfer Bot) ─────────
+# pytesseract is imported at MODULE LEVEL so PyInstaller bundles it into the
+# frozen EXE (a lazy import inside a function can be missed when the package
+# is absent from the build environment). Detection uses the module-level flag.
+try:
+    import pytesseract
+    PYTESSERACT_AVAILABLE = True
+except Exception:
+    pytesseract = None
+    PYTESSERACT_AVAILABLE = False
+
+# Tesseract silent installer fallback (UB-Mannheim build, same as Transfer Bot)
+_OCR_TESSERACT_URL = (
+    "https://digi.bib.uni-mannheim.de/tesseract/"
+    "tesseract-ocr-w64-setup-5.3.3.20231005.exe"
+)
+
+
+def _is_tesseract_installed() -> bool:
+    if shutil.which("tesseract"):
+        return True
+    return any(os.path.isfile(p) for p in _TESSERACT_CANDIDATES)
+
+
+def _locate_tesseract() -> str:
+    for p in _TESSERACT_CANDIDATES:
+        if os.path.isfile(p):
+            return p
+    found = shutil.which("tesseract")
+    return found if found else _TESSERACT_CANDIDATES[0]
+
+
+if PYTESSERACT_AVAILABLE:
+    # Point pytesseract at the best known tesseract.exe right away
+    # (Transfer Bot does this at module level too).
+    pytesseract.pytesseract.tesseract_cmd = _locate_tesseract()
+
+
+def _tool_on_path(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+def _run_cmd_quiet(cmd, timeout: float = 300):
+    """Run a command and return (ok, output). Never raises."""
+    try:
+        import subprocess as _sp
+        proc = _sp.run(cmd, capture_output=True, text=True, timeout=timeout)
+        output = ((proc.stdout or "") + (proc.stderr or "")).strip()
+        return proc.returncode == 0, output
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _download_file(url: str, dest: str, log=print, timeout: float = 240) -> bool:
+    """Download url to dest (Transfer Bot helper). Returns True on success."""
+    try:
+        import urllib.request as _urlreq
+        log(f"Downloading {os.path.basename(url)} ...")
+        req = _urlreq.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with _urlreq.urlopen(req, timeout=timeout) as resp, open(dest, "wb") as out:
+            shutil.copyfileobj(resp, out)
+        return os.path.isfile(dest) and os.path.getsize(dest) > 0
+    except Exception as exc:
+        log(f"Download failed: {exc}")
+        return False
+
+
+def _pip_cmd():
+    """Return a pip command usable in this Python, even inside a frozen
+    PyInstaller exe where sys.executable points at the exe itself."""
+    if getattr(sys, "frozen", False):
+        for cand in ("python", "python3", "py"):
+            found = shutil.which(cand)
+            if found:
+                return [found, "-m", "pip"]
+        return None
+    return [sys.executable, "-m", "pip"]
+
+
+def _refresh_tesseract_path() -> None:
+    """Re-point pytesseract at the best tesseract.exe after an install."""
+    if PYTESSERACT_AVAILABLE:
+        pytesseract.pytesseract.tesseract_cmd = _locate_tesseract()
+
+
+def _install_tesseract_binary(log=print) -> bool:
+    """Install the Tesseract OCR binary automatically (VidaPay Transfer Bot approach):
+    winget first, then the official silent installer as fallback."""
+    if _is_tesseract_installed():
+        return True
+    if _tool_on_path("winget"):
+        log("Installing Tesseract OCR via winget…")
+        _run_cmd_quiet(
+            ["winget", "install", "--id", "UB-Mannheim.TesseractOCR", "-e",
+             "--accept-source-agreements", "--accept-package-agreements", "--silent"],
+            timeout=600,
+        )
+        if _is_tesseract_installed():
+            log("Tesseract installed via winget.")
+            return True
+    installer = os.path.join(APP_DIR, "tesseract-setup.exe")
+    if _download_file(_OCR_TESSERACT_URL, installer, log):
+        log("Running Tesseract silent installer (this can take a minute)…")
+        _run_cmd_quiet([installer, "/S"], timeout=900)
+        try:
+            os.remove(installer)
+        except Exception:
+            pass
+        if _is_tesseract_installed():
+            log("Tesseract installed from official installer.")
+            return True
+    return False
+
+
+def _ghostscript_installed() -> bool:
+    for name in _GHOSTSCRIPT_EXES:
+        if shutil.which(name):
+            return True
+    import sys as _sys
+    if _sys.platform.startswith("win"):
+        for base in (r"C:\Program Files\gs", r"C:\Program Files (x86)\gs"):
+            if not os.path.isdir(base):
+                continue
+            try:
+                for ver_dir in os.listdir(base):
+                    bin_dir = os.path.join(base, ver_dir, "bin")
+                    if any(os.path.isfile(os.path.join(bin_dir, n + ".exe")) for n in _GHOSTSCRIPT_EXES):
+                        return True
+            except OSError:
+                continue
+    return False
+
+# Dedicated Edge profile for GFH automation (same pattern as VidaPay transfer bot).
+# Edge is launched with --remote-debugging-port=9227 against this profile so
+# WhatsApp, B2B, and GFH app sessions persist across restarts.
+GFH_AUTOMATION_PROFILE_DIR = r"C:\GFH_Edge_Automation_Profile"
+
+
+def _get_edge_exe() -> Optional[str]:
+    import shutil as _shutil
+    for candidate in (
+        _shutil.which("msedge"),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    ):
+        if candidate and os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _is_edge_port_open(port: int = EDGE_DEBUG_PORT, timeout: float = 1.0) -> bool:
+    import socket as _socket
+    try:
+        with _socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def _ensure_edge_open(port: int = EDGE_DEBUG_PORT, log=None) -> bool:
+    """Launch Edge at debug port using GFH automation profile if not already running."""
+    if _is_edge_port_open(port):
+        return True
+    edge_exe = _get_edge_exe()
+    if not edge_exe:
+        if log:
+            log("⚠ Microsoft Edge not found — install Edge and retry.")
+        return False
+    import subprocess as _sp
+    os.makedirs(GFH_AUTOMATION_PROFILE_DIR, exist_ok=True)
+    _sp.Popen([
+        edge_exe,
+        f"--remote-debugging-port={port}",
+        f"--user-data-dir={GFH_AUTOMATION_PROFILE_DIR}",
+        "--profile-directory=Default",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "about:blank",
+    ])
+    for _ in range(20):  # wait up to 10 s
+        time.sleep(0.5)
+        if _is_edge_port_open(port):
+            return True
+    if log:
+        log("⚠ Edge launched but port 9227 not ready — wait and retry.")
+    return False
+
+
+def _edge_debug_driver(port: int = EDGE_DEBUG_PORT):
+    """Return a Selenium driver attached to the already-running Edge profile at port."""
+    from selenium import webdriver
+    from selenium.webdriver.edge.options import Options as EdgeOptions
+    try:
+        if not _is_edge_port_open(port):
+            # requested port closed - zero-config discovery from
+            # DevToolsActivePort files (chrome://inspect remote debugging;
+            # idea: chrome-devtools-mcp#1826)
+            _disc = _discover_devtools_port()
+            if _disc:
+                port = _disc
+    except Exception:
+        pass
+    opts = EdgeOptions()
+    opts.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
+    return webdriver.Edge(options=opts)
+
+
+# Tabs that Edge starts with and that are safe to REUSE for a real page
+# (the automation Edge is launched with a about:blank start tab — navigating
+# it beats spawning a second tab and leaving the empty window in front).
+_BLANK_TAB_URLS = ("about:blank", "edge://newtab", "data:,")
+
+
+def _find_or_open_tab(driver, url: str) -> None:
+    """Switch to existing tab on the same origin as url; open a new tab if absent.
+
+    A leftover blank/new-tab tab (Edge starts on about:blank) is NAVIGATED to
+    the target URL instead of spawning an extra tab, so the automation window
+    shows the real page rather than an empty about:blank tab in front."""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    blank_handle = None
+    for handle in driver.window_handles:
+        try:
+            driver.switch_to.window(handle)
+            cur = driver.current_url
+        except Exception:
+            continue
+        if cur.startswith(origin):
+            return
+        if blank_handle is None and any(cur == b or cur.startswith(b) for b in _BLANK_TAB_URLS):
+            blank_handle = handle
+    if blank_handle is not None:
+        try:
+            driver.switch_to.window(blank_handle)
+            driver.get(url)
+            return
+        except Exception:
+            pass
+    driver.execute_script("window.open(arguments[0], '_blank');", url)
+    driver.switch_to.window(driver.window_handles[-1])
+
+
+def _humanize_list(items: list) -> str:
+    """['B2B', 'GFH app', 'WhatsApp Web'] -> 'B2B, GFH app, and WhatsApp Web'."""
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return ", ".join(items[:-1]) + ", and " + items[-1]
+
+
+def open_monitoring_tabs(port: int = EDGE_DEBUG_PORT, include_whatsapp: bool = True) -> list:
+    """Open B2B, GFH app (and optionally WhatsApp Web) tabs in Edge at debug port.
+
+    Returns the list of tab names that are now open. WhatsApp Web is only
+    opened when include_whatsapp is True (i.e. WhatsApp Web mode is selected);
+    with WhatsApp Desktop mode only B2B and GFH app tabs are opened.
+    """
+    opened: list = []
+    try:
+        driver = _edge_debug_driver(port)
+        for url, name in ((_B2B_URL, "B2B"), (_GFH_APP_URL, "GFH app")):
+            _find_or_open_tab(driver, url)
+            opened.append(name)
+        if include_whatsapp:
+            _find_or_open_tab(driver, _WA_URL)
+            opened.append("WhatsApp Web")
+    except Exception:
+        pass
+    return opened
+
+
+# B2B Soft Scraper (wsreports.b2bsoft.com)
+# ─────────────────────────────────────────────────────────────────────────────
+class B2BSoftScraper:
+    """Selenium scraper for the B2B Soft inventory portal.
+
+    Login flow:
+        Step 1 → Enter the Company ID / Access Code (#companyId) → click #btnSubmit
+                 (the SSO page labels #companyId "Access Code" — the Company
+                 ID doubles as the Access Code)
+        Step 2 → Enter Account ID (#AccountId)
+        Step 3 → Enter Username (#Username) + Password (#Password) → click #btnClick
+
+    After login, navigates to Inventory Count Result Details report and
+    downloads the XLSX file.
+    """
+    PORTAL_URL = "https://wsreports.b2bsoft.com/#"
+    REPORT_SELECTOR = "[uniq='9-212318']"
+
+    def __init__(self, company_id: str, account_id: str,
+                 username: str, password: str,
+                 download_dir: Path, log_fn=None, access_code: str = ""):
+        self.company_id = company_id
+        # Optional separate Access Code. The SSO login page labels its
+        # #companyId field "Access Code", but the Company ID doubles as the
+        # Access Code — when this is empty, the Company ID is typed there.
+        self.access_code = (access_code or "").strip()
+        self.account_id = account_id
+        self.username = username
+        self.password = password
+        self.download_dir = Path(download_dir)
+        _base_log = log_fn or (lambda m: None)
+
+        def _log_no_double_prefix(m):
+            # log_fn already prepends "[B2B] " — strip hardcoded copies from
+            # messages so the scheduler log never shows "[B2B] [B2B] ...".
+            m = str(m)
+            _base_log(m[len("[B2B] "):] if m.startswith("[B2B] ") else m)
+
+        self.log = _log_no_double_prefix
+        self.driver = None
+
+    def _make_driver(self):
+        self._using_debug_port = False
+        # Try user's running Edge profile first (port 9227)
+        try:
+            self.driver = _edge_debug_driver()
+            self.driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+                "behavior": "allow",
+                "downloadPath": str(self.download_dir),
+            })
+            _find_or_open_tab(self.driver, _B2B_URL)
+            self._using_debug_port = True
+            return
+        except Exception:
+            pass
+        # Fallback: new Edge or Chrome instance
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.edge.options import Options as EdgeOptions
+            opts = EdgeOptions()
+            prefs = {
+                "download.default_directory": str(self.download_dir),
+                "download.prompt_for_download": False,
+                "plugins.always_open_pdf_externally": True,
+            }
+            opts.add_experimental_option("prefs", prefs)
+            self.driver = webdriver.Edge(options=opts)
+        except Exception:
+            try:
+                from selenium import webdriver
+                from selenium.webdriver.chrome.options import Options as ChromeOptions
+                opts = ChromeOptions()
+                prefs = {
+                    "download.default_directory": str(self.download_dir),
+                    "download.prompt_for_download": False,
+                }
+                opts.add_experimental_option("prefs", prefs)
+                self.driver = webdriver.Chrome(options=opts)
+            except Exception as exc:
+                raise RuntimeError(f"Could not start Edge or Chrome WebDriver: {exc}")
+
+    def login(self, stop_event=None) -> bool:
+        """Full B2B login with Cloudflare Turnstile + reCAPTCHA + 2FA support.
+
+        Flow:
+            Open portal → [verification?] → Step 1 Company ID → [verification?]
+            → Step 2 Account ID → Step 3 Username + Password → [verification?]
+            → confirm authenticated
+        """
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+
+        if not all([self.company_id, self.username, self.password]):
+            raise RuntimeError("B2B credentials incomplete — fill Portal Credentials tab (Account ID is optional).")
+        if self.driver is None:
+            self._make_driver()
+        self.download_dir.mkdir(parents=True, exist_ok=True)
+        # Switch to B2B tab before navigating — prevents overwriting another scraper's tab.
+        _find_or_open_tab(self.driver, self.PORTAL_URL)
+        self.log(f"Opening {self.PORTAL_URL}")
+        self.driver.get(self.PORTAL_URL)
+        time.sleep(2)
+
+        # Clear any initial verification challenge
+        if _b2b_is_human_verification_page(self.driver):
+            if not _b2b_wait_for_human_verification_clear(self.driver, stop_event=stop_event, log=self.log):
+                raise RuntimeError("Cloudflare/reCAPTCHA challenge on landing page was not resolved.")
+
+        wait = WebDriverWait(self.driver, 30)
+        drv = self.driver
+
+        def _robust_type(element, text):
+            """JS-clear + event-dispatch before typing — same pattern as VidaPay extractor."""
+            drv.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+            drv.execute_script("arguments[0].click();", element)
+            try:
+                drv.execute_script(
+                    "arguments[0].value='';"
+                    "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));"
+                    "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));",
+                    element,
+                )
+            except Exception:
+                pass
+            try:
+                element.clear()
+            except Exception:
+                pass
+            try:
+                existing = element.get_attribute("value") or ""
+                if existing:
+                    from selenium.webdriver.common.keys import Keys as _K
+                    element.send_keys(_K.BACK_SPACE * (len(existing) + 2))
+            except Exception:
+                pass
+            element.send_keys(text)
+
+        def _js_click(element):
+            try:
+                element.click()
+            except Exception:
+                drv.execute_script("arguments[0].click();", element)
+
+        def _visible_fields_snapshot():
+            """List visible input/button identifiers on the page (diagnostics)."""
+            try:
+                return drv.execute_script("""
+                    const out = [];
+                    document.querySelectorAll('input, button').forEach(el => {
+                        const r = el.getBoundingClientRect();
+                        if (r.width > 0 && r.height > 0) {
+                            out.push((el.id ? '#' + el.id : '')
+                                + (el.name ? '[name=' + el.name + ']' : '')
+                                + (el.type && el.type !== 'text' ? '[' + el.type + ']' : ''));
+                        }
+                    });
+                    return out.slice(0, 20);
+                """)
+            except Exception:
+                return []
+
+        def _wait_for_field_or_verify(field_id: str, label: str, timeout: int = 60):
+            """Wait for a login-form field to appear, clearing any Cloudflare that blocks it."""
+            deadline = time.time() + timeout
+            last_status_log = 0.0
+            while time.time() < deadline:
+                if stop_event is not None and stop_event.is_set():
+                    raise RuntimeError("Cancelled by stop event.")
+                if _b2b_is_human_verification_page(drv):
+                    self.log(f"[B2B] Cloudflare detected before {label} — waiting to clear…")
+                    if not _b2b_wait_for_human_verification_clear(drv, stop_event=stop_event, log=self.log):
+                        raise RuntimeError(f"Cloudflare not resolved before {label}.")
+                els = drv.find_elements(By.ID, field_id)
+                if els:
+                    try:
+                        if els[0].is_displayed():
+                            return els[0]
+                    except Exception:
+                        pass
+                now = time.time()
+                if now - last_status_log >= 15:
+                    elapsed = int(now - (deadline - timeout))
+                    try:
+                        url = drv.current_url
+                    except Exception:
+                        url = "unknown"
+                    self.log(f"[B2B] Waiting for {label} ({elapsed}s elapsed, on {url})")
+                    _fields = _visible_fields_snapshot()
+                    if _fields:
+                        self.log(f"[B2B] Visible fields on page: {', '.join(_fields)}")
+                    last_status_log = now
+                time.sleep(0.5)
+            raise RuntimeError(f"B2B field #{field_id} ({label}) not visible after {timeout}s.")
+
+        # ── Step 1: Company ID ─────────────────────────────────────────────
+        # The #companyId input is dual-purpose: on the wsreports landing page
+        # it asks for the Company ID, while the SSO login page labels the
+        # same field "Access Code" (placeholder). The Company ID doubles as
+        # the Access Code. Pick the value from the field's placeholder,
+        # falling back to the current URL when the placeholder is missing.
+        def _stage_value(el):
+            try:
+                ph = (el.get_attribute("placeholder") or "").strip().lower()
+            except Exception:
+                ph = ""
+            want_access = "access code" in ph
+            if not ph:
+                try:
+                    want_access = "sso.b2bsoft.com" in (drv.current_url or "")
+                except Exception:
+                    want_access = False
+            if want_access:
+                # The Company ID doubles as the Access Code when no separate
+                # one is configured.
+                return ((self.access_code or "").strip()
+                        or (self.company_id or "").strip(), "Access Code")
+            return (self.company_id or "").strip(), "Company ID"
+
+        def _type_and_verify(el, text):
+            """Type text, then verify the DOM value actually took — if the
+            field ignored send_keys (readonly/disabled), force it via JS so
+            the form POST still carries the value. Returns the final value."""
+            _robust_type(el, text)
+            try:
+                got = (el.get_attribute("value") or "").strip()
+            except Exception:
+                got = ""
+            if got != text:
+                try:
+                    drv.execute_script(
+                        "arguments[0].value = arguments[1];"
+                        "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));"
+                        "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));",
+                        el, text)
+                    got = (el.get_attribute("value") or "").strip()
+                except Exception:
+                    pass
+            return got
+
+        try:
+            f = wait.until(EC.visibility_of_element_located((By.ID, "companyId")))
+            val, label = _stage_value(f)
+            got = _type_and_verify(f, val)
+            if got != val:
+                self.log(f"⚠ {label} field did not accept typing (value now '{got}') — attempting submit anyway.")
+            self.log(f"{label} entered: {got}")
+            btn = wait.until(EC.element_to_be_clickable((By.ID, "btnSubmit")))
+            _js_click(btn)
+            self.log(f"{label} submitted.")
+            # Wait for the companyId field to go hidden (page transition started)
+            # before polling for AccountId — prevents burning 150s on the wrong page.
+            # Landing on sso.b2bsoft.com counts as transitioned — its Step-2
+            # handling below deals with the SSO page's own company-ID stage.
+            _trans_deadline = time.time() + 20
+            while time.time() < _trans_deadline:
+                try:
+                    try:
+                        if "sso.b2bsoft.com" in (drv.current_url or ""):
+                            break
+                    except Exception:
+                        pass
+                    els = drv.find_elements(By.ID, "companyId")
+                    if not els or not els[0].is_displayed():
+                        break
+                except Exception:
+                    break
+                time.sleep(0.5)
+        except Exception as e:
+            raise RuntimeError(f"B2B Step 1 (Company ID) failed: {e}")
+
+        # ── Step 2: Account ID — adaptive wait (fixes the SSO stall) ────────
+        # The SSO login page (sso.b2bsoft.com/account/login) may show an
+        # Account ID field — or may only show Username + Password (company ID
+        # carried by the SSO session). Poll for all candidates at once, type
+        # whatever actually appears, and log the page's visible fields every
+        # 15s so any future stall is explained directly in the log.
+        try:
+            deadline = time.time() + 150
+            account_el = None
+            username_seen = False
+            last_diag = 0.0
+            sso_submits = 0
+            while time.time() < deadline:
+                if stop_event is not None and stop_event.is_set():
+                    raise RuntimeError("Cancelled by stop event.")
+                if _b2b_is_human_verification_page(drv):
+                    self.log("Cloudflare detected before Account ID — waiting to clear…")
+                    if not _b2b_wait_for_human_verification_clear(drv, stop_event=stop_event, log=self.log):
+                        raise RuntimeError("Cloudflare not resolved before Account ID.")
+                # Account ID field present and visible? → use it.
+                acc = drv.find_elements(By.ID, "AccountId")
+                if acc:
+                    try:
+                        if acc[0].is_displayed():
+                            account_el = acc[0]
+                            break
+                    except Exception:
+                        pass
+                # Username already visible without AccountId? → SSO page has
+                # no Account ID step; skip straight to Username + Password.
+                usr = drv.find_elements(By.ID, "Username")
+                if usr:
+                    try:
+                        if usr[0].is_displayed():
+                            username_seen = True
+                            self.log("No Account ID field on this page — going straight to Username.")
+                            break
+                    except Exception:
+                        pass
+                # SSO company-ID stage (user-supplied HTML): the page shows
+                # ONLY #companyId (placeholder "Access Code", required="True")
+                # + #btnSubmit ("Continue") — the Company ID doubles as the
+                # Access Code. Every attempt LOGS the typed value (silent
+                # typing hid a visually-empty field), re-forces the DOM value
+                # right before submit (required + empty field = the browser
+                # silently blocks the submit), unlocks a read-only field via
+                # #btnCompanyIdEdit when one exists, and after a failed
+                # advance reads the page's validation and error text so a
+                # server rejection is named in the log.
+                comp = drv.find_elements(By.ID, "companyId")
+                sso_stuck = False
+                if comp:
+                    try:
+                        if comp[0].is_displayed():
+                            if sso_submits >= 4:
+                                sso_stuck = True
+                            else:
+                                # Give the page a moment to finish loading —
+                                # attempt 1 used to fire within the same second
+                                # as the redirect, possibly before the form's
+                                # JS handlers had attached.
+                                try:
+                                    for _ in range(10):
+                                        if drv.execute_script("return document.readyState;") == "complete":
+                                            break
+                                        time.sleep(0.5)
+                                except Exception:
+                                    pass
+                                val, label = _stage_value(comp[0])
+                                # Instrument the page once per render: record
+                                # submit events + fetch/XHR so a failed attempt
+                                # shows whether the form actually posted, and
+                                # log the form's action/method/button binding.
+                                try:
+                                    _sso_info = drv.execute_script("""
+                                        if (window.__b2bNetInstalled) return {already: true};
+                                        window.__b2bNetInstalled = true;
+                                        window.__b2bNet = [];
+                                        window.addEventListener('submit', function(e) {
+                                            window.__b2bNet.push('submit-event -> ' + ((e.target && e.target.action) || 'no-action'));
+                                        }, true);
+                                        var _fs = HTMLFormElement.prototype.submit;
+                                        HTMLFormElement.prototype.submit = function() {
+                                            window.__b2bNet.push('form.submit() -> ' + (this.action || 'no-action'));
+                                            return _fs.apply(this, arguments);
+                                        };
+                                        if (window.fetch) {
+                                            var _f = window.fetch;
+                                            window.fetch = function() {
+                                                try { window.__b2bNet.push('fetch -> ' + (arguments[0] && (arguments[0].url || arguments[0]))); } catch (e) {}
+                                                return _f.apply(this, arguments);
+                                            };
+                                        }
+                                        var _xo = XMLHttpRequest.prototype.open;
+                                        XMLHttpRequest.prototype.open = function(m, u) {
+                                            try { window.__b2bNet.push('xhr -> ' + m + ' ' + u); } catch (e) {}
+                                            return _xo.apply(this, arguments);
+                                        };
+                                        var el = document.querySelector('#companyId');
+                                        var btn = document.querySelector('#btnSubmit');
+                                        var form = el ? el.form : null;
+                                        return {
+                                            installed: true,
+                                            formAction: form ? String(form.action || '') : null,
+                                            formMethod: form ? String(form.method || '') : null,
+                                            btnInForm: !!(btn && form && btn.form === form),
+                                            btnDisabled: !!(btn && (btn.disabled || btn.getAttribute('aria-disabled') === 'true')),
+                                            inputs: Array.prototype.map.call(
+                                                document.querySelectorAll('input'),
+                                                function(i) {
+                                                    return (i.id ? '#' + i.id : (i.name ? '[name=' + i.name + ']' : 'input'))
+                                                        + (i.type && i.type !== 'text' ? '[' + i.type + ']' : '')
+                                                        + (i.required ? '[required]' : '');
+                                                }).slice(0, 12)
+                                        };
+                                    """) or {}
+                                    if _sso_info.get("installed"):
+                                        self.log(
+                                            "SSO page form: action=" + str(_sso_info.get("formAction"))
+                                            + ", method=" + str(_sso_info.get("formMethod"))
+                                            + ", #btnSubmit inside form: " + ("yes" if _sso_info.get("btnInForm") else "NO")
+                                            + (", #btnSubmit DISABLED" if _sso_info.get("btnDisabled") else "")
+                                            + ", inputs: " + ", ".join(_sso_info.get("inputs") or []))
+                                except Exception:
+                                    _sso_info = {}
+                                # Read-only/disabled field? The Edit button
+                                # exists to unlock it — click it first.
+                                try:
+                                    ro = drv.execute_script(
+                                        "const el = document.querySelector('#companyId');"
+                                        "return !!(el && (el.readOnly || el.disabled));")
+                                except Exception:
+                                    ro = False
+                                if ro:
+                                    edit_btns = drv.find_elements(By.ID, "btnCompanyIdEdit")
+                                    if edit_btns:
+                                        _js_click(edit_btns[0])
+                                        self.log("SSO Access Code field is read-only — clicked #btnCompanyIdEdit to unlock it.")
+                                        time.sleep(0.8)
+                                try:
+                                    cur_val = (comp[0].get_attribute("value") or "").strip()
+                                except Exception:
+                                    cur_val = ""
+                                if cur_val != val:
+                                    got = _type_and_verify(comp[0], val)
+                                    if got != val:
+                                        self.log(f"⚠ SSO {label} field did not accept typing (value now '{got}') — attempting submit anyway.")
+                                    else:
+                                        self.log(f"SSO {label} typed: '{got}'.")
+                                else:
+                                    self.log(f"SSO {label} field already holds '{cur_val}'.")
+                                    # Value was pre-filled by the server — the
+                                    # page's JS may still be waiting for
+                                    # input/change events before it accepts the
+                                    # form. Fire them (harmless when unneeded).
+                                    try:
+                                        drv.execute_script(
+                                            "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));"
+                                            "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));",
+                                            comp[0])
+                                    except Exception:
+                                        pass
+                                # A previous failed submit can leave the Continue
+                                # button disabled (double-submit guard) — a
+                                # disabled button swallows every click.
+                                try:
+                                    if drv.execute_script(
+                                            "var b = document.querySelector('#btnSubmit');"
+                                            "if (b && (b.disabled || b.getAttribute('aria-disabled') === 'true')) {"
+                                            "  b.disabled = false; b.removeAttribute('aria-disabled');"
+                                            "  return true;"
+                                            "} return false;"):
+                                        self.log("SSO #btnSubmit was disabled — force-enabled it before submitting.")
+                                except Exception:
+                                    pass
+                                # The real page marks the field required="True" —
+                                # an EMPTY value makes the browser silently block
+                                # every submit with "Please fill out this field".
+                                # Re-check the DOM value at the last moment and
+                                # force it in via JS so the POST carries the code.
+                                try:
+                                    pre_val = (comp[0].get_attribute("value") or "").strip()
+                                except Exception:
+                                    pre_val = val
+                                if pre_val != val:
+                                    try:
+                                        drv.execute_script(
+                                            "arguments[0].value = arguments[1];"
+                                            "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));"
+                                            "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));",
+                                            comp[0], val)
+                                        self.log(f"SSO {label} value re-forced via JS before submit ('{val}').")
+                                    except Exception:
+                                        pass
+                                try:
+                                    submit_val = (comp[0].get_attribute("value") or "").strip()
+                                except Exception:
+                                    submit_val = val
+                                sso_submits += 1
+                                # Rotation order — measured on the live
+                                # page (16:23 scheduler log): the #btnSubmit
+                                # click and ENTER both produced "submit/
+                                # network activity: NONE" while form
+                                # .requestSubmit() POSTed to /Account/
+                                # LoginCompany and advanced. So requestSubmit
+                                # goes FIRST — it keeps native validation and
+                                # the button=continue submitter value; the
+                                # click / ENTER / raw-submit stay as fallbacks.
+                                strategy = ("rsubmit", "submit", "enter", "formsubmit")[sso_submits - 1]
+                                if strategy == "enter":
+                                    from selenium.webdriver.common.keys import Keys as _Keys
+                                    comp[0].send_keys(_Keys.RETURN)
+                                    self.log(f"SSO Access Code page — ENTER sent on {label} field (attempt {sso_submits}, field='{submit_val}').")
+                                elif strategy == "rsubmit":
+                                    try:
+                                        how = drv.execute_script(
+                                            "const el = document.querySelector('#companyId');"
+                                            "const btn = document.querySelector('#btnSubmit');"
+                                            "const form = (el && el.form) || (btn && btn.form);"
+                                            "if (!form) return 'noform';"
+                                            "if (form.requestSubmit) { form.requestSubmit(btn || undefined); return 'requestSubmit'; }"
+                                            "form.submit(); return 'form.submit';")
+                                        self.log(f"SSO Access Code page — {label} submitted via form {how} (attempt {sso_submits}, field='{submit_val}').")
+                                    except Exception as e:
+                                        self.log(f"SSO Access Code page — form submit failed: {e}")
+                                elif strategy == "formsubmit":
+                                    try:
+                                        how = drv.execute_script(
+                                            "var el = document.querySelector('#companyId');"
+                                            "var form = el ? el.form : null;"
+                                            "if (!form) {"
+                                            "  var btn = document.querySelector('#btnSubmit');"
+                                            "  form = btn ? btn.form : null;"
+                                            "}"
+                                            "if (!form) {"
+                                            "  var fs = document.querySelectorAll('form');"
+                                            "  for (var i = 0; i < fs.length; i++) {"
+                                            "    if (fs[i].querySelector('#companyId')) { form = fs[i]; break; }"
+                                            "  }"
+                                            "}"
+                                            "if (!form) return 'noform';"
+                                            "form.submit();"
+                                            "return 'posted -> ' + String(form.action || '').slice(-60);")
+                                        self.log(f"SSO Access Code page — raw form.submit() sent (attempt {sso_submits}, field='{submit_val}', {how}).")
+                                    except Exception as e:
+                                        self.log(f"SSO Access Code page — raw form.submit() failed: {e}")
+                                else:
+                                    btn_id = "btnSubmit"
+                                    btns = drv.find_elements(By.ID, btn_id)
+                                    if not btns:
+                                        # Real button text is "Continue" —
+                                        # fall back to a text match.
+                                        try:
+                                            btns = [b for b in drv.find_elements(By.TAG_NAME, "button")
+                                                    if (b.text or "").strip().lower() == "continue"
+                                                    and b.is_displayed()]
+                                            if btns:
+                                                btn_id = "button:Continue"
+                                        except Exception:
+                                            btns = []
+                                    if btns:
+                                        _js_click(btns[0])
+                                        self.log(f"SSO Access Code page — {label} submitted via #{btn_id} (attempt {sso_submits}, field='{submit_val}').")
+                                    else:
+                                        self.log(f"SSO Access Code page — #{btn_id} not on page (attempt {sso_submits} skipped).")
+                                # Give the SSO page up to 8s to advance before
+                                # the next attempt — avoids double-submitting
+                                # a value the server is still processing.
+                                advanced = False
+                                for _ in range(16):
+                                    time.sleep(0.5)
+                                    try:
+                                        c2 = drv.find_elements(By.ID, "companyId")
+                                        if not c2 or not c2[0].is_displayed():
+                                            advanced = True
+                                            break
+                                    except Exception:
+                                        break
+                                if not advanced:
+                                    # Page did not move — log WHY: field value
+                                    # now, HTML5 validation message, visible
+                                    # error text, current URL. Fail fast when
+                                    # the server actually rejected the code.
+                                    try:
+                                        why = drv.execute_script("""
+                                            const el = document.querySelector('#companyId');
+                                            const out = {
+                                                value: el ? el.value : null,
+                                                validation: el ? el.validationMessage : null
+                                            };
+                                            out.errors = Array.from(document.querySelectorAll(
+                                                '.validation-summary-errors, .field-validation-error, .error, .alert-danger, .text-danger, [class*="error" i]'
+                                            )).map(e => (e.innerText || '').trim())
+                                              .filter(t => t).slice(0, 3);
+                                            out.body = (document.body && document.body.innerText
+                                                ? document.body.innerText : '')
+                                                .replace(/\\s+/g, ' ').trim().slice(0, 220);
+                                            return out;
+                                        """)
+                                        err_txt = "; ".join(why.get("errors") or [])
+                                        try:
+                                            url_now = drv.current_url
+                                        except Exception:
+                                            url_now = "unknown"
+                                        self.log(
+                                            f"SSO page did not advance after attempt {sso_submits} "
+                                            f"(URL: {url_now}) — field now '{why.get('value')}', "
+                                            f"validation: '{why.get('validation') or 'none'}'"
+                                            + (f", page error: {err_txt}" if err_txt else ""))
+                                        try:
+                                            _net = drv.execute_script(
+                                                "return (window.__b2bNet || []).splice(0, 20);") or []
+                                        except Exception:
+                                            _net = []
+                                        if _net:
+                                            self.log("SSO page submit/network activity: " + " | ".join(str(x) for x in _net))
+                                        else:
+                                            self.log("SSO page submit/network activity: NONE — the submit never reached the form.")
+                                        _body_txt = str(why.get("body") or "")
+                                        if _body_txt:
+                                            self.log(f"SSO page text: {_body_txt}")
+                                        _vmsg = (why.get("validation") or "").lower()
+                                        if "fill out" in _vmsg or "required" in _vmsg:
+                                            self.log(
+                                                "⚠ The browser blocked the submit — #companyId was EMPTY "
+                                                "at submit time (the Access Code did not stick in the DOM).")
+                                        if err_txt and any(k in err_txt.lower() for k in (
+                                                "invalid", "incorrect", "wrong", "not found",
+                                                "failed", "expire", "locked", "unable")):
+                                            raise RuntimeError(
+                                                f"B2B SSO rejected the Access Code: {err_txt} — "
+                                                "verify the Company ID on the Portal Credentials tab "
+                                                "(it doubles as the Access Code) and retry.")
+                                    except RuntimeError:
+                                        raise
+                                    except Exception:
+                                        pass
+                                continue
+                    except RuntimeError:
+                        raise
+                    except Exception:
+                        pass
+                if sso_stuck:
+                    _fields = _visible_fields_snapshot()
+                    raise RuntimeError(
+                        "B2B login stalled on the SSO 'Access Code' page — tried 4 times "
+                        "(requestSubmit → Submit → Enter → form.submit) without the page advancing. "
+                        "The log lines above show the exact field value at every submit "
+                        "attempt plus any page error text. Verify the Company ID on the "
+                        "Portal Credentials tab (it doubles as the Access Code) and retry. "
+                        + ("Visible fields: " + ", ".join(_fields) if _fields else "No visible fields on page.")
+                    )
+                now = time.time()
+                if now - last_diag >= 15:
+                    elapsed = int(now - (deadline - 150))
+                    try:
+                        url = drv.current_url
+                    except Exception:
+                        url = "unknown"
+                    self.log(f"Waiting for Account ID ({elapsed}s elapsed, on {url})")
+                    fields = _visible_fields_snapshot()
+                    if fields:
+                        self.log(f"Visible fields on page: {', '.join(fields)}")
+                    last_diag = now
+                time.sleep(0.5)
+            if account_el is not None:
+                if (self.account_id or "").strip():
+                    _robust_type(account_el, self.account_id)
+                    self.log(f"Account ID entered: {self.account_id}")
+                else:
+                    self.log("Account ID field found but no Account ID saved — leaving it empty.")
+                time.sleep(1)
+            elif not username_seen:
+                fields = _visible_fields_snapshot()
+                raise RuntimeError(
+                    "B2B Account ID step failed: neither AccountId nor Username appeared within 150s. "
+                    "If the page shows an 'Access Code' field, verify the Company ID on the "
+                    "Portal Credentials tab (it doubles as the Access Code). "
+                    + ("Visible fields: " + ", ".join(fields) if fields else "No visible input fields on page.")
+                )
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"B2B Step 2 (Account ID) failed: {e}")
+
+        # Wait for the first visible field among candidate locators —
+        # Cloudflare-aware, with the same 15s diagnostics as the ID waits.
+        def _wait_for_any_field(candidates, label: str, timeout: int = 40):
+            deadline = time.time() + timeout
+            last_status_log = 0.0
+            while time.time() < deadline:
+                if stop_event is not None and stop_event.is_set():
+                    raise RuntimeError("Cancelled by stop event.")
+                if _b2b_is_human_verification_page(drv):
+                    self.log(f"Cloudflare detected before {label} — waiting to clear…")
+                    if not _b2b_wait_for_human_verification_clear(drv, stop_event=stop_event, log=self.log):
+                        raise RuntimeError(f"Cloudflare not resolved before {label}.")
+                for by, sel in candidates:
+                    try:
+                        els = drv.find_elements(by, sel)
+                    except Exception:
+                        continue
+                    if els:
+                        try:
+                            if els[0].is_displayed():
+                                return els[0]
+                        except Exception:
+                            pass
+                now = time.time()
+                if now - last_status_log >= 15:
+                    elapsed = int(now - (deadline - timeout))
+                    try:
+                        url = drv.current_url
+                    except Exception:
+                        url = "unknown"
+                    self.log(f"Waiting for {label} ({elapsed}s elapsed, on {url})")
+                    _fields = _visible_fields_snapshot()
+                    if _fields:
+                        self.log(f"Visible fields on page: {', '.join(_fields)}")
+                    last_status_log = now
+                time.sleep(0.5)
+            raise RuntimeError(f"B2B field ({label}) not visible after {timeout}s.")
+
+        # ── Step 3: Username + Password — ported from VidaPay_Incentive_Extractor
+        # login_store: multi-strategy field location (the SSO sign-in page
+        # may not use #Username/#Password ids), submit via text-matched
+        # button (Next / Sign In / Log in — force-enabled before clicking,
+        # SSO renders it disabled until its JS validates the fields), and
+        # invalid-credential re-entry.
+        _user_candidates = [
+            (By.ID, "Username"),
+            (By.XPATH, "//label[contains(normalize-space(),'User Name')]/following::input[1]"),
+            (By.XPATH, "//label[contains(normalize-space(),'Username')]/following::input[1]"),
+            (By.XPATH, "//input[contains(@placeholder,'User') or contains(@name,'user') or contains(@id,'user')]"),
+            (By.XPATH, "//input[@type='email']"),
+            (By.XPATH, "(//input[not(@type='hidden') and not(@type='password')])[2]"),
+        ]
+        _pass_candidates = [
+            (By.ID, "Password"),
+            (By.XPATH, "//input[@type='password']"),
+            (By.XPATH, "//label[contains(normalize-space(),'Password')]/following::input[1]"),
+        ]
+
+        def _fill_credentials() -> None:
+            u = _wait_for_any_field(_user_candidates, "Username", timeout=60)
+            got_u = _type_and_verify(u, self.username)
+            self.log(f"Username entered: {got_u}")
+            p = _wait_for_any_field(_pass_candidates, "Password", timeout=30)
+            _type_and_verify(p, self.password)
+            self.log("Password entered.")
+
+        def _submit_credentials() -> bool:
+            # Same button-matching chain as VidaPay_Incentive_Extractor: the SSO
+            # sign-in button is force-enabled and clicked via JS (native
+            # click first, MouseEvent fallback). "Next" first — that is the
+            # button the SSO sign-in page actually shows. Waits are short:
+            # the generic password-form submit below covers anything these
+            # miss, so a wrong guess no longer burns half a minute.
+            for _btn_label, kwargs in [
+                ("#btnClick verify button", {"button_id": "btnClick", "timeout": 4}),
+                ("Next button", {"text_contains": "next", "timeout": 2}),
+                ("Sign In button", {"text_contains": "sign in", "timeout": 2}),
+                ("Log In button", {"text_contains": "log in", "timeout": 2}),
+                ("Login button", {"text_contains": "login", "timeout": 2}),
+                ("Continue button", {"text_contains": "continue", "timeout": 2}),
+            ]:
+                if _b2b_click_button(drv, label=_btn_label, log=self.log, **kwargs):
+                    return True
+            # None of the known buttons matched (16:24 scheduler log: six
+            # searches + input[type=submit] all missed while Account ID /
+            # Username / Password were filled). The SSO credentials page
+            # can render its submit button DISABLED until its JS validates
+            # the typed fields — and _b2b_click_button skips disabled
+            # controls — so the real button may be sitting right there
+            # unmatchable. Log exactly which controls ARE on the page, then
+            # submit the credentials form directly: force-enable every
+            # submit control inside the password field's form and click the
+            # best one, falling back to form.requestSubmit().
+            try:
+                inv = drv.execute_script("""
+                    const vis = el => { const r = el.getBoundingClientRect();
+                        return r.width > 0 && r.height > 0; };
+                    const btns = Array.from(document.querySelectorAll(
+                        'button, input[type=submit], input[type=button]'))
+                        .map(b => ({
+                            tag: b.tagName.toLowerCase(),
+                            id: b.id || null,
+                            type: b.getAttribute('type') || null,
+                            text: ((b.innerText || b.value || '') + '').trim().slice(0, 30),
+                            disabled: !!b.disabled,
+                            visible: vis(b)
+                        }));
+                    const pass = Array.prototype.find.call(
+                        document.querySelectorAll('input[type=password]'), vis);
+                    return {btns: btns.slice(0, 10), hasPassword: !!pass,
+                            formAction: (pass && pass.form)
+                                ? String(pass.form.action || '') : null};
+                """) or {}
+                _parts = ["Password field: " + ("yes" if inv.get("hasPassword") else "NO")]
+                if inv.get("formAction"):
+                    _parts.append("password-form action=" + str(inv.get("formAction")))
+                for _b in (inv.get("btns") or []):
+                    _parts.append(
+                        "<" + str(_b.get("tag"))
+                        + ("#" + str(_b["id"]) if _b.get("id") else "")
+                        + (" type=" + str(_b["type"]) if _b.get("type") else "")
+                        + (" DISABLED" if _b.get("disabled") else "")
+                        + (": '" + str(_b["text"]) + "'" if _b.get("text") else "")
+                        + ("" if _b.get("visible") else " [hidden]") + ">")
+                self.log("SSO credentials page controls: " + " | ".join(_parts))
+            except Exception:
+                pass
+            try:
+                _how = drv.execute_script("""
+                    const vis = el => { if (!el) return false;
+                        const r = el.getBoundingClientRect();
+                        return r.width > 0 && r.height > 0; };
+                    const pass = Array.prototype.find.call(
+                        document.querySelectorAll('input[type=password]'), vis);
+                    const form = pass ? (pass.form || pass.closest('form')) : null;
+                    if (!form) return 'nopasswordform';
+                    const cands = Array.from(form.querySelectorAll(
+                        'button, input[type=submit], input[type=button]'));
+                    cands.forEach(function (c) {
+                        c.disabled = false;
+                        c.removeAttribute('aria-disabled');
+                    });
+                    let pick = cands.find(c =>
+                        (c.getAttribute('type') || '').toLowerCase() === 'submit' && vis(c));
+                    if (!pick) pick = cands.find(c => vis(c));
+                    if (pick) {
+                        const desc = '<' + pick.tagName.toLowerCase()
+                            + (pick.id ? '#' + pick.id : '') + '> '
+                            + ((pick.innerText || pick.value || '') + '').trim().slice(0, 30);
+                        pick.scrollIntoView({block: 'center'});
+                        try { pick.focus(); } catch (e) {}
+                        try { pick.click(); return 'clicked ' + desc; }
+                        catch (e) {}
+                        try {
+                            pick.dispatchEvent(new MouseEvent('click',
+                                {bubbles: true, cancelable: true, view: window}));
+                            return 'mouseevent ' + desc;
+                        } catch (e) {}
+                    }
+                    if (form.requestSubmit) { form.requestSubmit(); return 'requestSubmit'; }
+                    form.submit();
+                    return 'form.submit()';
+                """)
+                if _how and _how != "nopasswordform":
+                    self.log(f"SSO credentials submitted via password-form fallback ({_how}).")
+                    return True
+                self.log("SSO password-form fallback: no visible password form found.")
+            except Exception as e:
+                self.log(f"SSO password-form fallback failed: {e}")
+            # Last resort: ENTER inside the password field — the browser's
+            # native implicit-submit path for a credentials form.
+            try:
+                p = drv.find_element(By.XPATH, "//input[@type='password']")
+                from selenium.webdriver.common.keys import Keys as _Keys
+                p.send_keys(_Keys.RETURN)
+                self.log("SSO credentials submitted via ENTER in the password field.")
+                return True
+            except Exception:
+                return False
+
+        try:
+            _fill_credentials()
+            if not _submit_credentials():
+                self.log("Warning: no login button found after credentials.")
+            # Wait for URL change (page navigates away from login) — mirrors VidaPay.
+            old_url = drv.current_url
+            try:
+                from selenium.webdriver.support.ui import WebDriverWait as _WDW
+                _WDW(drv, 15).until(lambda d: d.current_url != old_url)
+                self.log("URL changed after login.")
+            except Exception:
+                self.log("URL did not change after login click — continuing.")
+            # Invalid-credentials detection + re-entry (extractor login_store).
+            for _cred_retry in range(2):
+                time.sleep(1.5)
+                try:
+                    invalid = drv.execute_script("""
+                        const items = Array.from(document.querySelectorAll('li, .error, .alert, [class*="error"], [class*="invalid"], [class*="alert"]'));
+                        for (const el of items) {
+                            const t = (el.innerText || '').toLowerCase();
+                            if (t.includes('invalid') || t.includes('incorrect') || t.includes('wrong') || t.includes('failed')) {
+                                return el.innerText.trim();
+                            }
+                        }
+                        return null;
+                    """)
+                except Exception:
+                    invalid = None
+                if not invalid:
+                    break
+                self.log(f"Login error detected: '{invalid}' — re-entering credentials (attempt {_cred_retry + 2})...")
+                time.sleep(1)
+                try:
+                    _fill_credentials()
+                    _submit_credentials()
+                except Exception as ce:
+                    self.log(f"Credential retry failed: {ce}")
+                    break
+            time.sleep(3)  # give SPA time to render heading/body before state machine reads
+        except Exception as e:
+            raise RuntimeError(f"B2B Step 3 (Username/Password) failed: {e}")
+
+        # Post-login state machine — handles New Sign In, 2FA, Cloudflare, portal.
+        # Mirrors VidaPay's finish_setup_steps approach.
+        if not _b2b_finish_login_flow(self.driver, stop_event=stop_event, log=self.log, timeout=300):
+            raise RuntimeError("B2B login flow did not reach portal — check credentials or complete 2FA.")
+
+    def _is_authed(self) -> bool:
+        from selenium.webdriver.common.by import By
+        try:
+            # Still on login form → not authed
+            if self.driver.find_elements(By.ID, "companyId"):
+                return False
+            if self.driver.find_elements(By.ID, "AccountId"):
+                return False
+            if self.driver.find_elements(By.ID, "Username"):
+                return False
+            if self.driver.find_elements(By.ID, "btnSubmit"):
+                return False
+            if self.driver.find_elements(By.ID, "btnClick"):
+                return False
+            # URL left the login origin path or page has any content → authed
+            url = self.driver.current_url.lower()
+            if "wsreports.b2bsoft.com" not in url:
+                return False
+            body_text = (self.driver.find_element(By.TAG_NAME, "body").text or "").lower()
+            if "new sign in" in body_text or "2-factor" in body_text:
+                return False
+            # No login fields present and on B2B domain → treat as authenticated
+            return True
+        except Exception:
+            return False
+
+    def navigate_to_report(self) -> bool:
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        try:
+            w = WebDriverWait(self.driver, 15)
+            w.until(EC.element_to_be_clickable((By.CSS_SELECTOR, self.REPORT_SELECTOR))).click()
+            time.sleep(2)
+            self.log("✓ Navigated to Inventory Count Result Details")
+            return True
+        except Exception:
+            self.log("Report tree item not found — using current view")
+            return False
+
+    def _select_date_range_today(self) -> None:
+        """Select 'Today' in the report's TomSelect date-range dropdown.
+
+        The Inventory Count Result Details page defaults the dropdown to
+        'Month to Date' (user HTML: div.ts-control#tomselect-1-ts-control,
+        item data-value="0"; the dropdown option data-value="2" is Today).
+        Exporting without switching produces a month-to-date file
+        (Inventory_Count_Result_Details_09012026-09102026.Xlsx) instead of
+        today's counts.
+
+        The 16:49 run showed the TomSelect is created only AFTER the
+        report's initial data load finishes — the old 10s polling window
+        expired before the widget existed ("No date-range dropdown
+        found"). Now: poll up to 30s; drive an initialized TomSelect via
+        its JS API when present, else set the RAW <select> value (the
+        widget adopts it at init) and dispatch change; UI-click fallback
+        on .ts-control / the 'Month to Date' item; and when everything
+        misses, log the page's <select> inventory so the next run is
+        diagnosable from the log alone.
+        """
+        from selenium.webdriver.common.by import By
+        js_set_today = """
+            var selects = Array.prototype.slice.call(document.querySelectorAll('select'));
+            Array.prototype.slice.call(document.querySelectorAll('.ts-wrapper'))
+                .forEach(function(w) {
+                    var s = w.querySelector('select') ||
+                        (w.parentElement ? w.parentElement.querySelector('select') : null);
+                    if (s && selects.indexOf(s) < 0) selects.push(s);
+                });
+            var candidates = [];
+            selects.forEach(function(s) {
+                var ts = s.tomselect;
+                var opts = Array.prototype.slice.call(s.options || []).map(function(o) {
+                    return {v: o.value, t: (o.textContent || '').trim().toLowerCase()};
+                });
+                if (ts && !opts.some(function(o) { return o.t === 'today'; })) {
+                    Object.keys(ts.options || {}).forEach(function(k) {
+                        var o = ts.options[k];
+                        if (o) opts.push({v: String(o.value), t: String(o.text || '').trim().toLowerCase()});
+                    });
+                }
+                if (!opts.some(function(o) { return o.t === 'today'; })) return;
+                var hasM2D = opts.some(function(o) { return o.t.indexOf('month to date') >= 0; });
+                candidates.push({sel: s, ts: ts, opts: opts, m2d: hasM2D, init: !!ts});
+            });
+            if (!candidates.length) return 'no-ts';
+            candidates.sort(function(a, b) {
+                return ((b.init ? 2 : 0) + (b.m2d ? 1 : 0))
+                     - ((a.init ? 2 : 0) + (a.m2d ? 1 : 0));
+            });
+            var c = candidates[0];
+            var chosen = null;
+            for (var i = 0; i < c.opts.length; i++) {
+                if (c.opts[i].t === 'today') { chosen = c.opts[i]; break; }
+            }
+            if (!chosen) return 'no-option';
+            if (c.ts) {
+                if ((c.ts.getValue() + '') === (chosen.v + '')) return 'already';
+                c.ts.setValue(chosen.v);
+                var item = c.ts.wrapper ? c.ts.wrapper.querySelector('.item') : null;
+                return 'ts-set:' + (item ? (item.textContent || '').trim() : chosen.v);
+            }
+            if ((c.sel.value + '') === (chosen.v + '')) return 'already-raw';
+            c.sel.value = chosen.v;
+            c.sel.dispatchEvent(new Event('input', {bubbles: true}));
+            c.sel.dispatchEvent(new Event('change', {bubbles: true}));
+            return 'raw-set:' + chosen.v;
+        """
+        result = ""
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            try:
+                result = str(drv.execute_script(js_set_today) or "")
+            except Exception:
+                result = ""
+            if result and result != "no-ts":
+                break
+            time.sleep(0.5)
+        if result.startswith("ts-set:") or result.startswith("raw-set:"):
+            self.log(
+                f"✓ Date-range dropdown set to 'Today' ({result}) — "
+                "waiting for the grid to refresh.")
+            time.sleep(4)
+            return
+        if result in ("already", "already-raw"):
+            self.log("Date-range dropdown already on 'Today'.")
+            return
+        # Still nothing — log what the page DOES have before the UI
+        # fallback, so a variant page is diagnosable from the log alone.
+        try:
+            inv = drv.execute_script("""
+                var sels = Array.prototype.slice.call(document.querySelectorAll('select'));
+                var out = [];
+                sels.slice(0, 8).forEach(function(s) {
+                    var opts = Array.prototype.slice.call(s.options || [])
+                        .slice(0, 6).map(function(o) { return (o.textContent || '').trim(); })
+                        .filter(function(t) { return t; });
+                    out.push((s.id ? '#' + s.id : (s.name ? '[name=' + s.name + ']' : 'select'))
+                        + (s.tomselect ? '[ts]' : '[raw]')
+                        + (opts.length ? '{' + opts.join(' | ') + '}' : '{}'));
+                });
+                return {n: sels.length, sels: out,
+                        tsCtrl: document.querySelectorAll('.ts-control').length};
+            """) or {}
+            self.log(
+                f"Date-range scan: {inv.get('n')} <select> element(s), "
+                f"{inv.get('tsCtrl')} .ts-control: "
+                + " ; ".join(inv.get("sels") or []))
+        except Exception:
+            pass
+        # UI fallback. TomSelect opens its dropdown on MOUSEDOWN, not click
+        # (user markup: .ts-control aria-expanded="false" and .ts-dropdown
+        # style="display:none") — a bare synthetic .click() never opens it,
+        # so the options never render. Dispatch the full mousedown/mouseup/
+        # click sequence on the control, give the JS-API route one more
+        # chance (opening can finish lazy init), then click the visible
+        # 'Today' option — data-value="2", class="option", id
+        # #tomselect-1-opt-3 in the user's markup.
+        def _ts_full_click(el) -> None:
+            drv.execute_script(
+                "const el = arguments[0];"
+                "const o = {bubbles: true, cancelable: true, view: window};"
+                "el.dispatchEvent(new MouseEvent('mousedown', o));"
+                "el.dispatchEvent(new MouseEvent('mouseup', o));"
+                "el.dispatchEvent(new MouseEvent('click', o));",
+                el)
+        try:
+            ctrl = None
+            try:
+                ctrl = drv.find_element(By.CSS_SELECTOR, ".ts-control")
+            except Exception:
+                for el in drv.find_elements(By.XPATH,
+                        "//*[normalize-space(text())='Month to Date']"):
+                    try:
+                        if el.is_displayed():
+                            ctrl = el
+                            break
+                    except Exception:
+                        continue
+            if ctrl is None:
+                self.log("⚠ No date-range dropdown found — exporting with the current range.")
+                return
+            _ts_full_click(ctrl)
+            time.sleep(0.8)
+            try:
+                result = str(drv.execute_script(js_set_today) or "")
+            except Exception:
+                result = ""
+            if result.startswith("ts-set:") or result.startswith("raw-set:"):
+                self.log(f"✓ Date-range dropdown set to 'Today' ({result}) — waiting for the grid to refresh.")
+                time.sleep(4)
+                return
+            clicked = False
+            opts = drv.find_elements(By.CSS_SELECTOR,
+                    ".ts-dropdown .option, [id*='ts-dropdown'] .option")
+            if not opts:
+                # Options can render outside the expected classes — fall
+                # back to any data-value element ('Today' carries
+                # data-value="2"; the Month-to-Date item data-value="0"
+                # never matches the 'today' text check).
+                opts = drv.find_elements(By.CSS_SELECTOR, "[data-value]")
+            for opt in opts:
+                if "today" in (opt.text or "").strip().lower():
+                    _ts_full_click(opt)
+                    clicked = True
+                    break
+            if not clicked:
+                self.log("⚠ 'Today' option not found in the date-range dropdown — exporting with the current range.")
+                return
+            time.sleep(1.2)
+            try:
+                chk = str(drv.execute_script(js_set_today) or "")
+            except Exception:
+                chk = ""
+            if chk in ("already", "already-raw") or chk.startswith("ts-set:") or chk.startswith("raw-set:"):
+                self.log(f"✓ Date-range dropdown set to 'Today' (UI click, {chk}) — waiting for the grid to refresh.")
+                time.sleep(4)
+            else:
+                self.log(f"⚠ Clicked the Today option but the range check returned '{chk or 'no response'}' — exporting with the current range.")
+        except Exception:
+            self.log("⚠ No date-range dropdown found — exporting with the current range.")
+
+    def download_xlsx(self, timeout: int = 45) -> Optional[Path]:
+        """Try to trigger an XLSX download and return the file path."""
+        from selenium.webdriver.common.by import By
+        # Switch the report's date-range dropdown from 'Month to Date' to
+        # 'Today' BEFORE triggering any export — the export honors whatever
+        # range is currently selected.
+        self._select_date_range_today()
+        # Snapshot name → mtime: the scheduler re-exports the same file name
+        # every cycle, so a re-download must be detected by mtime, not by a
+        # new file name.
+        existing = {p: p.stat().st_mtime for p in self.download_dir.glob("*.xlsx")}
+        _export_started = time.time()
+        # Try visible export/download buttons
+        try:
+            for text in ["count sheet", "countsheet", "download", "export", "xlsx", "excel"]:
+                btns = self.driver.find_elements(By.XPATH,
+                    f"//button[contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
+                    f"'abcdefghijklmnopqrstuvwxyz'),'{text}')] | "
+                    f"//a[contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
+                    f"'abcdefghijklmnopqrstuvwxyz'),'{text}')]")
+                for btn in btns:
+                    try:
+                        self.driver.execute_script("arguments[0].click();", btn)
+                        self.log(f"Clicked export button: {text}")
+                        time.sleep(3)
+                        break
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        # Try JS widget export
+        try:
+            src = self.driver.page_source
+            m = re.search(r"window\['(Widget_\d+)'\]", src)
+            if m:
+                widget = m.group(1)
+                self.driver.execute_script(f"window['{widget}'].WidgetPages.ExportReport('Xlsx', 1)")
+                self.log("Triggered JS widget XLSX export")
+                time.sleep(5)
+        except Exception:
+            pass
+        # Wait for file — a new name OR the same name rewritten with a fresh
+        # mtime (the scheduler exports the same file name on every cycle).
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            for p in self.download_dir.glob("*.xlsx"):
+                try:
+                    mtime = p.stat().st_mtime
+                except Exception:
+                    continue
+                if p not in existing or mtime > _export_started - 1:
+                    self.log(f"✓ Downloaded: {p.name}")
+                    return p
+            time.sleep(1)
+        self.log("No XLSX download detected within timeout")
+        return None
+
+    def quit(self):
+        if getattr(self, "_using_debug_port", False):
+            self.driver = None
+            return
+        try:
+            if self.driver:
+                self.driver.quit()
+        except Exception:
+            pass
+        self.driver = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Timesheet Scraper (gfh-telecom-app.web.app/timesheet)
+# ─────────────────────────────────────────────────────────────────────────────
+class TimesheetScraper:
+    """Selenium scraper for the GFH Timesheet portal (Firebase auth)."""
+    PORTAL_URL = "https://gfh-telecom-app.web.app/timesheet"
+
+    def __init__(self, email: str, password: str,
+                 download_dir: Path, log_fn=None):
+        self.email = email
+        self.password = password
+        self.download_dir = Path(download_dir)
+        self.log = log_fn or (lambda m: None)
+        self.driver = None
+
+    def _make_driver(self):
+        self._using_debug_port = False
+        # Try user's running Edge profile first (port 9227)
+        try:
+            self.driver = _edge_debug_driver()
+            self.driver.execute_cdp_cmd("Page.setDownloadBehavior", {
+                "behavior": "allow",
+                "downloadPath": str(self.download_dir),
+            })
+            _find_or_open_tab(self.driver, _GFH_APP_URL)
+            self._using_debug_port = True
+            return
+        except Exception:
+            pass
+        # Fallback: new Edge or Chrome instance
+        try:
+            from selenium import webdriver
+            from selenium.webdriver.edge.options import Options as EdgeOptions
+            opts = EdgeOptions()
+            prefs = {
+                "download.default_directory": str(self.download_dir),
+                "download.prompt_for_download": False,
+            }
+            opts.add_experimental_option("prefs", prefs)
+            self.driver = webdriver.Edge(options=opts)
+        except Exception:
+            from selenium import webdriver
+            from selenium.webdriver.chrome.options import Options as ChromeOptions
+            opts = ChromeOptions()
+            prefs = {
+                "download.default_directory": str(self.download_dir),
+                "download.prompt_for_download": False,
+            }
+            opts.add_experimental_option("prefs", prefs)
+            self.driver = webdriver.Chrome(options=opts)
+
+    def _is_ts_logged_in(self) -> bool:
+        """Return True if the TS tab shows no login form (Firebase session still active)."""
+        from selenium.webdriver.common.by import By
+        try:
+            fields = self.driver.find_elements(
+                By.CSS_SELECTOR, "input[type='email'], input[name='email'], #email")
+            return not any(f.is_displayed() for f in fields)
+        except Exception:
+            return False
+
+    def login(self) -> bool:
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        if self.driver is None:
+            self._make_driver()
+        self.download_dir.mkdir(parents=True, exist_ok=True)
+        # Switch to TS tab — prevents overwriting B2B tab.
+        _find_or_open_tab(self.driver, self.PORTAL_URL)
+        self.log(f"Opening {self.PORTAL_URL}")
+        self.driver.get(self.PORTAL_URL)
+        time.sleep(3)
+        # If Firebase session active, skip login form entirely.
+        if self._is_ts_logged_in():
+            self.log("✓ Timesheet already logged in — skipping credentials.")
+            return True
+        # Not logged in — require credentials.
+        if not (self.email and self.password):
+            raise RuntimeError("Timesheet credentials incomplete — fill Portal Credentials tab.")
+        wait = WebDriverWait(self.driver, 30)
+        try:
+            email_field = wait.until(EC.presence_of_element_located(
+                (By.CSS_SELECTOR, "input[type='email'], input[name='email'], #email")))
+            email_field.clear()
+            email_field.send_keys(self.email)
+            self.log(f"Entered email: {self.email}")
+            pw_field = self.driver.find_element(
+                By.CSS_SELECTOR, "input[type='password'], input[name='password'], #password")
+            pw_field.clear()
+            pw_field.send_keys(self.password)
+            self.log("Password entered.")
+            submit = self.driver.find_element(
+                By.CSS_SELECTOR, "button[type='submit'], input[type='submit'], .login-btn, #loginBtn")
+            submit.click()
+            time.sleep(4)
+            self.log("✓ Timesheet login submitted")
+            return True
+        except Exception as e:
+            raise RuntimeError(f"Timesheet login failed: {e}")
+
+    def download_xlsx(self, timeout: int = 60) -> Optional[Path]:
+        """Click 'Today' filter then 'Export Excel' to download today's timesheet."""
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+
+        # Ensure we are on the TS tab (B2B may have been active).
+        _find_or_open_tab(self.driver, self.PORTAL_URL)
+        # Navigate to timesheet route explicitly in case login redirected elsewhere.
+        if not self.driver.current_url.startswith("https://gfh-telecom-app.web.app/timesheet"):
+            self.driver.get(self.PORTAL_URL)
+            time.sleep(4)
+        else:
+            time.sleep(2)  # let SPA finish rendering after tab switch
+
+        # Snapshot name → mtime: the timesheet export writes the same file
+        # name on every cycle, so a re-download must be detected by mtime.
+        existing = {p: p.stat().st_mtime for p in self.download_dir.glob("*.xlsx")}
+        _export_started = time.time()
+
+        # Click "Today" date filter button — try up to 3 times (SPA may still render)
+        _today_xpaths = [
+            "//button[normalize-space(.)='Today']",
+            "//button[contains(normalize-space(.),'Today') and not(contains(normalize-space(.),'Yesterday'))]",
+            "//*[@role='button' and normalize-space(.)='Today']",
+        ]
+        _today_clicked = False
+        for _attempt in range(3):
+            for _xp in _today_xpaths:
+                try:
+                    _btn = WebDriverWait(self.driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, _xp)))
+                    try:
+                        _btn.click()
+                    except Exception:
+                        self.driver.execute_script("arguments[0].click();", _btn)
+                    self.log("Clicked 'Today' filter on timesheet.")
+                    _today_clicked = True
+                    break
+                except Exception:
+                    continue
+            if _today_clicked:
+                break
+            time.sleep(2)
+        if not _today_clicked:
+            self.log("Warning: could not click 'Today' button — proceeding to export anyway.")
+        else:
+            time.sleep(3)
+
+        # Click "Export Excel" (first match — not "Export B2B Hours" or "Export Bi-Weekly")
+        _export_xpaths = [
+            "//button[contains(normalize-space(.), 'Export Excel') and "
+            "not(contains(normalize-space(.), 'B2B')) and "
+            "not(contains(normalize-space(.), 'Bi-Weekly'))]",
+            "//button[normalize-space(.)='Export Excel']",
+        ]
+        _export_clicked = False
+        for _attempt in range(3):
+            for _xp in _export_xpaths:
+                try:
+                    _btn = WebDriverWait(self.driver, 10).until(
+                        EC.element_to_be_clickable((By.XPATH, _xp)))
+                    try:
+                        _btn.click()
+                    except Exception:
+                        self.driver.execute_script("arguments[0].click();", _btn)
+                    self.log("Clicked 'Export Excel' on timesheet.")
+                    _export_clicked = True
+                    break
+                except Exception:
+                    continue
+            if _export_clicked:
+                break
+            time.sleep(2)
+        if not _export_clicked:
+            self.log("Warning: could not click 'Export Excel'.")
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            for p in self.download_dir.glob("*.xlsx"):
+                try:
+                    mtime = p.stat().st_mtime
+                except Exception:
+                    continue
+                if p not in existing or mtime > _export_started - 1:
+                    self.log(f"✓ Timesheet downloaded: {p.name}")
+                    return p
+            time.sleep(1)
+        self.log("No timesheet XLSX downloaded within timeout")
+        return None
+
+    def quit(self):
+        if getattr(self, "_using_debug_port", False):
+            self.driver = None
+            return
+        try:
+            if self.driver:
+                self.driver.quit()
+        except Exception:
+            pass
+        self.driver = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Audit Scheduler
+# ─────────────────────────────────────────────────────────────────────────────
+class AuditScheduler:
+    """Per-district time-based audit scheduler.
+
+    After the configured start time, sends the starting WhatsApp message,
+    then every POLL_INTERVAL_MIN minutes: re-exports B2B + timesheet,
+    reloads variances, and checks district completion.
+
+    States: idle → running → held → running (resume) → stopped.
+    """
+    POLL_INTERVAL_MIN = 15
+
+    def __init__(self, app: "GFHApp"):
+        self.app = app
+        self._thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+        self._hold_event = threading.Event()  # cleared = held, set = running
+        self._hold_event.set()
+        self._state = "idle"   # idle | running | held | stopped
+
+    @property
+    def state(self) -> str:
+        return self._state
+
+    def start(self, district_times: dict, stop_time=None) -> None:
+        """district_times: {district_name: 'HH:MM'} or '' to start immediately.
+        stop_time: datetime when scheduler auto-stops (None = run indefinitely)."""
+        if self._state == "running":
+            return
+        self._stop_event.clear()
+        self._hold_event.set()
+        self._state = "running"
+        self._thread = threading.Thread(
+            target=self._run_loop, args=(district_times, stop_time), daemon=True, name="AuditScheduler")
+        self._thread.start()
+        self.app._log_scheduler(f"Scheduler started for {len(district_times)} districts.")
+
+    def hold(self) -> None:
+        if self._state == "running":
+            self._hold_event.clear()
+            self._state = "held"
+            self.app._log_scheduler("Scheduler paused (Hold).")
+
+    def resume(self) -> None:
+        if self._state == "held":
+            self._hold_event.set()
+            self._state = "running"
+            self.app._log_scheduler("Scheduler resumed.")
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        self._hold_event.set()  # unblock hold
+        self._state = "stopped"
+        self.app._log_scheduler("Scheduler stopped.")
+
+    def _run_loop(self, district_times: dict, stop_time=None) -> None:
+        import datetime as _dt
+        # fired[district] = {"start_ts": float, "export_done": bool, "reminders_sent": int, "final_sent": bool}
+        fired: dict = {}
+        last_reextract: float = time.time()  # init to now so first re-extract waits full RE_EXTRACT_SEC
+        INITIAL_EXPORT_SEC = 15 * 60   # 15 min after district starts
+        RE_EXTRACT_SEC = 30 * 60       # re-extract B2B + GFH every 30 min
+        REMINDER_DELAYS = [30 * 60, 60 * 60, 90 * 60]  # 30, 60, 90 min after start
+
+        while not self._stop_event.is_set():
+            self._hold_event.wait()
+            if self._stop_event.is_set():
+                break
+            now = _dt.datetime.now()
+            now_ts = time.time()
+
+            # Check global stop time
+            if stop_time and now >= stop_time:
+                self.app._log_scheduler("⏹ Stop time reached. Sending final results.")
+                for district in list(fired.keys()):
+                    state = fired[district]
+                    if not state.get("final_sent"):
+                        state["final_sent"] = True
+                        self.app.after(0, lambda d=district: self.app._auto_send_final_result(d))
+                break
+
+            # Fire district starts
+            for district, start_str in list(district_times.items()):
+                if district in fired:
+                    continue
+                if start_str:
+                    try:
+                        h, m = map(int, start_str.split(":"))
+                        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                        if now < target:
+                            continue
+                    except Exception:
+                        pass
+                fired[district] = {"start_ts": now_ts, "export_done": False, "reminders_sent": 0, "final_sent": False}
+                self.app.after(0, lambda d=district: self.app._scheduler_start_district(d))
+
+            # Per-district: initial export at 15 min, then reminders at 30/60/90 min
+            for district, state in list(fired.items()):
+                elapsed = now_ts - state["start_ts"]
+
+                # Initial export + variance image at 15 min
+                if not state.get("export_done") and elapsed >= INITIAL_EXPORT_SEC:
+                    state["export_done"] = True
+                    self.app.after(0, lambda d=district: self.app._scheduler_run_export_cycle(district=d))
+
+                # Reminders at 30, 60, 90 min
+                reminders_sent = state.get("reminders_sent", 0)
+                for i, delay in enumerate(REMINDER_DELAYS):
+                    if reminders_sent <= i and elapsed >= delay:
+                        state["reminders_sent"] = i + 1
+                        reminder_num = i + 1
+                        self.app.after(0, lambda d=district, r=reminder_num: self.app._auto_send_reminder(d, r))
+                        break
+
+                # Final result at reminder 3 + 30 min (t+120 min) if not yet sent
+                if not state.get("final_sent") and elapsed >= 120 * 60:
+                    state["final_sent"] = True
+                    self.app.after(0, lambda d=district: self.app._auto_send_final_result(d))
+
+            # Global re-extract B2B + GFH every 30 min (only after at least one district started)
+            if fired and (now_ts - last_reextract) >= RE_EXTRACT_SEC:
+                self.app.after(0, self.app._scheduler_run_export_cycle)
+                last_reextract = now_ts
+
+            time.sleep(10)
+        self._state = "stopped"
+
+
+class GFHApp(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title(APP_NAME + " — Timesheet Edition")
+        self._app_icon = None
+        # Windows groups windows in the taskbar by process/AppUserModelID;
+        # Dynamic screen resolution support: size to 90% of the screen and
+        # center it (DPI-aware), then stay a normal resizable top-level so
+        # Windows Snap (50% left/right, corners, Win+arrow) keeps working.
+        self._apply_dynamic_geometry()
+        # Set the window/taskbar icon. Using iconbitmap(default=...) — rather than
+        # plain iconbitmap(...) — is what makes Windows apply the icon to BOTH the
+        # title bar AND the taskbar button; plain iconbitmap only reliably updates
+        # the title bar. Try _MEIPASS (PyInstaller onefile extraction dir) first,
+        # falling back to the embedded base64 icon ONLY if the first attempt didn't
+        # actually succeed — previously both ran unconditionally, so the fallback
+        # silently clobbered a perfectly good icon with a mismatched one.
+        import sys as _sys, os as _os
+        _icon_set = False
+        _meipass = getattr(_sys, "_MEIPASS", None)
+        if _meipass:
+            for _ico_name in ("gfh_icon.ico", "gfh_telecom_llc_icon.ico"):
+                _ico_path = _os.path.join(_meipass, _ico_name)
+                if _os.path.exists(_ico_path):
+                    try:
+                        self.iconbitmap(default=_ico_path)
+                        _icon_set = True
+                    except Exception:
+                        _icon_set = False
+                    break
+        if not _icon_set:
+            # Also try running from source (not frozen): use the .ico shipped
+            # alongside the script directly, no need for the base64 fallback.
+            try:
+                _src_ico = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "gfh_icon.ico")
+                if _os.path.exists(_src_ico):
+                    self.iconbitmap(default=_src_ico)
+                    _icon_set = True
+            except Exception:
+                _icon_set = False
+        if not _icon_set:
+            # Last-resort fallback: decode EMBEDDED_ICON_B64 to %TEMP% and use that.
+            try:
+                import base64 as _b64, tempfile as _tf
+                _data = _b64.b64decode(EMBEDDED_ICON_B64.strip())
+                _tmp_dir = _os.environ.get("TEMP", _tf.gettempdir())
+                _ico_path = _os.path.join(_tmp_dir, "gfh_audit_icon.ico")
+                with open(_ico_path, "wb") as _f:
+                    _f.write(_data)
+                self.iconbitmap(default=_ico_path)
+                _icon_set = True
+            except Exception:
+                _icon_set = False
+        # Re-assert once after the window is mapped — on some Windows/DPI setups
+        # the taskbar button grabs its icon at map time and needs a second call
+        # once the window actually exists on screen.
+        if _icon_set:
+            try:
+                self.after(150, lambda: self.iconbitmap(default=_ico_path))
+            except Exception:
+                pass
+        self.zoom_scale = 1.0
+        APP_DIR.mkdir(parents=True, exist_ok=True)
+        IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+        EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+        migrate_legacy_app_data_if_needed()
+        self.db = VarianceDatabase(DB_PATH)
+        # Track file mtime for cross-instance sync.
+        try:
+            self._db_mtime: float = DB_PATH.stat().st_mtime if DB_PATH.exists() else 0.0
+        except Exception:
+            self._db_mtime = 0.0
+        self._db_sync_paused: bool = False   # paused while THIS instance is writing
+        self._db_sync_after_id = None        # cancellable after() handle
+        self.master_store_records = self.db.store_master_records()
+        self.current_inventory_records: List[Dict[str, str]] = []
+        self.current_time_sheet_records: List[Dict[str, str]] = []
+
+        self.store_district_var = tk.StringVar(value="")
+        self.store_name_var = tk.StringVar(value="")
+        self.rep_name_var = tk.StringVar(value="")
+        self.rep_phone_var = tk.StringVar(value="")
+        self.dm_district_var = tk.StringVar(value="")
+        self.dm_name_var = tk.StringVar(value="")
+        self.dm_phone_var = tk.StringVar(value="")
+        self.wg_district_var = tk.StringVar(value="")
+        self.wg_group_name_var = tk.StringVar(value="")
+        self.store_search_var = tk.StringVar(value="")
+        self.rep_search_var = tk.StringVar(value="")
+        self.exclusion_search_var = tk.StringVar(value="")
+        self.exclusion_district_var = tk.StringVar(value="")
+        self.exclusion_product_var = tk.StringVar(value="")
+        self.exclusion_imei_var = tk.StringVar(value="")
+        self.exclusion_comments_var = tk.StringVar(value="")
+        self.selected_exclusion_key_var = tk.StringVar(value="")
+
+        self.inventory_path = tk.StringVar(value="")
+        self.time_sheet_path = tk.StringVar(value="")
+        self.status_text = tk.StringVar(value="Select the Inventory_Count_Result_Details file, then click Load Variances. No data loaded yet.")
+
+        # ── Portal Credentials (stored in the existing SQLite DB) ───────────
+        self.brs_company_id_var = tk.StringVar(value="9909129")
+        self.brs_account_id_var = tk.StringVar(value="")
+        self.brs_username_var = tk.StringVar(value="")
+        self.brs_password_var = tk.StringVar(value="")
+        self.ts_email_var = tk.StringVar(value="")
+        self.ts_password_var = tk.StringVar(value="")
+        self._load_saved_credentials()
+
+        # ── Scheduler state ─────────────────────────────────────────────────
+        self._scheduler = AuditScheduler(self)
+        self._sched_time_vars: Dict[str, tk.StringVar] = {}   # district → HH:MM var
+        self._sched_ampm_vars: Dict[str, tk.StringVar] = {}   # district → AM/PM var
+        self._sched_log_var = tk.StringVar(value="Scheduler idle.")
+        self._auto_import_done = False
+        self.summary_text = tk.StringVar(value="No data loaded")
+        self.include_cleared = tk.BooleanVar(value=False)
+        self.send_only_unsent = tk.BooleanVar(value=SEND_ONLY_UNSENT_BY_DEFAULT)
+
+        self.status_send_mode = tk.StringVar(value="District")
+        self.status_district_filter = tk.StringVar(value="All Districts")
+        self.status_store_filter = tk.StringVar(value="All Stores")
+        self.status_search_any_var = tk.StringVar(value="")
+        self.status_search_district_var = tk.StringVar(value="")
+        self.status_search_store_var = tk.StringVar(value="")
+        self.status_search_status_var = tk.StringVar(value="")
+        self.status_search_rep_var = tk.StringVar(value="")
+
+        self.audit_send_mode = tk.StringVar(value="District")
+        self.audit_district_filter = tk.StringVar(value="All Districts")
+        self.audit_store_filter = tk.StringVar(value="All Stores")
+        self.audit_search_any_var = tk.StringVar(value="")
+        self.audit_search_district_var = tk.StringVar(value="")
+        self.audit_search_store_var = tk.StringVar(value="")
+        self.audit_search_product_var = tk.StringVar(value="")
+        self.audit_search_imei_var = tk.StringVar(value="")
+        self.audit_search_rep_var = tk.StringVar(value="")
+        self.final_district_var = tk.StringVar(value="All Districts")
+
+        self.loaded_keys: set[str] = set()
+        self.data_loaded = False
+        self.key_by_iid: Dict[str, str] = {}
+
+        self.status_rows: List[InventoryStatusRow] = []
+        self.status_row_by_key: Dict[str, InventoryStatusRow] = {}
+        self.status_key_by_iid: Dict[str, str] = {}
+        self.status_checked_keys: set[str] = set()
+        self.audit_checked_keys: set[str] = set()
+
+        self.theme_manager = ThemeManager("GFH Inventory Audit", app_name="VidaPay-GFH")
+        # Always start dark — override any saved light preference
+        self.theme_manager.current_theme = "dark"
+        self._build_ui()
+        self.set_status(f"Ready. Data folder: {APP_DIR}")
+        self._start_db_sync_poll()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        # Apply dark colors to all widgets now that they exist
+        colors = self.theme_manager.get_colors()
+        self.COLOR_BG = colors["bg"]
+        self.COLOR_TEXT = colors["text"]
+        self.COLOR_CARD = colors.get("panel", colors["bg"])
+        self.COLOR_PANEL_ALT = colors.get("panel_alt", colors["bg"])
+        self.COLOR_INPUT = colors.get("input", colors.get("panel", "#ffffff"))
+        self.COLOR_BORDER = colors.get("border", "#334")
+        self.COLOR_MUTED = colors.get("text_dim", "#8090b0")
+        self._apply_styles()
+        apply_theme_to_window(self, self.theme_manager)
+
+    # ── Window state save/restore for WhatsApp sending ──────────────────
+    # When WhatsApp Desktop is brought to the foreground (via
+    # SetForegroundWindow), Windows can push the audit app's window behind
+    # it or change its state (zoomed → normal).  When the app regains
+    # focus, the window may appear moved/resized ("window layouting").
+    #
+    # These methods save the window's geometry + state before WhatsApp is
+    # focused, and restore it after — so the window stays exactly where
+    # the user put it.
+
+    def _save_window_state(self) -> dict:
+        """Save the current window geometry and state (zoomed/normal/iconic)
+        so it can be restored after WhatsApp steals focus."""
+        try:
+            return {
+                "geometry": self.geometry(),
+                "state": self.state(),
+            }
+        except Exception:
+            return {}
+
+    def _restore_window_state(self, saved: dict) -> None:
+        """Restore window geometry + state saved by _save_window_state.
+        Called after WhatsApp finishes sending — brings the audit app back
+        to the exact position/size/state it was in before."""
+        if not saved:
+            return
+        try:
+            # Restore state first (zoomed/normal), then geometry.
+            # If the window was zoomed (maximized), re-zoom it.
+            # If it was normal, restore the exact geometry.
+            state = saved.get("state", "normal")
+            geom = saved.get("geometry", "")
+            if state == "zoomed":
+                try:
+                    self.state("zoomed")
+                except Exception:
+                    pass
+            elif state == "normal" and geom:
+                try:
+                    self.geometry(geom)
+                except Exception:
+                    pass
+            # Bring the app back to the foreground
+            try:
+                self.lift()
+                self.attributes("-topmost", True)
+                self.after(100, lambda: self.attributes("-topmost", False))
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _apply_dynamic_geometry(self) -> None:
+        """Size the window to 90% of the screen and center it.
+
+        Works on any laptop/monitor/PC (1080p, 1440p, 2K, 4K) and respects
+        Windows DPI scaling (run after _enable_dpi_awareness()). The window
+        stays resizable so Windows Snap gestures keep working — it centers
+        on launch, then snaps normally to 50% left/right, corners or via
+        Win+arrow shortcuts.
+        """
+        try:
+            self.update_idletasks()
+            sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+            w = max(960, min(int(sw * 0.90), sw - 20))
+            h = max(640, min(int(sh * 0.90), sh - 40))
+            x = max(0, (sw - w) // 2)
+            y = max(0, (sh - h) // 2)
+            self.geometry(f"{w}x{h}+{x}+{y}")
+            # minsize <= half the screen so 50% / corner snap is never blocked
+            self.minsize(min(960, max(640, sw // 2)),
+                         min(580, max(480, sh // 2)))
+            self.resizable(True, True)
+            # Always open maximized (issue: window was too small on first launch)
+            self.after(10, lambda: self.state("zoomed"))
+        except Exception:
+            pass
+
+    def _apply_styles(self) -> None:
+        sz = lambda n: max(6, round(n * self.zoom_scale))
+        s = self._style
+        s.configure("TFrame", background=self.COLOR_BG)
+        s.configure("Card.TFrame", background=self.COLOR_CARD)
+        s.configure("Brand.TFrame", background=self.COLOR_NAVY)
+        s.configure("TLabel", background=self.COLOR_BG, foreground=self.COLOR_TEXT, font=("Segoe UI", sz(10)))
+        s.configure("Header.TLabel", font=("Segoe UI", sz(19), "bold"), background=self.COLOR_NAVY, foreground="#FFFFFF")
+        s.configure("BrandSub.TLabel", font=("Segoe UI", sz(10), "bold"), background=self.COLOR_NAVY, foreground="#DCE2F2")
+        s.configure("Sub.TLabel", font=("Segoe UI", sz(10)), background=self.COLOR_BG, foreground=self.COLOR_MUTED)
+        # Buttons match the sun/moon theme-toggle button in the header: solid brand-red
+        # background with white bold text.
+        s.configure("TButton", padding=(10, 6), font=("Segoe UI", sz(9), "bold"), background=self.COLOR_RED, foreground="#FFFFFF", bordercolor=self.COLOR_RED, focusthickness=1, focuscolor=self.COLOR_RED)
+        s.map(
+            "TButton",
+            background=[("active", "#D8431A"), ("pressed", "#B8330F")],
+            foreground=[("pressed", "#FFFFFF"), ("active", "#FFFFFF")],
+            bordercolor=[("active", self.COLOR_RED), ("pressed", self.COLOR_RED)],
+        )
+        s.configure("TEntry",
+                    fieldbackground=self.COLOR_INPUT,
+                    foreground=self.COLOR_TEXT,
+                    selectforeground="#ffffff",
+                    selectbackground=self.COLOR_RED,
+                    insertcolor=self.COLOR_TEXT,
+                    bordercolor=self.COLOR_BORDER)
+        s.configure("TCombobox",
+                    fieldbackground=self.COLOR_INPUT,
+                    foreground=self.COLOR_TEXT,
+                    selectforeground=self.COLOR_TEXT,
+                    selectbackground=self.COLOR_INPUT,
+                    bordercolor=self.COLOR_BORDER,
+                    arrowcolor=self.COLOR_TEXT)
+        s.map("TCombobox",
+              fieldbackground=[("readonly", self.COLOR_INPUT), ("disabled", self.COLOR_PANEL_ALT)],
+              foreground=[("readonly", self.COLOR_TEXT), ("disabled", self.COLOR_MUTED)],
+              selectforeground=[("readonly", self.COLOR_TEXT)],
+              selectbackground=[("readonly", self.COLOR_INPUT)])
+        s.configure("TLabelframe", background=self.COLOR_BG, bordercolor=self.COLOR_BORDER, relief="solid")
+        s.configure("TLabelframe.Label", background=self.COLOR_BG, foreground=self.COLOR_TEXT, font=("Segoe UI", sz(10), "bold"))
+        s.configure("TNotebook", background=self.COLOR_BG, borderwidth=0)
+        s.configure("TNotebook.Tab", padding=(18, 9), font=("Segoe UI", sz(10), "bold"), background=self.COLOR_PANEL_ALT, foreground=self.COLOR_TEXT)
+        s.map(
+            "TNotebook.Tab",
+            background=[("selected", self.COLOR_RED), ("active", "#FFE8EC")],
+            foreground=[("selected", "#FFFFFF"), ("active", self.COLOR_NAVY)],
+        )
+        s.configure("Treeview", rowheight=max(20, round(32 * self.zoom_scale)), font=("Segoe UI", sz(10)), background=self.COLOR_CARD, fieldbackground=self.COLOR_CARD, foreground=self.COLOR_TEXT, bordercolor=self.COLOR_BORDER, borderwidth=1)
+        s.configure("Treeview.Heading", font=("Segoe UI", sz(10), "bold"), background=self.COLOR_NAVY, foreground="#FFFFFF", relief="flat")
+        # Without an explicit "active" (hover) map, ttk's built-in "clam" theme
+        # falls back to its own default light-gray hover color for the heading,
+        # which is why the header briefly flashed a different color on mouse-over.
+        # Pin every state to the same navy/white so hovering never changes it.
+        s.map(
+            "Treeview.Heading",
+            background=[("active", self.COLOR_NAVY), ("pressed", self.COLOR_NAVY), ("!active", self.COLOR_NAVY)],
+            foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF"), ("!active", "#FFFFFF")],
+        )
+        s.map("Treeview", background=[("selected", self.COLOR_RED)], foreground=[("selected", "#FFFFFF")])
+
+    def zoom_in(self, event=None) -> None:
+        if self.zoom_scale < 2.0:
+            self.zoom_scale = round(self.zoom_scale + 0.1, 1)
+            self.apply_zoom()
+
+    def zoom_out(self, event=None) -> None:
+        if self.zoom_scale > 0.5:
+            self.zoom_scale = round(self.zoom_scale - 0.1, 1)
+            self.apply_zoom()
+
+    def apply_zoom(self) -> None:
+        self._apply_styles()
+        self.update_idletasks()
+
+    def _build_ui(self) -> None:
+        self._style = ttk.Style(self)
+        try:
+            self._style.theme_use("clam")
+        except Exception:
+            pass
+
+        # Pull colors from the already-set dark theme so every widget
+        # built from here on gets dark colors baked in — not the light
+        # defaults that were previously hardcoded here.
+        _c = self.theme_manager.get_colors()
+        self.COLOR_NAVY     = "#090d26"
+        self.COLOR_RED      = "#f0541c"
+        self.COLOR_BG       = _c["bg"]
+        self.COLOR_CARD     = _c.get("panel",     _c["bg"])
+        self.COLOR_TEXT     = _c["text"]
+        self.COLOR_MUTED    = _c.get("text_dim",  "#8090b0")
+        self.COLOR_BORDER   = _c.get("border",    "#334466")
+        self.COLOR_INPUT    = _c.get("input",     _c.get("panel", "#1c2447"))
+        self.COLOR_PANEL_ALT= _c.get("panel_alt", "#1c2447")
+        self.COLOR_SUCCESS  = "#17A65B"
+
+        self.configure(bg=self.COLOR_BG)
+        self._apply_styles()
+
+        # ── Copyright bar (bottom) — dark navy always, centered, never theme-changed
+        _cbar = tk.Frame(self, bg="#090d26", height=24)
+        _cbar.pack(fill="x", side="bottom")
+        _cbar.pack_propagate(False)
+        _cbar._tag = "footer"
+        _clbl = tk.Label(
+            _cbar,
+            text=f"Developed by www.3SVerse.com | Copyright \u00a9 {date.today().year} | All rights reserved.",
+            font=("Segoe UI", 8), fg="#c7cbe0", bg="#090d26",
+        )
+        _clbl.pack(expand=True, fill="both")
+        _clbl._tag = "footer"
+
+
+        header = tk.Frame(self, bg=self.COLOR_NAVY, height=90)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        header._tag = "header"
+
+        self.header_logo_img = None
+        if Image is not None and ImageTk is not None:
+            import io as _io
+            _logo_loaded = False
+            for _logo_src in [
+                # 1: PNG file on disk
+                lambda: Image.open(HEADER_LOGO_PATH).convert("RGBA") if HEADER_LOGO_PATH.exists() else None,
+                # 2: embedded_logo_b64.txt asset
+                lambda: Image.open(_io.BytesIO(base64.b64decode(EMBEDDED_LOGO_B64))).convert("RGBA") if EMBEDDED_LOGO_B64 else None,
+                # 3: gfh_square_icon_b64.txt asset (fallback square icon)
+                lambda: Image.open(_io.BytesIO(base64.b64decode(GFH_SQUARE_ICON_B64))).convert("RGBA") if GFH_SQUARE_ICON_B64 else None,
+            ]:
+                try:
+                    logo = _logo_src()
+                    if logo is None:
+                        continue
+                    scale = min(190 / logo.width, 72 / logo.height)
+                    size = (max(1, int(logo.width * scale)), max(1, int(logo.height * scale)))
+                    logo = logo.resize(size, Image.LANCZOS if hasattr(Image, "LANCZOS") else Image.ANTIALIAS)
+                    self.header_logo_img = ImageTk.PhotoImage(logo)
+                    _logo_lbl = tk.Label(header, image=self.header_logo_img, bg=self.COLOR_NAVY, bd=0,
+                                         highlightthickness=0)
+                    _logo_lbl.pack(side="left", padx=(18, 0), pady=9)
+                    _logo_lbl._tag = "header"
+                    _logo_loaded = True
+                    break
+                except Exception:
+                    continue
+            if not _logo_loaded:
+                self.header_logo_img = None
+
+        # Red vertical divider
+        _div = tk.Frame(header, bg=self.COLOR_RED, width=3)
+        _div.pack(side="left", fill="y", padx=(14, 0), pady=12)
+        _div._tag = "header"
+
+        # Theme toggle — pack RIGHT first so title can center in remaining space
+        _tog_frame = tk.Frame(header, bg=self.COLOR_NAVY)
+        _tog_frame.pack(side="right", padx=(0, 18), pady=9)
+        _tog_frame._tag = "header"
+        self._theme_btn = tk.Button(
+            _tog_frame,
+            text="☀️" if self.theme_manager.current_theme == "dark" else "🌙",
+            bg=self.COLOR_NAVY, fg="white",
+            activebackground=self.COLOR_RED, activeforeground="white",
+            font=("Segoe UI Emoji", 13), width=3, relief="flat",
+            highlightthickness=0, borderwidth=0, cursor="hand2",
+            command=self._toggle_theme
+        )
+        self._theme_btn.pack()
+        self._theme_btn._tag = "header"
+
+        # CENTER: Title — spans the ENTIRE header (relwidth=1.0, relheight=1.0)
+        # so anchor="center" centers text both H and V within the full header.
+        # lower() puts it behind logo/divider/theme button so they stay visible.
+        _title_lbl = tk.Label(
+            header, text=APP_NAME,
+            font=("Segoe UI", 18, "bold"), fg="#ffffff", bg=self.COLOR_NAVY,
+            anchor="center"
+        )
+        _title_lbl.place(relx=0.0, rely=0.0, relwidth=1.0, relheight=1.0)
+        _title_lbl.lower()
+        _title_lbl._tag = "header"
+
+        root = ttk.Frame(self, padding=14)
+        root.pack(fill="both", expand=True)
+
+        # Zoom keybindings (zoom buttons remain in the header area)
+        self.bind("<Control-equal>", self.zoom_in)
+        self.bind("<Control-plus>", self.zoom_in)
+        self.bind("<Control-minus>", self.zoom_out)
+
+        self.notebook = ttk.Notebook(root)
+        self.notebook.pack(fill="both", expand=True, pady=(6, 0))
+        self.status_tab = ttk.Frame(self.notebook, padding=10)
+        self.audit_tab = ttk.Frame(self.notebook, padding=10)
+        self.store_tab = ttk.Frame(self.notebook, padding=10)
+        self.rep_tab = ttk.Frame(self.notebook, padding=10)
+        self.dm_tab = ttk.Frame(self.notebook, padding=10)
+        self.exclusion_tab = ttk.Frame(self.notebook, padding=10)
+        self.credentials_tab = ttk.Frame(self.notebook, padding=10)
+        self.scheduler_tab = ttk.Frame(self.notebook, padding=10)
+        self.notebook.add(self.status_tab, text="Inventory Audit Status")
+        self.notebook.add(self.audit_tab, text="Variance Audit")
+        self.notebook.add(self.store_tab, text="Store List")
+        self.notebook.add(self.rep_tab, text="Employees")
+        self.notebook.add(self.dm_tab, text="District DMs")
+        self.notebook.add(self.exclusion_tab, text="Excluded Devices")
+        self.notebook.add(self.credentials_tab, text="Portal Credentials")
+        # Audit Scheduler tab removed — controls embedded in Inventory Audit Status tab
+
+        self._build_status_tab()
+        self._build_audit_tab()
+        self._build_store_tab()
+        self._build_rep_tab()
+        self._build_dm_tab()
+        self._build_exclusion_tab()
+        self._build_credentials_tab()
+        self._build_scheduler_tab()
+        self.refresh_store_accounts_table()
+        self.refresh_sales_reps_table()
+        self.refresh_district_managers_table()
+        self.refresh_whatsapp_groups_table()
+        self.refresh_device_exclusions_table()
+
+        status_bar = ttk.Label(root, textvariable=self.status_text, anchor="w", relief="sunken", padding=6, foreground=self.COLOR_NAVY, background="#E9ECF5")
+        status_bar.pack(fill="x", pady=(8, 0))
+
+        # Theme toggle is now built directly in the header grid above (_theme_btn).
+        # The old theme_manager.create_theme_toggle_button call has been removed
+        # to avoid a second button appearing outside the header.
+
+    # ── Portal Credentials Tab ──────────────────────────────────────────────
+    def _build_credentials_tab(self) -> None:
+        """Build the Portal Credentials tab UI."""
+        tab = self.credentials_tab
+        # BRS Section
+        brs_box = ttk.LabelFrame(tab, text="B2B Soft Portal (wsreports.b2bsoft.com)", padding=12)
+        brs_box.pack(fill="x", pady=(0, 10))
+        fields_brs = [
+            ("Company ID",  self.brs_company_id_var, False),
+            ("Account ID",  self.brs_account_id_var, False),
+            ("Username",    self.brs_username_var,   False),
+            ("Password",    self.brs_password_var,   True),
+        ]
+        for row_i, (label, var, is_pw) in enumerate(fields_brs):
+            ttk.Label(brs_box, text=label, width=14, anchor="e").grid(
+                row=row_i, column=0, sticky="e", padx=(0, 8), pady=4)
+            show_char = "●" if is_pw else ""
+            ttk.Entry(brs_box, textvariable=var, width=36,
+                      show=show_char).grid(row=row_i, column=1, sticky="w", pady=4)
+
+        # Timesheet Section
+        ts_box = ttk.LabelFrame(tab, text="Timesheet Portal (gfh-telecom-app.web.app)", padding=12)
+        ts_box.pack(fill="x", pady=(0, 10))
+        fields_ts = [
+            ("Email",    self.ts_email_var,    False),
+            ("Password", self.ts_password_var, True),
+        ]
+        for row_i, (label, var, is_pw) in enumerate(fields_ts):
+            ttk.Label(ts_box, text=label, width=14, anchor="e").grid(
+                row=row_i, column=0, sticky="e", padx=(0, 8), pady=4)
+            show_char = "●" if is_pw else ""
+            ttk.Entry(ts_box, textvariable=var, width=36,
+                      show=show_char).grid(row=row_i, column=1, sticky="w", pady=4)
+
+        # Save / Test buttons
+        btn_row = ttk.Frame(tab)
+        btn_row.pack(fill="x", pady=(4, 0))
+        ttk.Button(btn_row, text="💾  Save Credentials",
+                   command=self._save_credentials).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="🔌  Test B2B Login",
+                   command=self._test_brs_login).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="🔌  Test Timesheet Login",
+                   command=self._test_ts_login).pack(side="left")
+
+    def _save_credentials(self) -> None:
+        data = {
+            "brs": {
+                "company_id": self.brs_company_id_var.get().strip(),
+                "account_id": self.brs_account_id_var.get().strip(),
+                "username":   self.brs_username_var.get().strip(),
+                "password":   self.brs_password_var.get(),
+            },
+            "timesheet": {
+                "email":    self.ts_email_var.get().strip(),
+                "password": self.ts_password_var.get(),
+            },
+        }
+        try:
+            self.db.save_portal_credentials(data)
+            messagebox.showinfo("Saved", "Portal credentials saved to database.", parent=self)
+        except Exception as exc:
+            messagebox.showerror("Save Error", str(exc), parent=self)
+
+    def _load_saved_credentials(self) -> None:
+        try:
+            data = self.db.load_portal_credentials()
+            brs = data.get("brs", {})
+            self.brs_company_id_var.set(brs.get("company_id", "9909129") or "9909129")
+            self.brs_account_id_var.set(brs.get("account_id", "") or "")
+            self.brs_username_var.set(brs.get("username", "") or "")
+            self.brs_password_var.set(brs.get("password", "") or "")
+            ts = data.get("timesheet", {})
+            self.ts_email_var.set(ts.get("email", "") or "")
+            self.ts_password_var.set(ts.get("password", "") or "")
+        except Exception:
+            pass
+
+    def _test_brs_login(self) -> None:
+        self._save_credentials()
+        scraper = B2BSoftScraper(
+            company_id=self.brs_company_id_var.get().strip(),
+            account_id=self.brs_account_id_var.get().strip(),
+            username=self.brs_username_var.get().strip(),
+            password=self.brs_password_var.get(),
+            download_dir=EXPORT_DIR,
+            log_fn=lambda m: self.set_status(f"[B2B] {m}"),
+        )
+        def _run():
+            try:
+                scraper.login()
+                self.after(0, lambda: messagebox.showinfo("B2B Login", "✓ Login successful!", parent=self))
+            except Exception as exc:
+                self.after(0, lambda: messagebox.showerror("B2B Login Failed", str(exc), parent=self))
+            finally:
+                scraper.quit()
+        threading.Thread(target=_run, daemon=True).start()
+
+    def _test_ts_login(self) -> None:
+        self._save_credentials()
+        scraper = TimesheetScraper(
+            email=self.ts_email_var.get().strip(),
+            password=self.ts_password_var.get(),
+            download_dir=EXPORT_DIR,
+            log_fn=lambda m: self.set_status(f"[TS] {m}"),
+        )
+        def _run():
+            try:
+                scraper.login()
+                self.after(0, lambda: messagebox.showinfo("Timesheet Login", "✓ Login successful!", parent=self))
+            except Exception as exc:
+                self.after(0, lambda: messagebox.showerror("Timesheet Login Failed", str(exc), parent=self))
+            finally:
+                scraper.quit()
+        threading.Thread(target=_run, daemon=True).start()
+
+    # ── Audit Scheduler Tab ─────────────────────────────────────────────────
+    def _build_scheduler_tab(self) -> None:
+        """Scheduler controls are now on the Inventory Audit Status tab (main tab).
+        This tab shows a convenience redirect notice only."""
+        tab = self.scheduler_tab
+        ttk.Label(
+            tab,
+            text=(
+                "The Audit Scheduler controls have moved to the Inventory Audit Status tab.\n\n"
+                "Use the Start / Stop / Hold / Resume buttons and district time fields\n"
+                "at the top of that tab to control the scheduler."
+            ),
+            justify="left",
+            wraplength=700,
+        ).pack(anchor="nw", padx=20, pady=30)
+        ttk.Button(
+            tab,
+            text="Go to Inventory Audit Status →",
+            command=lambda: self.notebook.select(self.status_tab),
+        ).pack(anchor="nw", padx=20)
+
+    def _build_scheduler_district_rows(self) -> None:
+        """Build one row per known district with HH:MM + AM/PM time-entry fields."""
+        for w in self._sched_frame.winfo_children():
+            w.destroy()
+        self._sched_time_vars.clear()
+        self._sched_ampm_vars.clear()
+        districts = self._known_districts_for_scheduler()
+        if not districts:
+            ttk.Label(self._sched_frame,
+                      text="No districts found. Load an inventory file or add stores in the Store List tab."
+                      ).grid(row=0, column=0, sticky="w")
+            return
+        # 5 cols per group: label | entry | ampm | hint | spacer(weight)
+        for g in range(3):
+            self._sched_frame.columnconfigure(g * 5 + 4, weight=1)
+        # Load saved times from DB
+        import json as _json
+        try:
+            saved = _json.loads(self.db.get_setting("sched_district_times", "{}"))
+        except Exception:
+            saved = {}
+        for idx, dist in enumerate(districts):
+            col = (idx % 3) * 5
+            row = idx // 3
+            saved_val = saved.get(dist, {})
+            var = tk.StringVar(value=saved_val.get("time", ""))
+            ampm_var = tk.StringVar(value=saved_val.get("ampm", "AM"))
+            self._sched_time_vars[dist] = var
+            self._sched_ampm_vars[dist] = ampm_var
+            ttk.Label(self._sched_frame, text=dist, anchor="e").grid(
+                row=row, column=col, sticky="e", padx=(6, 2), pady=4)
+            ttk.Entry(self._sched_frame, textvariable=var, width=6).grid(
+                row=row, column=col + 1, sticky="w", padx=(0, 2), pady=4)
+            ttk.Combobox(self._sched_frame, textvariable=ampm_var, values=["AM", "PM"],
+                         state="readonly", width=4).grid(
+                row=row, column=col + 2, sticky="w", padx=(0, 2), pady=4)
+            ttk.Label(self._sched_frame, text="HH:MM", foreground="#8090b0").grid(
+                row=row, column=col + 3, sticky="w", padx=(0, 4), pady=4)
+            # col+4 is the spacer (weight=1 above)
+
+    def _known_districts_for_scheduler(self) -> List[str]:
+        """Return distinct districts from the DB store list."""
+        try:
+            return sorted(set(self.db.all_known_districts()))
+        except Exception:
+            return []
+
+    @staticmethod
+    def _to_24h(hhmm: str, ampm: str) -> str:
+        """Convert HH:MM + AM/PM to HH:MM 24-hour string. Returns '' on bad input."""
+        try:
+            h, m = map(int, hhmm.strip().split(":"))
+            ampm = ampm.strip().upper()
+            if ampm == "PM" and h != 12:
+                h += 12
+            elif ampm == "AM" and h == 12:
+                h = 0
+            return f"{h:02d}:{m:02d}"
+        except Exception:
+            return ""
+
+    def _sched_start(self) -> None:
+        import datetime as _dt
+        times_raw = {d: v.get().strip() for d, v in self._sched_time_vars.items()}
+        if not times_raw:
+            messagebox.showwarning("No Districts", "No districts to schedule. Import inventory first.", parent=self)
+            return
+        # Convert 12hr → 24hr for each district
+        times: dict = {}
+        for d, t in times_raw.items():
+            if t:
+                ampm = self._sched_ampm_vars.get(d, tk.StringVar(value="AM")).get()
+                times[d] = self._to_24h(t, ampm)
+            else:
+                times[d] = ""
+        # Late-start: if configured start time already passed, start that district immediately
+        now = _dt.datetime.now()
+        adjusted_times: dict = {}
+        for district, t in times.items():
+            if t:
+                try:
+                    h, m = map(int, t.split(":"))
+                    target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                    if now >= target:
+                        adjusted_times[district] = ""  # start immediately
+                        self._log_scheduler(f"⚡ {district}: {t} already passed — starting immediately.")
+                    else:
+                        adjusted_times[district] = t
+                except Exception:
+                    adjusted_times[district] = t
+            else:
+                adjusted_times[district] = t
+        # Compute stop time: explicit global stop time overrides duration
+        stop_time_str = self._sched_stop_time_var.get().strip()
+        stop_time = None
+        if stop_time_str:
+            try:
+                stop_ampm = self._sched_stop_ampm_var.get()
+                t24 = self._to_24h(stop_time_str, stop_ampm)
+                h, m = map(int, t24.split(":"))
+                stop_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                if stop_time <= now:
+                    stop_time += _dt.timedelta(days=1)
+            except Exception:
+                pass
+        if stop_time is None:
+            try:
+                dur_h = float(self._sched_duration_var.get().strip() or "12")
+            except Exception:
+                dur_h = 12.0
+            stop_time = now + _dt.timedelta(hours=dur_h)
+        # Tracks districts whose scheduled start has fired this session.
+        self._scheduler_fired_districts: set = set()
+        # Tracks districts whose starting message has not yet been sent.
+        self._scheduler_pending_messages: set = set()
+        # Ensures only one export cycle runs at a time — prevents 7-district simultaneous B2B+TS scrapes.
+        self._export_cycle_lock = threading.Lock()
+
+        self._scheduler.start(adjusted_times, stop_time=stop_time)
+        self._log_scheduler(f"▶ Started. Stops at {stop_time.strftime('%H:%M')}.")
+        # Start WhatsApp notification OCR monitor for auto-IMEI clearing
+        self._start_whatsapp_ocr_monitor()
+
+        # Open Edge at port 9227 (launch if not running), open monitoring tabs,
+        # then run initial export. Starting messages send INSIDE the export
+        # cycle completion callback — never before download finishes.
+        def _startup_sequence():
+            _log = lambda m: self.after(0, lambda: self._log_scheduler(m))
+            ready = _ensure_edge_open(log=_log)
+            if ready:
+                _log("✓ Edge ready at port 9227.")
+                names = self._sched_open_tabs()
+                if names:
+                    self.after(0, lambda n=list(names): self._log_tabs_opened(n))
+            else:
+                _log("⚠ Could not open Edge at port 9227.")
+            self._scheduler_run_export_cycle()
+        threading.Thread(target=_startup_sequence, daemon=True, name="SchedulerStartup").start()
+
+    def _sched_save_times(self) -> None:
+        import json as _json
+        data = {}
+        for dist, var in self._sched_time_vars.items():
+            ampm = self._sched_ampm_vars.get(dist)
+            data[dist] = {
+                "time": var.get().strip(),
+                "ampm": ampm.get() if ampm else "AM",
+            }
+        try:
+            self.db.save_setting("sched_district_times", _json.dumps(data))
+            self.set_status("Scheduler times saved.")
+        except Exception as exc:
+            self.set_status(f"Save failed: {exc}")
+
+    def _sched_stop(self) -> None:
+        self._scheduler.stop()
+        self._wa_ocr_running = False
+
+    def _sched_hold(self) -> None:
+        self._scheduler.hold()
+
+    def _sched_resume(self) -> None:
+        self._scheduler.resume()
+
+    def _log_scheduler(self, msg: str) -> None:
+        """Append a message to the scheduler log text widget."""
+        import datetime as _dt
+        timestamp = _dt.datetime.now().strftime("%H:%M:%S")
+        full_msg = f"[{timestamp}] {msg}\n"
+        try:
+            self._sched_log_text.configure(state="normal")
+            self._sched_log_text.insert("end", full_msg)
+            self._sched_log_text.see("end")
+            self._sched_log_text.configure(state="disabled")
+        except Exception:
+            pass
+
+    # ── Scheduler callbacks (run on main thread via after()) ────────────────
+    def _scheduler_start_district(self, district: str) -> None:
+        """Mark district as fired. Starting message sends after export cycle completes."""
+        self._log_scheduler(f"▶ Starting district: {district}")
+        fired_set = getattr(self, "_scheduler_fired_districts", None)
+        if fired_set is not None:
+            fired_set.add(district)
+
+    def _sched_open_tabs(self) -> list:
+        """Open scheduler tabs in the automation Edge window: B2B, GFH app, and
+        WhatsApp Web (only when WhatsApp Web mode is selected). Returns opened names."""
+        try:
+            mode_var = getattr(self, "wa_mode_var", None)
+            include_wa = (mode_var.get() == "web") if mode_var is not None else True
+        except Exception:
+            include_wa = True
+        return open_monitoring_tabs(include_whatsapp=include_wa)
+
+    def _log_tabs_opened(self, names: list) -> None:
+        """Log 'Opened X, Y tabs.' — suppresses exact repeats within 90s so the
+        scheduler-startup open and the first export cycle don't double-log."""
+        msg = "Opened " + _humanize_list(list(names)) + " tabs."
+        now = time.monotonic()
+        last_msg, last_t = getattr(self, "_last_tabs_log", (None, 0.0))
+        if msg == last_msg and (now - last_t) < 90:
+            return
+        self._last_tabs_log = (msg, now)
+        self._log_scheduler(msg)
+
+    def _scheduler_run_export_cycle(self, district: str = None) -> None:
+        """Export B2B + Timesheet files, reload variances, optionally send variance image."""
+        lock = getattr(self, "_export_cycle_lock", None)
+        if lock is not None and not lock.acquire(blocking=False):
+            self._log_scheduler("⟳ Export cycle already running — skipped duplicate call.")
+            return
+        self._log_scheduler("⟳ Running export cycle…")
+        def _run():
+            # Pre-open separate tabs so each scraper gets its own tab (and a
+            # WhatsApp Web tab when WhatsApp Web mode is selected).
+            try:
+                names = self._sched_open_tabs()
+                if names:
+                    self.after(0, lambda n=list(names): self._log_tabs_opened(n))
+            except Exception:
+                pass
+
+            # Build both scrapers upfront — init tab handles sequentially before scraping.
+            brs = B2BSoftScraper(
+                company_id=self.brs_company_id_var.get().strip(),
+                account_id=self.brs_account_id_var.get().strip(),
+                username=self.brs_username_var.get().strip(),
+                password=self.brs_password_var.get(),
+                download_dir=EXPORT_DIR,
+                log_fn=lambda m: self.after(0, lambda: self._log_scheduler(f"[B2B] {m}")),
+            )
+            brs._make_driver()
+
+            ts = TimesheetScraper(
+                email=self.ts_email_var.get().strip(),
+                password=self.ts_password_var.get(),
+                download_dir=EXPORT_DIR,
+                log_fn=lambda m: self.after(0, lambda: self._log_scheduler(f"[TS] {m}")),
+            )
+            ts._make_driver()
+
+            inv_file = None
+            ts_file = None
+
+            def _run_b2b():
+                nonlocal inv_file
+                try:
+                    brs.login()
+                    brs.navigate_to_report()
+                    inv_file = brs.download_xlsx()
+                except Exception as exc:
+                    self.after(0, lambda: self._log_scheduler(f"⚠ B2B export error: {exc}"))
+                finally:
+                    brs.quit()
+
+            def _run_ts():
+                nonlocal ts_file
+                try:
+                    ts.login()
+                    ts_file = ts.download_xlsx()
+                except Exception as exc:
+                    self.after(0, lambda: self._log_scheduler(f"⚠ Timesheet export error: {exc}"))
+                finally:
+                    ts.quit()
+
+            # Run B2B then Timesheet sequentially — both share the same Edge browser
+            # (port 9227). Parallel switch_to.window() calls on the same browser
+            # race and corrupt each other's tab focus.
+            try:
+                _run_b2b()
+                _run_ts()
+            except Exception as exc:
+                self.after(0, lambda: self._log_scheduler(f"⚠ Export cycle error: {exc}"))
+            finally:
+                # Reload variances and optionally send variance image — must
+                # run on EVERY cycle. This block used to sit inside the except
+                # handler, and _run_b2b/_run_ts swallow their own errors, so on
+                # a normal successful export load_variances() never ran and the
+                # Status tab stayed empty until a manual Load Variances click.
+                _district_for_send = district
+                def _reload_and_send():
+                    try:
+                        if inv_file and inv_file.exists():
+                            self.inventory_path.set(str(inv_file))
+                            self._log_scheduler(f"Loaded B2B file: {inv_file.name}")
+                        if ts_file and ts_file.exists():
+                            self.time_sheet_path.set(str(ts_file))
+                            self._log_scheduler(f"Loaded timesheet: {ts_file.name}")
+                        # Require both files to call load_variances (avoids missing-file dialog).
+                        both_ready = (
+                            inv_file and inv_file.exists() and
+                            ts_file and ts_file.exists()
+                        )
+                        if both_ready:
+                            self.load_variances()
+                            self._auto_import_stores_from_inventory()
+
+                        # Send starting message + status image for every fired district.
+                        # This is the ONLY place starting messages send — after export attempt.
+                        fired = list(getattr(self, "_scheduler_fired_districts", set()))
+                        pending = getattr(self, "_scheduler_pending_messages", None)
+                        if pending is None:
+                            self._scheduler_pending_messages = set(fired)
+                            pending = self._scheduler_pending_messages
+                        unsent = [d for d in fired if d in pending]
+                        if unsent:
+                            # One thread sends all districts sequentially — no concurrent UI fight
+                            # (critical for desktop mode; web mode also benefits from sequential tab use).
+                            for d in unsent:
+                                self._log_scheduler(f"💬 Sending starting message → {d}")
+                            normalized = [normalize_district(d) for d in unsent]
+                            threading.Thread(
+                                target=self._send_starting_message_thread,
+                                args=(normalized,),
+                                daemon=True,
+                                name="StartingMessages",
+                            ).start()
+                            for d in unsent:
+                                if both_ready:
+                                    self._auto_send_status_image(d)
+                                pending.discard(d)
+
+                        if _district_for_send:
+                            self._auto_send_variance_image(_district_for_send)
+                    except Exception as exc:
+                        self._log_scheduler(f"⚠ Reload error: {exc}")
+                self.after(0, _reload_and_send)
+                _lock = getattr(self, "_export_cycle_lock", None)
+                if _lock is not None:
+                    try:
+                        _lock.release()
+                    except RuntimeError:
+                        pass
+        threading.Thread(target=_run, daemon=True, name="ExportCycle").start()
+
+    # ── Scheduler automation helpers (no-dialog versions) ───────────────────
+
+    def _capture_tab_screenshot(self, tab_widget) -> Optional[Path]:
+        """Take a screenshot of a specific tab widget and return the saved path."""
+        try:
+            if Image is None:
+                return None
+            tab_widget.update_idletasks()
+            x = tab_widget.winfo_rootx()
+            y = tab_widget.winfo_rooty()
+            w = tab_widget.winfo_width()
+            h = tab_widget.winfo_height()
+            import datetime as _dt
+            ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_path = EXPORT_DIR / f"tab_screenshot_{ts}.png"
+            img = ImageGrab.grab(bbox=(x, y, x + w, y + h))
+            img.save(str(out_path))
+            return out_path
+        except Exception as exc:
+            self._log_scheduler(f"⚠ Screenshot error: {exc}")
+            return None
+
+    def _auto_send_status_image(self, district: str) -> None:
+        """Send Inventory Audit Status image for a district without confirmation dialog."""
+        try:
+            rows = [row for row in self.status_rows if normalize_district(row.district) == normalize_district(district)]
+            if not rows:
+                self._log_scheduler(f"⚠ No status rows for district: {district}")
+                return
+            self._log_scheduler(f"📸 Sending status image → {district} ({len(rows)} rows)")
+            threading.Thread(target=self._send_status_rows, args=(rows, "district"), daemon=True).start()
+        except Exception as exc:
+            self._log_scheduler(f"⚠ Status image error ({district}): {exc}")
+
+    def _auto_send_starting_message(self, district: str) -> None:
+        """Send starting message to a district WhatsApp group without confirmation dialog."""
+        try:
+            self._log_scheduler(f"💬 Sending starting message → {district}")
+            districts = [normalize_district(district)]
+            threading.Thread(target=self._send_starting_message_thread, args=(districts,), daemon=True).start()
+        except Exception as exc:
+            self._log_scheduler(f"⚠ Starting message error ({district}): {exc}")
+
+    def _send_actions_panel_screenshot(self, district: str) -> None:
+        """Capture the Variance Audit tab and send it to the district WhatsApp group."""
+        try:
+            screenshot_path = self._capture_tab_screenshot(self.audit_tab)
+            if not screenshot_path or not screenshot_path.exists():
+                self._log_scheduler(f"⚠ Actions panel screenshot failed for {district}")
+                return
+            self._log_scheduler(f"📷 Sending actions panel screenshot → {district}")
+            def _send():
+                try:
+                    sender = WhatsAppSender(status_callback=self.set_status,
+                                           mode=getattr(self, "wa_mode_var", tk.StringVar(value="web")).get() or "web")
+                    group_name = group_name_for_district(district, self.db)
+                    _win_state = self._save_window_state()
+                    sender.send_image(group_name, screenshot_path, text_message="Audit actions panel.")
+                    self._restore_window_state(_win_state)
+                    self._log_scheduler(f"✓ Actions panel sent to {group_name}")
+                except Exception as exc:
+                    self._log_scheduler(f"⚠ Actions panel send error: {exc}")
+            threading.Thread(target=_send, daemon=True).start()
+        except Exception as exc:
+            self._log_scheduler(f"⚠ Actions panel screenshot error ({district}): {exc}")
+
+    def _auto_send_variance_image(self, district: str) -> None:
+        """Send all pending variance rows for a district without confirmation dialog."""
+        try:
+            if not self.data_loaded:
+                return
+            all_rows = self.db.get_rows_by_keys(self.loaded_keys)
+            rows = [row for row in all_rows
+                    if normalize_district(row.district) == normalize_district(district) and not row.cleared]
+            rows = self.filter_excluded_variance_rows(rows)
+            if not rows:
+                self._log_scheduler(f"✓ No pending variances for {district}")
+                return
+            self._log_scheduler(f"📊 Sending variance image → {district} ({len(rows)} rows)")
+            threading.Thread(target=self._send_rows, args=(rows, "district", False), daemon=True).start()
+        except Exception as exc:
+            self._log_scheduler(f"⚠ Variance image error ({district}): {exc}")
+
+    def _auto_send_reminder(self, district: str, reminder_number: int) -> None:
+        """Send reminder N to a district without confirmation dialog."""
+        reminder_messages = {
+            1: "Please clear the pending variances.",
+            2: "This is the second reminder. Please clear the pending variances immediately.",
+            3: "Final reminder. Uncleared variances will be reported.",
+        }
+        try:
+            if not self.data_loaded:
+                return
+            all_rows = self.db.get_rows_by_keys(self.loaded_keys)
+            uncleared = [row for row in all_rows
+                         if normalize_district(row.district) == normalize_district(district) and not row.cleared]
+            uncleared = self.filter_excluded_variance_rows(uncleared)
+            if not uncleared:
+                self._log_scheduler(f"✓ {district}: all variances cleared — skipping reminder {reminder_number}")
+                return
+            message = reminder_messages.get(reminder_number, "Please clear the pending variances.")
+            self._log_scheduler(f"🔔 Sending reminder {reminder_number}/3 → {district}")
+            districts = [normalize_district(district)]
+            threading.Thread(
+                target=self._send_single_reminder_thread,
+                args=(districts, uncleared, reminder_number, message), daemon=True).start()
+        except Exception as exc:
+            self._log_scheduler(f"⚠ Reminder {reminder_number} error ({district}): {exc}")
+
+    def _auto_send_final_result(self, district: str) -> None:
+        """Send final district audit result without confirmation dialog."""
+        try:
+            self._log_scheduler(f"🏁 Sending final result → {district}")
+            districts = [normalize_district(district)]
+            threading.Thread(target=self._send_final_district_result_thread, args=(districts,), daemon=True).start()
+        except Exception as exc:
+            self._log_scheduler(f"⚠ Final result error ({district}): {exc}")
+
+    def _start_whatsapp_ocr_monitor(self) -> None:
+        """Start background thread that reads WhatsApp notification screenshots via Tesseract OCR
+        and auto-marks found IMEI numbers as cleared in the variance DB."""
+        if getattr(self, "_wa_ocr_running", False):
+            return
+        self._wa_ocr_running = True
+        threading.Thread(target=self._whatsapp_ocr_entry, daemon=True, name="WhatsAppOCR").start()
+
+    def _whatsapp_ocr_entry(self) -> None:
+        """OCR dependency auto-setup (VidaPay Transfer Bot style), then the monitor loop.
+
+        Missing pieces are INSTALLED automatically instead of disabling the monitor:
+        - Tesseract binary absent  -> winget, then the official silent installer.
+        - pytesseract package      -> bundled in the frozen EXE (module-level import);
+                                      auto-pip-installed when running from source.
+        The monitor only disables itself if an install genuinely failed.
+        """
+        global pytesseract, PYTESSERACT_AVAILABLE
+
+        def _olog(m):
+            # Thread-safe: this entry runs on the WhatsAppOCR background thread;
+            # tkinter widgets must only be touched on the main thread.
+            self.after(0, lambda mm=str(m): self._log_scheduler(mm))
+
+        _olog("👁 WhatsApp OCR monitor started.")
+        if not _is_tesseract_installed():
+            _olog("👁 Tesseract OCR not found — installing automatically…")
+            ok = _install_tesseract_binary(lambda m: _olog(f"👁 {m}"))
+            if not ok:
+                _olog("⚠ Tesseract OCR binary not found and auto-install failed — OCR monitor disabled. "
+                      "Install from https://github.com/UB-Mannheim/tesseract/wiki")
+                self._wa_ocr_running = False
+                return
+            _refresh_tesseract_path()
+            _olog("👁 Tesseract ready — OCR monitor active.")
+        if not PYTESSERACT_AVAILABLE:
+            # Running from source: try pip install once (frozen EXE bundles it).
+            pip = _pip_cmd()
+            installed = False
+            if pip:
+                _olog("👁 Installing pytesseract package…")
+                ok, _out = _run_cmd_quiet(pip + ["install", "--quiet", "pytesseract"], timeout=600)
+                installed = ok
+                if installed:
+                    try:
+                        import importlib as _imp
+                        pytesseract = _imp.import_module("pytesseract")
+                        PYTESSERACT_AVAILABLE = True
+                        _refresh_tesseract_path()
+                    except Exception:
+                        installed = False
+            if not installed:
+                _olog("⚠ pytesseract Python package not available — OCR monitor disabled. "
+                      "Run: pip install pytesseract")
+                self._wa_ocr_running = False
+                return
+        self._whatsapp_ocr_loop()
+
+    def _whatsapp_ocr_loop(self) -> None:
+        """Continuously grab the screen area where WhatsApp notifications appear and read IMEIs.
+        Dependency checks/auto-install happen in _whatsapp_ocr_entry."""
+        import re as _re
+        import datetime as _dt
+        if not (PYTESSERACT_AVAILABLE and pytesseract is not None):
+            self._wa_ocr_running = False
+            return
+
+        seen_imeis: set = set()
+        while getattr(self, "_wa_ocr_running", False):
+            try:
+                # Grab notification area at top of screen (Windows toast region)
+                notif_img = ImageGrab.grab(bbox=(0, 0, 600, 200))
+                text = pytesseract.image_to_string(notif_img)
+                # Extract 15-digit IMEI patterns
+                imei_pattern = _re.compile(r'\b\d{15}\b')
+                found = imei_pattern.findall(text)
+                for imei in found:
+                    if imei in seen_imeis:
+                        continue
+                    seen_imeis.add(imei)
+                    self.after(0, lambda i=imei: self._ocr_clear_imei(i))
+            except Exception:
+                pass
+            time.sleep(5)
+
+    def _ocr_clear_imei(self, imei: str) -> None:
+        """Mark a variance row with the given IMEI as cleared (found via OCR)."""
+        try:
+            if not self.data_loaded:
+                return
+            rows = self.db.get_rows_by_keys(self.loaded_keys)
+            matches = [row for row in rows if row.imei and row.imei.strip() == imei and not row.cleared]
+            if matches:
+                def _do():
+                    for row in matches:
+                        self.db.set_cleared(row.key, True)
+                self._db_write(_do)
+                self.refresh_table()
+                self._log_scheduler(f"👁 OCR: auto-cleared IMEI {imei} ({len(matches)} row(s))")
+        except Exception as exc:
+            self._log_scheduler(f"⚠ OCR clear error for IMEI {imei}: {exc}")
+
+    # ── Auto-import stores from inventory count ──────────────────────────────
+    def _auto_import_stores_from_inventory(self) -> None:
+        """Scan the loaded inventory XLSX and auto-populate the Store List from it."""
+        inv_path_str = self.inventory_path.get().strip()
+        if not inv_path_str:
+            self.set_status("Auto-import: no inventory file loaded yet.")
+            return
+        inv_path = Path(inv_path_str)
+        if not inv_path.exists():
+            self.set_status(f"Auto-import: file not found — {inv_path.name}")
+            return
+        try:
+            wb = openpyxl.load_workbook(inv_path, read_only=True, data_only=True)
+            ws = wb.active
+            headers = []
+            store_col = district_col = None
+            for row in ws.iter_rows(max_row=3, values_only=True):
+                if any(str(c or "").strip() for c in row):
+                    headers = [str(c or "").strip().lower() for c in row]
+                    break
+            for i, h in enumerate(headers):
+                if h == "store":
+                    store_col = i
+                if h in ("district", "region", "market"):
+                    district_col = i
+
+            if store_col is None:
+                self.set_status("Auto-import: 'Store' column not found in inventory file.")
+                return
+
+            # Collect store-district pairs
+            DISTRICT_MAP = {
+                "az": "Arizona", "co": "Colorado", "la": "Louisiana",
+                "tn": "Tennessee", "tx": "Texas",
+            }
+            AZ_VARIANTS = {"arizona - d1", "arizona - d2", "arizona d1", "arizona d2",
+                           "arizona", "az"}
+
+            seen: set = set()
+            count = 0
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                store = str(row[store_col] if row[store_col] is not None else "").strip()
+                if not store:
+                    continue
+                district = ""
+                if district_col is not None:
+                    district = str(row[district_col] if row[district_col] is not None else "").strip()
+                # Normalize district
+                d_lower = district.lower()
+                if d_lower in AZ_VARIANTS:
+                    district = "Arizona"
+                else:
+                    for abbr, full in DISTRICT_MAP.items():
+                        if d_lower == abbr or d_lower == full.lower():
+                            district = full
+                            break
+                key = (district.lower(), store.lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                try:
+                    self.db.save_store_account(
+                        district=district, store=store,
+                        account_id="", username="", password="")
+                    count += 1
+                except Exception:
+                    pass
+
+            wb.close()
+            self.refresh_store_accounts_table()
+            self._build_scheduler_district_rows()
+            self.set_status(f"Auto-import: added/updated {count} store(s) from inventory file.")
+            self._log_scheduler(f"Auto-imported {count} stores from {inv_path.name}.")
+        except Exception as exc:
+            self.set_status(f"Auto-import error: {exc}")
+
+    def _toggle_theme(self) -> None:
+        """Toggle between dark and light theme."""
+        new_theme = "light" if self.theme_manager.current_theme == "dark" else "dark"
+        self.theme_manager.current_theme = new_theme
+        self.theme_manager.save_theme(new_theme)
+        if hasattr(self, "_theme_btn"):
+            self._theme_btn.configure(text="☀️" if new_theme == "dark" else "🌙")
+        self._apply_theme()
+
+    def _apply_theme(self, colors=None):
+        """Apply theme colors to all widgets.
+
+        GFHApp inherits from tk.Tk, so `self` IS the root window.
+        Previous code used self.root which doesn't exist → AttributeError
+        → theme toggle silently did nothing.
+        """
+        # NOTE: the theme-toggle button (see create_theme_toggle_button/_on_toggle
+        # in theme_manager.py) invokes this callback as callback(new_theme), passing
+        # a plain "dark"/"light" string — not a colors dict. Always re-fetch the
+        # live colors dict from the theme manager instead of trusting `colors`.
+        colors = self.theme_manager.get_colors()
+        # Pass `self` (the tk.Tk root), not self.root (which doesn't exist)
+        self.theme_manager.apply_theme_to_window(self)
+
+        # apply_theme_to_window() sets the *actual* dark/light panel colors, but
+        # self.COLOR_BG / COLOR_CARD / COLOR_TEXT / COLOR_MUTED / COLOR_BORDER were
+        # hardcoded once at startup (always the light-mode values) and never
+        # updated. _apply_styles() below re-applies those hardcoded attributes to
+        # every ttk style, which was silently undoing the theme switch and made
+        # panels (TLabelframe, TFrame, Treeview, etc.) stay stuck in light colors
+        # even in dark mode. Sync them to the active theme first so the two style
+        # passes agree instead of fighting each other.
+        self.COLOR_BG = colors["bg"]
+        self.COLOR_CARD = colors["panel"]
+        self.COLOR_TEXT = colors["text"]
+        self.COLOR_MUTED = colors["text_dim"]
+        self.COLOR_BORDER = colors["border"]
+        self.COLOR_INPUT = colors.get("input", colors["panel"])
+        self.COLOR_PANEL_ALT = colors.get("panel_alt", colors["panel"])
+        # COLOR_NAVY / COLOR_RED are brand-fixed and intentionally stay the same
+        # in both themes so buttons/tabs/headers keep matching the sun/moon toggle.
+
+        # apply_theme_to_window() re-styles generic ttk widgets (TButton, TNotebook.Tab, etc.)
+        # with theme-specific panel colors. Re-assert the brand button/tab styling right after
+        # so every button and the selected tab keeps matching the red sun/moon toggle button.
+        self._apply_styles()
+
+        try:
+            self.option_add("*TCombobox*Listbox.background", self.COLOR_INPUT)
+            self.option_add("*TCombobox*Listbox.foreground", self.COLOR_TEXT)
+            self.option_add("*TCombobox*Listbox.selectBackground", self.COLOR_RED)
+            self.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
+            self.option_add("*TCombobox*Listbox.font", f"{{Segoe UI}} 10")
+        except Exception:
+            pass
+
+        # Row-highlight tags for the Inventory Audit Status and Variance Audit
+        # tables MUST follow the active theme. Previously only "status_completed"
+        # was re-applied here, so pending/sent/cleared rows kept their light
+        # pastel backgrounds and looked like light-theme panels inside the dark
+        # theme. _apply_row_tag_colors() re-themes ALL of them.
+        self._apply_row_tag_colors()
+
+    def _apply_row_tag_colors(self) -> None:
+        """Theme-aware row highlight colors for the two audit tables.
+
+        Light theme keeps the classic pastel highlights:
+            yellow = pending, blue = sent / completed-after-update, green = cleared.
+        Dark theme swaps them for muted dark tints of the same families with
+        light text, so populated rows render as dark-theme panels instead of
+        light-theme ones.
+        """
+        dark = getattr(self.theme_manager, "current_theme", "dark") == "dark"
+        if dark:
+            pending   = ("#3a3117", "#ffd66e")   # dark yellow tint
+            sent      = ("#16324f", "#9ecbff")   # dark blue tint
+            cleared   = ("#17331f", "#8fe3a8")   # dark green tint
+        else:
+            pending   = ("#FFF3CD", "#111827")
+            sent      = ("#D7ECFF", "#111827")
+            cleared   = ("#D9F7DF", "#111827")
+        normal_bg = getattr(self, "COLOR_CARD", None) or ("#141b38" if dark else "#ffffff")
+        normal_fg = getattr(self, "COLOR_TEXT", None) or ("#e8ecf7" if dark else "#111827")
+        try:
+            if hasattr(self, "status_tree"):
+                self.status_tree.tag_configure("status_pending", background=pending[0], foreground=pending[1])
+                self.status_tree.tag_configure("status_completed_after_update", background=sent[0], foreground=sent[1])
+                self.status_tree.tag_configure("status_completed_sent", background=cleared[0], foreground=cleared[1])
+                # "status_completed" (no special status yet) looks like a normal,
+                # un-highlighted row — it tracks the current theme's card/list colors.
+                self.status_tree.tag_configure("status_completed", background=normal_bg, foreground=normal_fg)
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "audit_tree"):
+                self.audit_tree.tag_configure("variance_pending", background=pending[0], foreground=pending[1])
+                self.audit_tree.tag_configure("variance_sent", background=sent[0], foreground=sent[1])
+                self.audit_tree.tag_configure("variance_cleared", background=cleared[0], foreground=cleared[1])
+        except Exception:
+            pass
+
+    def _build_status_tab(self) -> None:
+        # ── Audit Scheduler panel (inline on main tab) ──────────────────────
+        sched_box = ttk.LabelFrame(self.status_tab, text="Audit Scheduler", padding=8)
+        sched_box.pack(fill="x", pady=(0, 6))
+
+        # Control buttons row
+        btn_row = ttk.Frame(sched_box)
+        btn_row.pack(fill="x", pady=(0, 6))
+        self._sched_start_btn  = ttk.Button(btn_row, text="▶  Start",  command=self._sched_start)
+        self._sched_stop_btn   = ttk.Button(btn_row, text="■  Stop",   command=self._sched_stop)
+        self._sched_hold_btn   = ttk.Button(btn_row, text="⏸  Hold",   command=self._sched_hold)
+        self._sched_resume_btn = ttk.Button(btn_row, text="⏵  Resume", command=self._sched_resume)
+        for btn in (self._sched_start_btn, self._sched_stop_btn,
+                    self._sched_hold_btn, self._sched_resume_btn):
+            btn.pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="💾  Save Times", command=self._sched_save_times).pack(
+            side="left", padx=(0, 8))
+        ttk.Label(btn_row, text="  Start times per district (HH:MM AM/PM):",
+                  foreground="#8090b0").pack(side="left", padx=(12, 4))
+
+        # Duration and global stop time row
+        dur_row = ttk.Frame(sched_box)
+        dur_row.pack(fill="x", pady=(2, 4))
+        ttk.Label(dur_row, text="Duration (hrs):").pack(side="left", padx=(0, 4))
+        self._sched_duration_var = tk.StringVar(value="12")
+        ttk.Entry(dur_row, textvariable=self._sched_duration_var, width=6).pack(side="left", padx=(0, 12))
+        ttk.Label(dur_row, text="Global stop time:").pack(side="left", padx=(0, 4))
+        self._sched_stop_time_var = tk.StringVar(value="")
+        ttk.Entry(dur_row, textvariable=self._sched_stop_time_var, width=7).pack(side="left", padx=(0, 2))
+        self._sched_stop_ampm_var = tk.StringVar(value="PM")
+        ttk.Combobox(dur_row, textvariable=self._sched_stop_ampm_var, values=["AM", "PM"],
+                     state="readonly", width=4).pack(side="left", padx=(0, 4))
+        ttk.Label(dur_row, text="HH:MM AM/PM — overrides duration when set", foreground="#8090b0").pack(side="left")
+
+        # District time inputs (compact, inline)
+        self._sched_frame = ttk.Frame(sched_box)
+        self._sched_frame.pack(fill="x")
+        self._build_scheduler_district_rows()
+
+        # Tiny status log
+        log_fr = ttk.Frame(sched_box)
+        log_fr.pack(fill="x", pady=(4, 0))
+        self._sched_log_text = tk.Text(log_fr, height=3, state="disabled",
+                                       wrap="word", relief="flat")
+        _sb = ttk.Scrollbar(log_fr, orient="vertical", command=self._sched_log_text.yview)
+        self._sched_log_text.configure(yscrollcommand=_sb.set)
+        self._sched_log_text.pack(side="left", fill="both", expand=True)
+        _sb.pack(side="right", fill="y")
+
+        # ── Send Inventory Audit Status controls ────────────────────────────
+        controls = ttk.LabelFrame(self.status_tab, text="Send Inventory Audit Status", padding=10)
+        controls.pack(fill="x", pady=(0, 5))
+        ttk.Label(controls, text="Send by:").grid(row=0, column=0, sticky="w")
+        status_mode = ttk.Combobox(controls, textvariable=self.status_send_mode, values=["District", "Store", "Sales Rep"], state="readonly", width=14)
+        status_mode.grid(row=0, column=1, padx=(6, 12), sticky="w")
+        ttk.Label(controls, text="District filter:").grid(row=0, column=2, sticky="w")
+        self.status_district_combo = ttk.Combobox(controls, textvariable=self.status_district_filter, values=["All Districts"], state="readonly", width=22)
+        self.status_district_combo.grid(row=0, column=3, padx=(6, 12), sticky="w")
+        self.status_district_combo.bind("<<ComboboxSelected>>", self.on_status_district_change)
+        ttk.Label(controls, text="Store filter:").grid(row=0, column=4, sticky="w")
+        self.status_store_combo = ttk.Combobox(controls, textvariable=self.status_store_filter, values=["All Stores"], state="readonly", width=24)
+        self.status_store_combo.grid(row=0, column=5, padx=(6, 12), sticky="w")
+        self.status_store_combo.bind("<<ComboboxSelected>>", self.on_status_store_change)
+        ttk.Button(controls, text="Check Current Filter", command=self.auto_check_status_rows).grid(row=0, column=6, padx=(0, 6))
+        ttk.Button(controls, text="Check Pending Only", command=self.auto_check_pending_status_rows).grid(row=0, column=7, padx=(0, 6))
+        ttk.Button(controls, text="Clear Checkmarks", command=self.clear_status_checkmarks).grid(row=0, column=8, padx=(0, 6))
+        ttk.Button(controls, text="Send Status Image", command=self.send_checked_status).grid(row=0, column=9, padx=(0, 6))
+        ttk.Button(controls, text="Add Store", command=self.add_store_prompt).grid(row=0, column=10, padx=(0, 6))
+        ttk.Button(controls, text="Open Folder", command=self.open_app_folder).grid(row=0, column=11, padx=(0, 6))
+
+        # Search — single row
+        status_search_box = ttk.LabelFrame(self.status_tab, text="Search Inventory Audit Status", padding=8)
+        status_search_box.pack(fill="x", pady=(0, 5))
+        status_search_fields = [
+            ("Any", self.status_search_any_var, 14),
+            ("District", self.status_search_district_var, 12),
+            ("Store", self.status_search_store_var, 14),
+            ("Status", self.status_search_status_var, 12),
+            ("Rep", self.status_search_rep_var, 14),
+        ]
+        for idx, (label, var, width) in enumerate(status_search_fields):
+            ttk.Label(status_search_box, text=label + ":").grid(row=0, column=idx * 2, sticky="w", padx=(0, 2))
+            ent = ttk.Entry(status_search_box, textvariable=var, width=width)
+            ent.grid(row=0, column=idx * 2 + 1, sticky="w", padx=(0, 6))
+            ent.bind("<KeyRelease>", lambda _e: self.refresh_status_table())
+        ttk.Button(status_search_box, text="Clear", command=self.clear_status_search).grid(row=0, column=10, sticky="w")
+
+        cols = ("district", "store", "status", "rep_name", "checkbox")
+        self.status_tree = ttk.Treeview(self.status_tab, columns=cols, show="headings", selectmode="browse", height=12)
+        headings = {
+            "district": "District",
+            "store": "Store",
+            "status": "Status",
+            "rep_name": "Rep Name",
+            "checkbox": "Checkbox",
+        }
+        widths = {"district": 130, "store": 200, "status": 110, "rep_name": 170, "checkbox": 95}
+        for col in cols:
+            self.status_tree.heading(col, text=headings[col], command=lambda c=col: self.sort_any_tree(self.status_tree, c, False))
+            self.status_tree.column(col, width=widths[col], minwidth=80, anchor="w")
+        self.status_tree.column("checkbox", anchor="center")
+        # Row tag colors are theme-aware and (re-)applied by
+        # _apply_row_tag_colors() — here AND on every theme toggle — so rows
+        # no longer render with light-theme pastels inside the dark theme.
+        self._apply_row_tag_colors()
+        ttk.Label(
+            self.status_tab,
+            text="Colors: Yellow = Pending, Blue = Completed after updated sheet load, Green = Completed and sent to WhatsApp.",
+            style="Sub.TLabel",
+        ).pack(anchor="w", pady=(0, 4))
+        yscroll = ttk.Scrollbar(self.status_tab, orient="vertical", command=self.status_tree.yview)
+        xscroll = ttk.Scrollbar(self.status_tab, orient="horizontal", command=self.status_tree.xview)
+        self.status_tree.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
+        xscroll.pack(side="bottom", fill="x")
+        self.status_tree.pack(side="left", fill="both", expand=True)
+        yscroll.pack(side="right", fill="y")
+        self.status_tree.bind("<Button-1>", self.on_status_tree_click)
+
+    def _build_audit_tab(self) -> None:
+        # ── Variance Audit Controls — filters on row 1, actions on row 2 ────
+        # Two fixed rows, no horizontal scroll canvas needed.
+        send_box = ttk.LabelFrame(self.audit_tab, text="Variance Audit Controls", padding=10)
+        send_box.pack(fill="x", pady=(0, 5))
+
+        # Row 0: filters
+        ttk.Label(send_box, text="Send by:").grid(row=0, column=0, sticky="w")
+        audit_mode_picker = ttk.Combobox(send_box, textvariable=self.audit_send_mode, values=["District", "Store", "Sales Rep"], state="readonly", width=14)
+        audit_mode_picker.grid(row=0, column=1, padx=(6, 10), sticky="w")
+        ttk.Label(send_box, text="District filter:").grid(row=0, column=2, sticky="w")
+        self.audit_district_combo = ttk.Combobox(send_box, textvariable=self.audit_district_filter, values=["All Districts"], state="readonly", width=20)
+        self.audit_district_combo.grid(row=0, column=3, padx=(6, 10), sticky="w")
+        self.audit_district_combo.bind("<<ComboboxSelected>>", self.on_audit_district_change)
+        ttk.Label(send_box, text="Store filter:").grid(row=0, column=4, sticky="w")
+        self.audit_store_combo = ttk.Combobox(send_box, textvariable=self.audit_store_filter, values=["All Stores"], state="readonly", width=22)
+        self.audit_store_combo.grid(row=0, column=5, padx=(6, 10), sticky="w")
+        self.audit_store_combo.bind("<<ComboboxSelected>>", self.on_audit_store_change)
+        ttk.Checkbutton(send_box, text="Only unsent", variable=self.send_only_unsent).grid(row=0, column=6, padx=(0, 4), sticky="w")
+        ttk.Checkbutton(send_box, text="Show cleared", variable=self.include_cleared, command=self.refresh_table).grid(row=0, column=7, sticky="w", padx=(4, 0))
+
+        # Row 1: actions
+        ttk.Button(send_box, text="Check Current Filter", command=self.auto_check_audit_rows).grid(row=1, column=0, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Clear Checkmarks", command=self.clear_audit_checkmarks).grid(row=1, column=1, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Send Checked Variance Image", command=self.send_checked_variances).grid(row=1, column=2, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Send Selected Image", command=self.send_selected).grid(row=1, column=3, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Send Pending", command=self.send_pending).grid(row=1, column=4, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Mark Cleared", command=lambda: self.mark_selected(True)).grid(row=1, column=5, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Mark Not Cleared", command=lambda: self.mark_selected(False)).grid(row=1, column=6, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Export Log", command=self.export_log).grid(row=1, column=7, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Open Folder", command=self.open_app_folder).grid(row=1, column=8, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Clear UI", command=self.clear_current_ui).grid(row=1, column=9, padx=(0, 6), pady=(8, 0), sticky="w")
+        ttk.Button(send_box, text="Copy IMEI", command=self.copy_selected_imei).grid(row=1, column=10, padx=(0, 6), pady=(8, 0), sticky="w")
+
+        # ── Final Send Actions ─────────────────────────────────────────────
+        action_box = ttk.LabelFrame(self.audit_tab, text="Final Send Actions", padding=(10, 6))
+        action_box.pack(fill="x", pady=(0, 5))
+        ttk.Label(action_box, text="District:").grid(row=0, column=0, sticky="w")
+        self.final_district_combo = ttk.Combobox(action_box, textvariable=self.final_district_var, values=["All Districts"], state="readonly", width=22)
+        self.final_district_combo.grid(row=0, column=1, padx=(6, 12), sticky="w")
+        ttk.Button(action_box, text="Send Starting Message", command=self.send_starting_message).grid(row=0, column=2, padx=(0, 6))
+        ttk.Button(action_box, text="Send Reminder 1", command=lambda: self.send_reminder(1)).grid(row=0, column=3, padx=(0, 6))
+        ttk.Button(action_box, text="Send Reminder 2", command=lambda: self.send_reminder(2)).grid(row=0, column=4, padx=(0, 6))
+        ttk.Button(action_box, text="Send Reminder 3", command=lambda: self.send_reminder(3)).grid(row=0, column=5, padx=(0, 6))
+        ttk.Button(action_box, text="Send Final District Result", command=self.send_final_district_result).grid(row=0, column=6, padx=(0, 6))
+
+        # Search box — single row
+        search_box = ttk.LabelFrame(self.audit_tab, text="Search Variance Rows", padding=8)
+        search_box.pack(fill="x", pady=(0, 5))
+        search_fields = [
+            ("Any", self.audit_search_any_var, 14),
+            ("District", self.audit_search_district_var, 12),
+            ("Store", self.audit_search_store_var, 14),
+            ("Product", self.audit_search_product_var, 16),
+            ("IMEI", self.audit_search_imei_var, 14),
+            ("Rep", self.audit_search_rep_var, 12),
+        ]
+        for idx, (label, var, width) in enumerate(search_fields):
+            ttk.Label(search_box, text=label + ":").grid(row=0, column=idx * 2, sticky="w", padx=(0, 2))
+            ent = ttk.Entry(search_box, textvariable=var, width=width)
+            ent.grid(row=0, column=idx * 2 + 1, sticky="w", padx=(0, 6))
+            ent.bind("<KeyRelease>", lambda _e: self.refresh_table())
+        ttk.Button(search_box, text="Clear", command=self.clear_audit_search).grid(row=0, column=12, sticky="w")
+
+        columns = ("district", "store", "product", "imei", "status", "rep_name", "clearance", "checkbox")
+        self.audit_tree = ttk.Treeview(self.audit_tab, columns=columns, show="headings", selectmode="extended", height=12)
+        headings = {
+            "district": "District",
+            "store": "Store",
+            "product": "Product",
+            "imei": "IMEI",
+            "status": "Status",
+            "rep_name": "Rep Name",
+            "clearance": "Clearance",
+            "checkbox": "Checkbox",
+        }
+        widths = {"district": 110, "store": 150, "product": 280, "imei": 130, "status": 100, "rep_name": 170, "clearance": 110, "checkbox": 85}
+        for col in columns:
+            self.audit_tree.heading(col, text=headings[col], command=lambda c=col: self.sort_any_tree(self.audit_tree, c, False))
+            self.audit_tree.column(col, width=widths[col], minwidth=80, anchor="w")
+        self.audit_tree.column("checkbox", anchor="center")
+        # Theme-aware row tags — same mechanism as the status tab (see
+        # _apply_row_tag_colors); re-applied on every theme toggle.
+        self._apply_row_tag_colors()
+        ttk.Label(
+            self.audit_tab,
+            text="Colors: Yellow = Pending variance, Blue = Sent to WhatsApp, Green = Cleared.",
+            style="Sub.TLabel",
+        ).pack(anchor="w", pady=(0, 4))
+        yscroll = ttk.Scrollbar(self.audit_tab, orient="vertical", command=self.audit_tree.yview)
+        xscroll = ttk.Scrollbar(self.audit_tab, orient="horizontal", command=self.audit_tree.xview)
+        self.audit_tree.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
+        xscroll.pack(side="bottom", fill="x")
+        self.audit_tree.pack(side="left", fill="both", expand=True)
+        yscroll.pack(side="right", fill="y")
+        self.audit_tree.bind("<Double-1>", self.on_audit_double_click)
+        self.audit_tree.bind("<Button-1>", self.on_audit_tree_click)
+        self.audit_tree.bind("<Control-c>", self.copy_selected_imei)
+        self.audit_tree.bind("<Button-3>", self.copy_selected_imei)
+
+    def _build_store_tab(self) -> None:
+        form = ttk.LabelFrame(self.store_tab, text="Add or Update Store", padding=10)
+        form.pack(fill="x", pady=(0, 8))
+        ttk.Label(form, text="District").grid(row=0, column=0, sticky="w", padx=(0, 6), pady=3)
+        self._store_district_combo = ttk.Combobox(
+            form,
+            textvariable=self.store_district_var,
+            values=self.db.all_known_districts(),
+            width=20,
+        )
+        self._store_district_combo.grid(row=0, column=1, sticky="w", padx=(0, 12), pady=3)
+        ttk.Label(form, text="Store").grid(row=0, column=2, sticky="w", padx=(0, 6), pady=3)
+        ttk.Entry(form, textvariable=self.store_name_var, width=32).grid(row=0, column=3, sticky="w", padx=(0, 12), pady=3)
+        ttk.Button(form, text="Save Store", command=self.save_store_account_from_form).grid(row=0, column=4, padx=(0, 6), pady=3)
+        ttk.Button(form, text="Import XLSX", command=self.import_store_accounts_file).grid(row=0, column=5, padx=(0, 6), pady=3)
+        ttk.Button(form, text="Delete Selected", command=self.delete_selected_store_account).grid(row=0, column=6, padx=(0, 6), pady=3)
+        ttk.Button(form, text="Clear Form", command=self.clear_store_form).grid(row=0, column=7, padx=(0, 6), pady=3)
+
+        # Search bar for Store List
+        store_search_box = ttk.Frame(self.store_tab)
+        store_search_box.pack(fill="x", pady=(0, 8))
+        ttk.Label(store_search_box, text="Search:").pack(side="left", padx=(0, 6))
+        store_search_entry = ttk.Entry(store_search_box, textvariable=self.store_search_var, width=40)
+        store_search_entry.pack(side="left", padx=(0, 8))
+        store_search_entry.bind("<KeyRelease>", lambda _e: self.refresh_store_accounts_table())
+        ttk.Button(store_search_box, text="Clear", command=lambda: (self.store_search_var.set(""), self.refresh_store_accounts_table())).pack(side="left")
+
+        columns = ("district", "store")
+        self.store_tree = ttk.Treeview(self.store_tab, columns=columns, show="headings", selectmode="browse", height=12)
+        headings = {
+            "district": "District",
+            "store": "Store",
+        }
+        widths = {"district": 220, "store": 360}
+        for col in columns:
+            self.store_tree.heading(col, text=headings[col], command=lambda c=col: self.sort_any_tree(self.store_tree, c, False))
+            self.store_tree.column(col, width=widths[col], minwidth=120, anchor="w")
+        self.store_tree.pack(fill="both", expand=True)
+        self.store_tree.bind("<<TreeviewSelect>>", self.on_store_account_select)
+
+    def _build_rep_tab(self) -> None:
+        # ── Info banner ────────────────────────────────────────────────────
+        info = ttk.LabelFrame(self.rep_tab, text="About Employees", padding=8)
+        info.pack(fill="x", pady=(0, 8))
+        ttk.Label(info, wraplength=1000, justify="left", text=(
+            "Store each employee's full name and phone number here so WhatsApp reports can tag them.\n"
+            "The 'Created By' field is optional — fill it in when the count file uses a short username "
+            "(e.g. 'ArmanAli') that differs from the full Employee Name. "
+            "The audit tries Created By first, then Employee Name, when resolving who to tag.\n"
+            "Use 'Auto-detect Created By' to scan loaded variances and pre-fill the column automatically."
+        )).pack(anchor="w")
+
+        # ── Add / Edit form ────────────────────────────────────────────────
+        form = ttk.LabelFrame(self.rep_tab, text="Add or Update Employee", padding=10)
+        form.pack(fill="x", pady=(0, 8))
+        for col in range(9):
+            form.columnconfigure(col, weight=0)
+        form.columnconfigure(1, weight=1)
+        form.columnconfigure(3, weight=1)
+        form.columnconfigure(5, weight=1)
+
+        ttk.Label(form, text="Employee Name:").grid(row=0, column=0, sticky="w", padx=(0, 4), pady=3)
+        ttk.Entry(form, textvariable=self.rep_name_var, width=26).grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=3)
+
+        ttk.Label(form, text="Phone:").grid(row=0, column=2, sticky="w", padx=(0, 4), pady=3)
+        ttk.Entry(form, textvariable=self.rep_phone_var, width=20).grid(row=0, column=3, sticky="ew", padx=(0, 10), pady=3)
+
+        ttk.Label(form, text="Created By (optional):").grid(row=0, column=4, sticky="w", padx=(0, 4), pady=3)
+        self.rep_created_by_var = tk.StringVar()
+        ttk.Entry(form, textvariable=self.rep_created_by_var, width=20).grid(row=0, column=5, sticky="ew", padx=(0, 10), pady=3)
+
+        btn_frame = ttk.Frame(form)
+        btn_frame.grid(row=1, column=0, columnspan=9, pady=(6, 0), sticky="w")
+        ttk.Button(btn_frame, text="Save Employee", command=self.save_sales_rep_from_form).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_frame, text="Auto-detect Created By", command=self._rep_auto_detect_created_by).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_frame, text="Import XLSX", command=self.import_employees_file).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_frame, text="Export Excel", command=self.export_employees_file).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_frame, text="Delete Selected", command=self.delete_selected_sales_rep).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_frame, text="Clear Form", command=self.clear_rep_form).pack(side="left")
+
+        # ── Search ─────────────────────────────────────────────────────────
+        rep_search_box = ttk.Frame(self.rep_tab)
+        rep_search_box.pack(fill="x", pady=(0, 6))
+        ttk.Label(rep_search_box, text="Search:").pack(side="left", padx=(0, 6))
+        rep_search_entry = ttk.Entry(rep_search_box, textvariable=self.rep_search_var, width=40)
+        rep_search_entry.pack(side="left", padx=(0, 8))
+        rep_search_entry.bind("<KeyRelease>", lambda _e: self.refresh_sales_reps_table())
+        ttk.Button(rep_search_box, text="Clear",
+                   command=lambda: (self.rep_search_var.set(""), self.refresh_sales_reps_table())).pack(side="left")
+
+        # ── Table ──────────────────────────────────────────────────────────
+        columns = ("rep_name", "phone", "created_by")
+        self.rep_tree = ttk.Treeview(self.rep_tab, columns=columns, show="headings",
+                                     selectmode="browse", height=14)
+        self.rep_tree.heading("rep_name", text="Employee Name",
+                              command=lambda: self.sort_any_tree(self.rep_tree, "rep_name", False))
+        self.rep_tree.heading("phone", text="Phone Number",
+                              command=lambda: self.sort_any_tree(self.rep_tree, "phone", False))
+        self.rep_tree.heading("created_by", text="Created By (count username)",
+                              command=lambda: self.sort_any_tree(self.rep_tree, "created_by", False))
+        self.rep_tree.column("rep_name", width=280, minwidth=120, anchor="w")
+        self.rep_tree.column("phone", width=180, minwidth=100, anchor="w")
+        self.rep_tree.column("created_by", width=200, minwidth=100, anchor="w")
+        vsb = ttk.Scrollbar(self.rep_tab, orient="vertical", command=self.rep_tree.yview)
+        self.rep_tree.configure(yscrollcommand=vsb.set)
+        self.rep_tree.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+        self.rep_tree.bind("<<TreeviewSelect>>", self.on_sales_rep_select)
+
+    def _rep_auto_detect_created_by(self) -> None:
+        """Match 'Created By' usernames from the count file to full Employee
+        names from the timesheet by finding who worked at the same Store.
+
+        Example: Count file has 'BabarAli' at 'Mt View Store'.
+                 Timesheet has 'Babar Ali' at 'Mt View Store'.
+                 → auto-maps 'BabarAli' → 'Babar Ali'.
+        """
+        inv_records = getattr(self, "current_inventory_records", [])
+        ts_records  = getattr(self, "current_time_sheet_records", [])
+
+        if not inv_records:
+            messagebox.showinfo("No Data", "Load an Inventory Count file first (Load Variances).")
+            return
+
+        # Build store → employee map from timesheet
+        sample_ts = ts_records[0] if ts_records else {}
+        store_col_ts  = find_column(sample_ts, ["Store"])
+        emp_col_ts    = find_column(sample_ts, ["Employee", "Employee Name"])
+        email_col_ts  = find_column(sample_ts, ["Email", "Email Address"])
+
+        store_to_employee: Dict[str, str] = {}  # norm_store → full employee name
+        store_to_email:    Dict[str, str] = {}
+
+        for rec in ts_records:
+            emp_raw = safe_text(rec.get(emp_col_ts, "")) if emp_col_ts else ""
+            if not emp_raw or "TOTAL" in emp_raw.upper() or "— " in emp_raw:
+                continue
+            store_raw = rec.get(store_col_ts, "") if store_col_ts else ""
+            norm = normalize_store(store_raw)
+            if norm:
+                store_to_employee[norm] = emp_raw.strip()
+                if email_col_ts:
+                    store_to_email[norm] = safe_text(rec.get(email_col_ts, ""))
+
+        # Build store → created_by map from count file
+        sample_inv = inv_records[0] if inv_records else {}
+        store_col_inv = find_column(sample_inv, ["Store"])
+        cb_col        = find_column(sample_inv, ["Created By", "Count By", "User Login"])
+
+        store_to_created_by: Dict[str, str] = {}
+        for rec in inv_records:
+            store_raw = rec.get(store_col_inv, "") if store_col_inv else ""
+            norm = normalize_store(store_raw)
+            cb   = safe_text(rec.get(cb_col, "")).strip() if cb_col else ""
+            if norm and cb:
+                store_to_created_by[norm] = cb
+
+        # Match: same store = same person
+        existing = {m["created_by"]: m for m in self.db.get_created_by_mappings()}
+        added = updated = 0
+
+        for norm_store, cb in store_to_created_by.items():
+            emp_name = store_to_employee.get(norm_store, "")
+            email    = store_to_email.get(norm_store, "")
+            if cb in existing:
+                # Update employee name if now known and not already set
+                if emp_name and not existing[cb]["employee_name"]:
+                    self.db.upsert_created_by_mapping(cb, emp_name, existing[cb]["phone"])
+                    updated += 1
+            else:
+                self.db.upsert_created_by_mapping(cb, emp_name, "")
+                added += 1
+
+        self.refresh_sales_reps_table()
+
+        if added + updated == 0 and not store_to_created_by:
+            messagebox.showinfo("Auto-detect", "No 'Created By' values found in the count file.")
+            return
+
+        msg = []
+        if added:   msg.append(f"{added} new mapping(s) added")
+        if updated: msg.append(f"{updated} mapping(s) updated with employee name")
+
+        summary_lines = []
+        for norm_store, cb in sorted(store_to_created_by.items()):
+            emp = store_to_employee.get(norm_store, "— not found in timesheet")
+            summary_lines.append(f"  {cb}  →  {emp}  ({display_store(norm_store)})")
+
+        self.set_status(f"Auto-detect: {', '.join(msg) if msg else 'all already mapped'}.")
+        messagebox.showinfo(
+            "Auto-detect Complete",
+            (f"{', '.join(msg)}.\n\n" if msg else "All already mapped.\n\n") +
+            "Matches found:\n" + "\n".join(summary_lines[:20]) +
+            ("\n..." if len(summary_lines) > 20 else "") +
+            "\n\nFill in Phone numbers in the Employees tab, then Save."
+        )
+
+    def import_store_accounts_file(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Import Store List XLSX",
+            filetypes=[
+                ("Excel Files", "*.xlsx *.xlsm *.xls"),
+                ("All Files", "*.*"),
+            ],
+        )
+        if not path:
+            return
+
+        try:
+            records: List[Dict[str, str]] = []
+            suffix = Path(path).suffix.lower()
+
+            if suffix in {".xlsx", ".xlsm", ".xls"}:
+                records = read_xlsx_records(path)
+            else:
+                messagebox.showerror("Unsupported file", "Please select an Excel file.")
+                return
+
+            if not records:
+                messagebox.showerror("Empty file", "No store rows found in the selected file.")
+                return
+
+            sample = records[0]
+            district_col = find_column(sample, ["District", "Distrcit"])
+            store_col = find_column(sample, ["Store", "Store Name", "Location"])
+
+            missing = []
+            if not district_col:
+                missing.append("District")
+            if not store_col:
+                missing.append("Store")
+
+            if missing:
+                messagebox.showerror(
+                    "Missing columns",
+                    "Missing required column(s): " + ", ".join(missing) +
+                    "\n\nRequired headers: District, Store",
+                )
+                return
+
+            parsed_records: List[Dict[str, str]] = []
+            skipped = 0
+            for rec in records:
+                district = normalize_district(rec.get(district_col, ""))
+                store = display_store(rec.get(store_col, ""))
+
+                if not store or not district or district == "Unknown":
+                    skipped += 1
+                    continue
+
+                parsed_records.append({"District": district, "Store": store})
+
+            imported = self.db.replace_store_accounts(parsed_records)
+
+            self.master_store_records = self.db.store_master_records()
+            self.refresh_store_accounts_table()
+            self.refresh_entry_form_districts()
+            self.populate_status_filters()
+            self.populate_audit_filters()
+
+            if self.data_loaded:
+                source_name = os.path.basename(self.inventory_path.get().strip()) if self.inventory_path.get().strip() else ""
+                self.status_rows, status_summary = build_inventory_status_rows(
+                    self.current_inventory_records,
+                    self.current_time_sheet_records,
+                    master_store_records=self.master_store_records,
+                    source_file=source_name,
+                )
+                self.status_row_by_key = {r.key: r for r in self.status_rows}
+                self.db.upsert_inventory_status_rows(self.status_rows)
+                self.refresh_status_table()
+
+            messagebox.showinfo(
+                "Import complete",
+                f"Replaced saved store list with {imported} row(s).\nSkipped {skipped} invalid row(s).\n\nThis list will stay saved until the next upload.",
+            )
+            self.set_status(f"Store list replaced from file. Saved: {imported}. Skipped: {skipped}.")
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror("Import failed", str(exc))
+            self.set_status("Store list import failed.")
+
+    def refresh_store_accounts_table(self) -> None:
+        if not hasattr(self, "store_tree"):
+            return
+        for item in self.store_tree.get_children():
+            self.store_tree.delete(item)
+        search = self.store_search_var.get().strip().lower() if hasattr(self, "store_search_var") else ""
+        for row in self.db.store_accounts():
+            district = row.get("District", "")
+            store = row.get("Store", "")
+            if search and search not in district.lower() and search not in store.lower():
+                continue
+            iid = row.get("StoreKey", normalize_store(store))
+            self.store_tree.insert(
+                "",
+                "end",
+                iid=iid,
+                values=(district, store),
+            )
+
+    def refresh_entry_form_districts(self) -> None:
+        """Refresh all entry-form district comboboxes from the DB."""
+        districts = self.db.all_known_districts()
+        for combo in (self._store_district_combo, self._wg_district_combo, self._dm_district_combo, self._exclusion_district_combo):
+            try:
+                combo["values"] = districts
+            except Exception:
+                pass
+        # Also refresh the audit and status filter combos
+        if hasattr(self, 'audit_district_combo'):
+            self.populate_audit_filters()
+        if hasattr(self, 'status_district_combo'):
+            self.populate_status_filters()
+
+    def import_employees_file(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Import Employees XLSX",
+            filetypes=[
+                ("Excel Files", "*.xlsx *.xlsm *.xls"),
+                ("All Files", "*.*"),
+            ],
+        )
+        if not path:
+            return
+
+        try:
+            records: List[Dict[str, str]] = []
+            suffix = Path(path).suffix.lower()
+
+            if suffix in {".xlsx", ".xlsm", ".xls"}:
+                records = read_xlsx_records(path)
+            else:
+                messagebox.showerror("Unsupported file", "Please select an Excel file.")
+                return
+
+            if not records:
+                messagebox.showerror("Empty file", "No employee rows found in the selected file.")
+                return
+
+            sample = records[0]
+            name_col = find_column(sample, [
+                "Employee Name",
+                "Employee",
+                "Sales Rep Name",
+                "Sales Rep",
+                "Rep Name",
+                "Salesperson",
+                "Name",
+                "Full Name",
+            ])
+            phone_col = find_column(sample, [
+                "Phone Number",
+                "Phone",
+                "Mobile",
+                "Mobile Number",
+                "Contact",
+                "Contact Number",
+                "Number",
+                "Whatsapp",
+                "WhatsApp Number",
+            ])
+
+            missing = []
+            if not name_col:
+                missing.append("Employee Name")
+            if not phone_col:
+                missing.append("Phone Number")
+
+            if missing:
+                messagebox.showerror(
+                    "Missing columns",
+                    "Missing required column(s): " + ", ".join(missing) +
+                    "\n\nRequired headers: Employee Name, Phone Number",
+                )
+                return
+
+            imported = 0
+            skipped = 0
+            for rec in records:
+                name = safe_text(rec.get(name_col, ""))
+                phone = normalize_phone(rec.get(phone_col, ""))
+
+                if not name or not phone:
+                    skipped += 1
+                    continue
+
+                self.db.save_sales_rep(name, phone)
+                imported += 1
+
+            self.refresh_sales_reps_table()
+            messagebox.showinfo(
+                "Import complete",
+                f"Imported or updated {imported} employee phone row(s).\nSkipped {skipped} invalid row(s).\n\nEmployees stay saved until you delete them.",
+            )
+            self.set_status(f"Imported employees from file. Imported: {imported}. Skipped: {skipped}.")
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror("Import failed", str(exc))
+            self.set_status("Employee import failed.")
+
+    def export_employees_file(self) -> None:
+        rows = self.db.sales_reps()
+        if not rows:
+            messagebox.showinfo("No employees", "No employees are saved in the database yet.")
+            return
+
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"GFH_Employees_{stamp}.xlsx"
+        path = filedialog.asksaveasfilename(
+            title="Export Employees Excel",
+            initialdir=str(EXPORT_DIR),
+            initialfile=default_name,
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx")],
+        )
+        if not path:
+            return
+
+        output_path = Path(path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Employee Name", "Phone Number"])
+        for r_idx, row in enumerate(rows, start=2):
+            ws.cell(row=r_idx, column=1, value=row.get("Rep Name", ""))
+            ws.cell(row=r_idx, column=2, value=row.get("Phone", ""))
+        wb.save(output_path)
+
+        self.set_status(f"Exported employee list: {output_path}")
+        messagebox.showinfo("Export complete", f"Employee list exported:\n{output_path}")
+
+    def refresh_sales_reps_table(self) -> None:
+        if not hasattr(self, "rep_tree"):
+            return
+        for item in self.rep_tree.get_children():
+            self.rep_tree.delete(item)
+        search = self.rep_search_var.get().strip().lower() if hasattr(self, "rep_search_var") else ""
+        # Show standard sales_reps rows
+        for row in self.db.sales_reps():
+            rep_name = row.get("Rep Name", "")
+            phone = row.get("Phone", "")
+            created_by = ""
+            if search and search not in rep_name.lower() and search not in phone.lower():
+                continue
+            iid = row.get("RepKey", person_name_key(rep_name))
+            self.rep_tree.insert("", "end", iid=iid, values=(rep_name, phone, created_by))
+        # Also show created_by mappings that don't have a matching sales_rep entry
+        existing_names = {row.get("Rep Name", "").lower() for row in self.db.sales_reps()}
+        for m in self.db.get_created_by_mappings():
+            if m["employee_name"].lower() in existing_names:
+                # Already shown above — just update its created_by column
+                for child in self.rep_tree.get_children():
+                    vals = self.rep_tree.item(child, "values")
+                    if vals and vals[0].lower() == m["employee_name"].lower():
+                        self.rep_tree.item(child, values=(vals[0], vals[1], m["created_by"]))
+                        break
+                continue
+            if search and search not in m["created_by"].lower() and search not in m["employee_name"].lower():
+                continue
+            self.rep_tree.insert("", "end", values=(m["employee_name"], m["phone"], m["created_by"]))
+
+    def save_store_account_from_form(self) -> None:
+        try:
+            self.db.save_store_account(
+                self.store_district_var.get(),
+                self.store_name_var.get(),
+                "",
+                "",
+                "",
+            )
+            self.master_store_records = self.db.store_master_records()
+            self.refresh_store_accounts_table()
+            self.refresh_entry_form_districts()
+            self.populate_status_filters()
+            self.populate_audit_filters()
+            if self.data_loaded:
+                source_name = os.path.basename(self.inventory_path.get().strip()) if self.inventory_path.get().strip() else ""
+                self.status_rows, status_summary = build_inventory_status_rows(
+                    self.current_inventory_records,
+                    self.current_time_sheet_records,
+                    master_store_records=self.master_store_records,
+                    source_file=source_name,
+                )
+                self.status_row_by_key = {r.key: r for r in self.status_rows}
+                self.db.upsert_inventory_status_rows(self.status_rows)
+                self.refresh_status_table()
+            self.set_status(f"Saved store: {self.store_district_var.get()} | {self.store_name_var.get()}")
+        except Exception as exc:
+            messagebox.showerror("Save failed", str(exc))
+
+    def delete_selected_store_account(self) -> None:
+        selected = self.store_tree.selection() if hasattr(self, "store_tree") else []
+        if not selected:
+            messagebox.showinfo("No selection", "Select a store first.")
+            return
+        if not messagebox.askyesno("Delete store", "Delete the selected store?"):
+            return
+        self.db.delete_store_account(selected[0])
+        self.master_store_records = self.db.store_master_records()
+        self.refresh_store_accounts_table()
+        self.refresh_entry_form_districts()
+        self.clear_store_form()
+        self.set_status("Deleted selected store.")
+
+    def clear_store_form(self) -> None:
+        self.store_district_var.set("")
+        self.store_name_var.set("")
+
+    def on_store_account_select(self, _event=None) -> None:
+        selected = self.store_tree.selection() if hasattr(self, "store_tree") else []
+        if not selected:
+            return
+        store_key = selected[0]
+        for row in self.db.store_accounts():
+            if row.get("StoreKey") == store_key:
+                self.store_district_var.set(row.get("District", ""))
+                self.store_name_var.set(row.get("Store", ""))
+                return
+
+    def save_sales_rep_from_form(self) -> None:
+        try:
+            name = self.rep_name_var.get().strip()
+            phone = self.rep_phone_var.get().strip()
+            created_by = self.rep_created_by_var.get().strip() if hasattr(self, "rep_created_by_var") else ""
+            self.db.save_sales_rep(name, phone)
+            # Also save the created_by mapping if provided
+            if created_by:
+                self.db.upsert_created_by_mapping(created_by, name, phone)
+            self.refresh_sales_reps_table()
+            self.set_status(f"Saved: {name} | {phone}" + (f" | Created By: {created_by}" if created_by else ""))
+        except Exception as exc:
+            messagebox.showerror("Save failed", str(exc))
+
+    def delete_selected_sales_rep(self) -> None:
+        selected = self.rep_tree.selection() if hasattr(self, "rep_tree") else []
+        if not selected:
+            messagebox.showinfo("No selection", "Select an employee first.")
+            return
+        if not messagebox.askyesno("Delete employee", "Delete the selected employee record?"):
+            return
+        vals = self.rep_tree.item(selected[0], "values")
+        self.db.delete_sales_rep(selected[0])
+        # Also remove the created_by mapping if present
+        if vals and len(vals) >= 3 and vals[2]:
+            self.db.delete_created_by_mapping(vals[2])
+        self.refresh_sales_reps_table()
+        self.clear_rep_form()
+        self.set_status("Deleted selected employee.")
+
+    def clear_rep_form(self) -> None:
+        self.rep_name_var.set("")
+        self.rep_phone_var.set("")
+        if hasattr(self, "rep_created_by_var"):
+            self.rep_created_by_var.set("")
+
+    def on_sales_rep_select(self, _event=None) -> None:
+        selected = self.rep_tree.selection() if hasattr(self, "rep_tree") else []
+        if not selected:
+            return
+        vals = self.rep_tree.item(selected[0], "values")
+        if vals:
+            self.rep_name_var.set(vals[0] if vals else "")
+            self.rep_phone_var.set(vals[1] if len(vals) > 1 else "")
+            if hasattr(self, "rep_created_by_var"):
+                self.rep_created_by_var.set(vals[2] if len(vals) > 2 else "")
+
+    def _build_dm_tab(self) -> None:
+        # WhatsApp send mode selector at top of tab
+        mode_frame = ttk.LabelFrame(self.dm_tab, text="WhatsApp Send Mode", padding=8)
+        mode_frame.pack(fill="x", pady=(0, 8))
+        mode_row = ttk.Frame(mode_frame)
+        mode_row.pack(fill="x")
+        ttk.Label(mode_row, text="Send reports via:").pack(side="left", padx=(0, 10))
+        self.wa_mode_var = tk.StringVar(value=self.db.get_setting("whatsapp_mode", "web"))
+        ttk.Radiobutton(mode_row, text="WhatsApp Desktop App (pyautogui)",
+                        variable=self.wa_mode_var, value="desktop").pack(side="left", padx=(0, 12))
+        ttk.Radiobutton(mode_row, text="WhatsApp Web (browser)",
+                        variable=self.wa_mode_var, value="web").pack(side="left")
+        ttk.Button(mode_frame, text="Save Mode",
+                   command=lambda: self.db.save_setting("whatsapp_mode", self.wa_mode_var.get()) or
+                   self.set_status(f"WhatsApp mode saved: {self.wa_mode_var.get()}")).pack(anchor="w", pady=(6, 0))
+
+        # Side-by-side layout using PanedWindow
+        pw = ttk.PanedWindow(self.dm_tab, orient="horizontal")
+        pw.pack(fill="both", expand=True)
+
+        # ── Left: WhatsApp Group Names ──────────────────────────────────────
+        left = ttk.Frame(pw, padding=4)
+        pw.add(left, weight=1)
+
+        wg_form = ttk.LabelFrame(left, text="WhatsApp Group Names", padding=8)
+        wg_form.pack(fill="x", pady=(0, 6))
+
+        wg_form_row = ttk.Frame(wg_form)
+        wg_form_row.pack(fill="x")
+        ttk.Label(wg_form_row, text="District:").pack(side="left", padx=(0, 4))
+        self._wg_district_combo = ttk.Combobox(
+            wg_form_row,
+            textvariable=self.wg_district_var,
+            values=self.db.all_known_districts(),
+            width=18,
+        )
+        self._wg_district_combo.pack(side="left", padx=(0, 8))
+        ttk.Label(wg_form_row, text="Group Name:").pack(side="left", padx=(0, 4))
+        ttk.Entry(wg_form_row, textvariable=self.wg_group_name_var, width=28).pack(side="left", padx=(0, 8))
+
+        wg_btn_row = ttk.Frame(wg_form)
+        wg_btn_row.pack(fill="x", pady=(4, 0))
+        ttk.Button(wg_btn_row, text="Save", command=self.save_whatsapp_group_from_form).pack(side="left", padx=(0, 4))
+        ttk.Button(wg_btn_row, text="Delete", command=self.delete_selected_whatsapp_group).pack(side="left", padx=(0, 4))
+        ttk.Button(wg_btn_row, text="Clear", command=self.clear_wg_form).pack(side="left", padx=(0, 4))
+
+        wg_columns = ("district", "group_name")
+        self.wg_tree = ttk.Treeview(left, columns=wg_columns, show="headings", selectmode="browse", height=12)
+        self.wg_tree.heading("district", text="District", command=lambda: self.sort_any_tree(self.wg_tree, "district", False))
+        self.wg_tree.heading("group_name", text="WhatsApp Group Name", command=lambda: self.sort_any_tree(self.wg_tree, "group_name", False))
+        self.wg_tree.column("district", width=160, minwidth=100, anchor="w")
+        self.wg_tree.column("group_name", width=280, minwidth=160, anchor="w")
+        self.wg_tree.pack(fill="both", expand=True)
+        self.wg_tree.bind("<<TreeviewSelect>>", self.on_whatsapp_group_select)
+
+        # ── Right: District Manager WhatsApp Tags ───────────────────────────
+        right = ttk.Frame(pw, padding=4)
+        pw.add(right, weight=1)
+
+        form = ttk.LabelFrame(right, text="DM WhatsApp Tags", padding=8)
+        form.pack(fill="x", pady=(0, 6))
+
+        dm_form_row = ttk.Frame(form)
+        dm_form_row.pack(fill="x")
+        ttk.Label(dm_form_row, text="District:").pack(side="left", padx=(0, 4))
+        self._dm_district_combo = ttk.Combobox(
+            dm_form_row,
+            textvariable=self.dm_district_var,
+            values=self.db.all_known_districts(),
+            width=18,
+        )
+        self._dm_district_combo.pack(side="left", padx=(0, 8))
+        ttk.Label(dm_form_row, text="DM Name:").pack(side="left", padx=(0, 4))
+        ttk.Entry(dm_form_row, textvariable=self.dm_name_var, width=22).pack(side="left", padx=(0, 8))
+        ttk.Label(dm_form_row, text="Phone:").pack(side="left", padx=(0, 4))
+        ttk.Entry(dm_form_row, textvariable=self.dm_phone_var, width=18).pack(side="left", padx=(0, 8))
+
+        dm_btn_row = ttk.Frame(form)
+        dm_btn_row.pack(fill="x", pady=(4, 0))
+        ttk.Button(dm_btn_row, text="Save", command=self.save_district_manager_from_form).pack(side="left", padx=(0, 4))
+        ttk.Button(dm_btn_row, text="Delete", command=self.delete_selected_district_manager).pack(side="left", padx=(0, 4))
+        ttk.Button(dm_btn_row, text="Clear", command=self.clear_dm_form).pack(side="left", padx=(0, 4))
+
+        columns = ("district", "dm_name", "phone")
+        self.dm_tree = ttk.Treeview(right, columns=columns, show="headings", selectmode="browse", height=12)
+        self.dm_tree.heading("district", text="District", command=lambda: self.sort_any_tree(self.dm_tree, "district", False))
+        self.dm_tree.heading("dm_name", text="DM Name", command=lambda: self.sort_any_tree(self.dm_tree, "dm_name", False))
+        self.dm_tree.heading("phone", text="Phone Number", command=lambda: self.sort_any_tree(self.dm_tree, "phone", False))
+        self.dm_tree.column("district", width=160, minwidth=100, anchor="w")
+        self.dm_tree.column("dm_name", width=220, minwidth=120, anchor="w")
+        self.dm_tree.column("phone", width=180, minwidth=120, anchor="w")
+        self.dm_tree.pack(fill="both", expand=True)
+        self.dm_tree.bind("<<TreeviewSelect>>", self.on_district_manager_select)
+
+    def refresh_district_managers_table(self) -> None:
+        if not hasattr(self, "dm_tree"):
+            return
+        for item in self.dm_tree.get_children():
+            self.dm_tree.delete(item)
+        for row in self.db.district_managers():
+            iid = normalize_district(row.get("District", ""))
+            self.dm_tree.insert("", "end", iid=iid, values=(row.get("District", ""), row.get("DM Name", ""), row.get("Phone", "")))
+
+    def save_district_manager_from_form(self) -> None:
+        try:
+            self.db.save_district_manager(self.dm_district_var.get(), self.dm_name_var.get(), self.dm_phone_var.get())
+            self.refresh_district_managers_table()
+            self.refresh_entry_form_districts()
+            self.set_status(f"Saved district DM: {self.dm_district_var.get()} | {self.dm_phone_var.get()}")
+        except Exception as exc:
+            messagebox.showerror("Save failed", str(exc))
+
+    def delete_selected_district_manager(self) -> None:
+        selected = self.dm_tree.selection() if hasattr(self, "dm_tree") else []
+        if not selected:
+            messagebox.showinfo("No selection", "Select a district DM first.")
+            return
+        if not messagebox.askyesno("Delete district DM", "Delete the selected district DM phone record?"):
+            return
+        self.db.delete_district_manager(selected[0])
+        self.refresh_district_managers_table()
+        self.refresh_entry_form_districts()
+        self.clear_dm_form()
+        self.set_status("Deleted selected district DM.")
+
+    def clear_dm_form(self) -> None:
+        self.dm_district_var.set("")
+        self.dm_name_var.set("")
+        self.dm_phone_var.set("")
+
+    def refresh_whatsapp_groups_table(self) -> None:
+        if not hasattr(self, "wg_tree"):
+            return
+        for item in self.wg_tree.get_children():
+            self.wg_tree.delete(item)
+        for row in self.db.whatsapp_groups():
+            iid = normalize_district(row.get("District", ""))
+            self.wg_tree.insert("", "end", iid=iid, values=(row.get("District", ""), row.get("Group Name", "")))
+
+    def save_whatsapp_group_from_form(self) -> None:
+        try:
+            self.db.save_whatsapp_group(self.wg_district_var.get(), self.wg_group_name_var.get())
+            self.refresh_whatsapp_groups_table()
+            self.refresh_entry_form_districts()
+            self.set_status(f"Saved WhatsApp group: {self.wg_district_var.get()} | {self.wg_group_name_var.get()}")
+        except Exception as exc:
+            messagebox.showerror("Save failed", str(exc))
+
+    def delete_selected_whatsapp_group(self) -> None:
+        selected = self.wg_tree.selection() if hasattr(self, "wg_tree") else []
+        if not selected:
+            messagebox.showinfo("No selection", "Select a WhatsApp group first.")
+            return
+        if not messagebox.askyesno("Delete WhatsApp group", "Delete the selected WhatsApp group record?"):
+            return
+        self.db.delete_whatsapp_group(selected[0])
+        self.refresh_whatsapp_groups_table()
+        self.refresh_entry_form_districts()
+        self.clear_wg_form()
+        self.set_status("Deleted selected WhatsApp group.")
+
+    def clear_wg_form(self) -> None:
+        self.wg_district_var.set("")
+        self.wg_group_name_var.set("")
+
+    def on_whatsapp_group_select(self, _event=None) -> None:
+        selected = self.wg_tree.selection() if hasattr(self, "wg_tree") else []
+        if not selected:
+            return
+        district = selected[0]
+        for row in self.db.whatsapp_groups():
+            if normalize_district(row.get("District", "")) == normalize_district(district):
+                self.wg_district_var.set(row.get("District", ""))
+                self.wg_group_name_var.set(row.get("Group Name", ""))
+                return
+
+    def on_district_manager_select(self, _event=None) -> None:
+        selected = self.dm_tree.selection() if hasattr(self, "dm_tree") else []
+        if not selected:
+            return
+        district = selected[0]
+        for row in self.db.district_managers():
+            if normalize_district(row.get("District", "")) == normalize_district(district):
+                self.dm_district_var.set(row.get("District", ""))
+                self.dm_name_var.set(row.get("DM Name", ""))
+                self.dm_phone_var.set(row.get("Phone", ""))
+                return
+
+    # ── Created By → Employee Mapping Tab ─────────────────────────────────
+    def _build_mapping_tab(self) -> None:
+        """Panel to map 'Created By' values from inventory count to
+        Employee names + phone numbers from the new Timesheet file.
+
+        This lets the audit correctly identify and WhatsApp the right
+        person when the count's Created By username (e.g. 'ArmanAli')
+        doesn't directly match the Timesheet Employee name
+        (e.g. 'Arman Ali Mohammed').
+        """
+        # ── Instructions ───────────────────────────────────────────────────
+        info = ttk.LabelFrame(self.mapping_tab, text="About This Panel", padding=8)
+        info.pack(fill="x", pady=(0, 8))
+        ttk.Label(info, wraplength=900, justify="left", text=(
+            "The Inventory Count file uses a short 'Created By' username (e.g. 'ArmanAli'), "
+            "while the Timesheet file uses the full 'Employee' name (e.g. 'Arman Ali Mohammed').\n"
+            "Add a mapping here so the audit can look up the correct employee (and their phone) "
+            "when sending WhatsApp reports.  Mappings are saved permanently in the database."
+        )).pack(anchor="w")
+
+        # ── Auto-populate from loaded data ─────────────────────────────────
+        auto_frame = ttk.Frame(self.mapping_tab)
+        auto_frame.pack(fill="x", pady=(0, 6))
+        ttk.Button(auto_frame, text="Auto-detect Created By values from loaded variances",
+                   command=self._mapping_auto_detect).pack(side="left", padx=(0, 8))
+        ttk.Button(auto_frame, text="Refresh Table",
+                   command=self._mapping_refresh).pack(side="left")
+
+        # ── Add / Edit form ────────────────────────────────────────────────
+        form = ttk.LabelFrame(self.mapping_tab, text="Add / Edit Mapping", padding=10)
+        form.pack(fill="x", pady=(0, 8))
+        form.columnconfigure(1, weight=1)
+        form.columnconfigure(3, weight=1)
+        form.columnconfigure(5, weight=1)
+
+        ttk.Label(form, text="Created By (from count file):").grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.map_created_by_var = tk.StringVar()
+        ttk.Entry(form, textvariable=self.map_created_by_var, width=22).grid(row=0, column=1, sticky="ew", padx=(0, 16))
+
+        ttk.Label(form, text="Employee Name (from timesheet):").grid(row=0, column=2, sticky="w", padx=(0, 6))
+        self.map_employee_var = tk.StringVar()
+        ttk.Entry(form, textvariable=self.map_employee_var, width=28).grid(row=0, column=3, sticky="ew", padx=(0, 16))
+
+        ttk.Label(form, text="Phone (WhatsApp):").grid(row=0, column=4, sticky="w", padx=(0, 6))
+        self.map_phone_var = tk.StringVar()
+        ttk.Entry(form, textvariable=self.map_phone_var, width=18).grid(row=0, column=5, sticky="ew", padx=(0, 12))
+
+        btn_row = ttk.Frame(form)
+        btn_row.grid(row=1, column=0, columnspan=6, pady=(8, 0), sticky="w")
+        ttk.Button(btn_row, text="Save Mapping", command=self._mapping_save).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_row, text="Delete Selected", command=self._mapping_delete).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_row, text="Clear Form", command=self._mapping_clear_form).pack(side="left")
+
+        # ── Table ──────────────────────────────────────────────────────────
+        tbl_frame = ttk.LabelFrame(self.mapping_tab, text="Saved Mappings", padding=8)
+        tbl_frame.pack(fill="both", expand=True)
+        cols = ("created_by", "employee_name", "phone")
+        self.mapping_tree = ttk.Treeview(tbl_frame, columns=cols, show="headings", height=16)
+        self.mapping_tree.heading("created_by", text="Created By (count file)")
+        self.mapping_tree.heading("employee_name", text="Employee Name (timesheet)")
+        self.mapping_tree.heading("phone", text="Phone (WhatsApp)")
+        self.mapping_tree.column("created_by", width=200)
+        self.mapping_tree.column("employee_name", width=280)
+        self.mapping_tree.column("phone", width=160)
+        vsb = ttk.Scrollbar(tbl_frame, orient="vertical", command=self.mapping_tree.yview)
+        self.mapping_tree.configure(yscrollcommand=vsb.set)
+        self.mapping_tree.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+        self.mapping_tree.bind("<<TreeviewSelect>>", self._mapping_on_select)
+        self._mapping_refresh()
+
+    def _mapping_refresh(self) -> None:
+        for row in self.mapping_tree.get_children():
+            self.mapping_tree.delete(row)
+        for m in self.db.get_created_by_mappings():
+            self.mapping_tree.insert("", "end", values=(
+                m["created_by"], m["employee_name"], m["phone"]
+            ))
+
+    def _mapping_on_select(self, _event=None) -> None:
+        sel = self.mapping_tree.selection()
+        if not sel:
+            return
+        vals = self.mapping_tree.item(sel[0], "values")
+        if vals:
+            self.map_created_by_var.set(vals[0])
+            self.map_employee_var.set(vals[1])
+            self.map_phone_var.set(vals[2] if len(vals) > 2 else "")
+
+    def _mapping_save(self) -> None:
+        cb = self.map_created_by_var.get().strip()
+        em = self.map_employee_var.get().strip()
+        ph = self.map_phone_var.get().strip()
+        if not cb:
+            messagebox.showwarning("Missing Value", "Enter the 'Created By' value from the count file.")
+            return
+        self.db.upsert_created_by_mapping(cb, em, ph)
+        self._mapping_refresh()
+        self._mapping_clear_form()
+        self.set_status(f"Mapping saved: '{cb}' → '{em}'")
+
+    def _mapping_delete(self) -> None:
+        sel = self.mapping_tree.selection()
+        if not sel:
+            messagebox.showwarning("No Selection", "Select a row to delete.")
+            return
+        cb = self.mapping_tree.item(sel[0], "values")[0]
+        if messagebox.askyesno("Confirm Delete", f"Delete mapping for '{cb}'?"):
+            self.db.delete_created_by_mapping(cb)
+            self._mapping_refresh()
+            self.set_status(f"Deleted mapping for '{cb}'")
+
+    def _mapping_clear_form(self) -> None:
+        self.map_created_by_var.set("")
+        self.map_employee_var.set("")
+        self.map_phone_var.set("")
+
+    def _mapping_auto_detect(self) -> None:
+        """Scan all loaded variance rows for unique Created By values
+        and add any not already mapped (leaving employee/phone blank
+        for the user to fill in)."""
+        if not self.data_loaded:
+            messagebox.showwarning("No Data", "Load variances first, then auto-detect.")
+            return
+        existing = {m["created_by"] for m in self.db.get_created_by_mappings()}
+        added = 0
+        try:
+            with self.db.connect() as con:
+                rows = con.execute(
+                    "SELECT DISTINCT created_by FROM variances WHERE created_by IS NOT NULL AND created_by != ''"
+                ).fetchall()
+            for (cb,) in rows:
+                if cb and cb not in existing:
+                    self.db.upsert_created_by_mapping(cb, "", "")
+                    added += 1
+            self._mapping_refresh()
+            self.set_status(f"Auto-detected {added} new Created By value(s). Fill in Employee Name and Phone.")
+            if added == 0:
+                messagebox.showinfo("Auto-detect", "All Created By values already have mappings (or none found in loaded data).")
+        except Exception as exc:
+            messagebox.showerror("Error", str(exc))
+
+    def _build_exclusion_tab(self) -> None:
+        form = ttk.LabelFrame(self.exclusion_tab, text="Exclude Devices From Variance Images", padding=10)
+        form.pack(fill="x", pady=(0, 8))
+        ttk.Label(form, text="District").grid(row=0, column=0, sticky="w", padx=(0, 6), pady=3)
+        self._exclusion_district_combo = ttk.Combobox(
+            form,
+            textvariable=self.exclusion_district_var,
+            values=self.db.all_known_districts(),
+            width=16,
+        )
+        self._exclusion_district_combo.grid(row=0, column=1, sticky="w", padx=(0, 8), pady=3)
+        ttk.Label(form, text="Product").grid(row=0, column=2, sticky="w", padx=(0, 6), pady=3)
+        ttk.Entry(form, textvariable=self.exclusion_product_var, width=30).grid(row=0, column=3, sticky="w", padx=(0, 12), pady=3)
+        ttk.Label(form, text="IMEI").grid(row=0, column=4, sticky="w", padx=(0, 6), pady=3)
+        imei_entry = ttk.Entry(form, textvariable=self.exclusion_imei_var, width=22)
+        imei_entry.grid(row=0, column=5, sticky="w", padx=(0, 12), pady=3)
+        imei_entry.bind("<FocusOut>", self.lookup_product_for_exclusion_imei)
+        imei_entry.bind("<Return>", self.lookup_product_for_exclusion_imei)
+        ttk.Label(form, text="Comments").grid(row=0, column=6, sticky="w", padx=(0, 6), pady=3)
+        ttk.Entry(form, textvariable=self.exclusion_comments_var, width=36).grid(row=0, column=7, sticky="w", padx=(0, 8), pady=3)
+        ttk.Button(form, text="Find Product", command=self.lookup_product_for_exclusion_imei).grid(row=0, column=8, padx=(0, 4), pady=3)
+        ttk.Button(form, text="Save", command=self.save_device_exclusion_from_form).grid(row=0, column=9, padx=(0, 4), pady=3)
+        ttk.Button(form, text="Update Comment", command=self.update_selected_exclusion_comment).grid(row=0, column=10, padx=(0, 4), pady=3)
+        ttk.Button(form, text="Import XLSX", command=self.import_excluded_imeis_file).grid(row=0, column=11, padx=(0, 4), pady=3)
+        ttk.Button(form, text="Export Excel", command=self.export_excluded_imeis_file).grid(row=0, column=12, padx=(0, 4), pady=3)
+        ttk.Button(form, text="Delete", command=self.delete_selected_device_exclusion).grid(row=0, column=13, padx=(0, 4), pady=3)
+        ttk.Button(form, text="Delete All", command=self.delete_all_device_exclusions_from_ui).grid(row=0, column=14, padx=(0, 4), pady=3)
+        ttk.Button(form, text="Clear", command=self.clear_device_exclusion_form).grid(row=0, column=15, padx=(0, 4), pady=3)
+
+        # Search bar for Excluded Devices
+        exclusion_search_box = ttk.Frame(self.exclusion_tab)
+        exclusion_search_box.pack(fill="x", pady=(0, 8))
+        ttk.Label(exclusion_search_box, text="Search:").pack(side="left", padx=(0, 6))
+        exclusion_search_entry = ttk.Entry(exclusion_search_box, textvariable=self.exclusion_search_var, width=40)
+        exclusion_search_entry.pack(side="left", padx=(0, 8))
+        exclusion_search_entry.bind("<KeyRelease>", lambda _e: self.refresh_device_exclusions_table())
+        ttk.Button(exclusion_search_box, text="Clear", command=lambda: (self.exclusion_search_var.set(""), self.refresh_device_exclusions_table())).pack(side="left")
+
+        columns = ("district", "product", "imei", "comments")
+        self.exclusion_tree = ttk.Treeview(self.exclusion_tab, columns=columns, show="headings", selectmode="browse", height=12)
+        self.exclusion_tree.heading("district", text="District", command=lambda: self.sort_any_tree(self.exclusion_tree, "district", False))
+        self.exclusion_tree.heading("product", text="Product", command=lambda: self.sort_any_tree(self.exclusion_tree, "product", False))
+        self.exclusion_tree.heading("imei", text="IMEI", command=lambda: self.sort_any_tree(self.exclusion_tree, "imei", False))
+        self.exclusion_tree.heading("comments", text="Comments", command=lambda: self.sort_any_tree(self.exclusion_tree, "comments", False))
+        self.exclusion_tree.column("district", width=160, minwidth=120, anchor="w")
+        self.exclusion_tree.column("product", width=400, minwidth=160, anchor="w")
+        self.exclusion_tree.column("imei", width=220, minwidth=120, anchor="w")
+        self.exclusion_tree.column("comments", width=420, minwidth=160, anchor="w")
+        self.exclusion_tree.pack(fill="both", expand=True)
+        self.exclusion_tree.bind("<<TreeviewSelect>>", self.on_device_exclusion_select)
+        self.exclusion_tree.bind("<Double-1>", self.edit_selected_exclusion_comment)
+
+    def delete_all_device_exclusions_from_ui(self) -> None:
+        if not messagebox.askyesno("Delete All Exclusions", "Are you sure you want to completely remove ALL device exclusions from the database? This cannot be undone."):
+            return
+        self.db.delete_all_device_exclusions()
+        self.refresh_device_exclusions_table()
+        self.refresh_entry_form_districts()
+        self.refresh_table()
+        self.clear_device_exclusion_form()
+        self.set_status("Deleted all device exclusions.")
+
+    def refresh_device_exclusions_table(self) -> None:
+        if not hasattr(self, "exclusion_tree"):
+            return
+        for item in self.exclusion_tree.get_children():
+            self.exclusion_tree.delete(item)
+        search = self.exclusion_search_var.get().strip().lower() if hasattr(self, "exclusion_search_var") else ""
+        for row in self.db.device_exclusions():
+            district = row.get("District", "")
+            product = row.get("Product", "")
+            imei = row.get("IMEI", "")
+            comments = row.get("Comments", "")
+            if search and search not in district.lower() and search not in product.lower() and search not in imei.lower() and search not in comments.lower():
+                continue
+            iid = row.get("RuleKey", device_rule_key(district + "|" + product + "|" + imei))
+            self.exclusion_tree.insert(
+                "",
+                "end",
+                iid=iid,
+                values=(district, product, imei, comments),
+            )
+
+    def product_for_imei_from_loaded_rows(self, imei: str) -> str:
+        imei_key = device_rule_key(imei)
+        if not imei_key:
+            return ""
+
+        # Prefer current loaded variance rows.
+        for row in self.db.get_rows_by_keys(self.loaded_keys) if self.loaded_keys else []:
+            if device_rule_key(row.imei) == imei_key:
+                return safe_text(row.product)
+
+        # Fallback to currently read inventory records if available.
+        for rec in self.current_inventory_records:
+            for key, value in rec.items():
+                if device_rule_key(value) == imei_key:
+                    product_col = find_column(rec, ["Product", "Product Name", "Device", "Model", "Item", "SKU Description"])
+                    if product_col:
+                        return safe_text(rec.get(product_col, ""))
+        return ""
+
+    def lookup_product_for_exclusion_imei(self, _event=None):
+        imei = self.exclusion_imei_var.get()
+        if not safe_text(imei):
+            return "break"
+        product = self.product_for_imei_from_loaded_rows(imei)
+        if product:
+            self.exclusion_product_var.set(product)
+            self.set_status(f"Product found for IMEI {imei}: {product}")
+        else:
+            self.set_status(f"No product found for IMEI {imei}. Product field left unchanged.")
+        return "break"
+
+    def save_device_exclusion_from_form(self) -> None:
+        try:
+            district = self.exclusion_district_var.get()
+            imei = self.exclusion_imei_var.get()
+            product = self.exclusion_product_var.get()
+            comments = self.exclusion_comments_var.get()
+
+            if safe_text(imei) and not safe_text(product):
+                found_product = self.product_for_imei_from_loaded_rows(imei)
+                if found_product:
+                    product = found_product
+                    self.exclusion_product_var.set(found_product)
+
+            # IMEI exclusions stay global and ignore district.
+            if safe_text(imei):
+                district = ""
+                self.exclusion_district_var.set("")
+
+            selected_key = self.selected_exclusion_key_var.get().strip()
+            if selected_key:
+                self.db.delete_device_exclusion(selected_key)
+
+            self.db.save_device_exclusion(product, imei, comments, district)
+            self.selected_exclusion_key_var.set("")
+            self.refresh_device_exclusions_table()
+            self.refresh_entry_form_districts()
+            self.refresh_table()
+            self.set_status(
+                f"Saved exclusion. District: {safe_text(district) or '-'} | Product: {safe_text(product) or '-'} | IMEI: {safe_text(imei) or '-'} | Comments: {safe_text(comments) or '-'}"
+            )
+        except Exception as exc:
+            messagebox.showerror("Save failed", str(exc))
+
+    def update_selected_exclusion_comment(self) -> None:
+        selected = self.exclusion_tree.selection() if hasattr(self, "exclusion_tree") else []
+        if not selected:
+            messagebox.showinfo("No selection", "Select an exclusion row first.")
+            return
+        rule_key = selected[0]
+        try:
+            self.db.update_device_exclusion_comment(rule_key, self.exclusion_comments_var.get())
+            self.selected_exclusion_key_var.set(rule_key)
+            self.refresh_device_exclusions_table()
+            self.refresh_table()
+            self.set_status("Updated selected exclusion comment.")
+        except Exception as exc:
+            messagebox.showerror("Update failed", str(exc))
+
+    def edit_selected_exclusion_comment(self, _event=None):
+        selected = self.exclusion_tree.selection() if hasattr(self, "exclusion_tree") else []
+        if not selected:
+            return "break"
+
+        current_comment = self.exclusion_comments_var.get()
+        new_comment = simpledialog.askstring(
+            "Edit Comments",
+            "Enter comments for selected exclusion.",
+            initialvalue=current_comment,
+            parent=self,
+        )
+        if new_comment is None:
+            return "break"
+
+        self.exclusion_comments_var.set(new_comment)
+        self.update_selected_exclusion_comment()
+        return "break"
+
+    def import_excluded_imeis_file(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Import Excluded Devices XLSX",
+            filetypes=[
+                ("Excel Files", "*.xlsx *.xlsm *.xls"),
+                ("All Files", "*.*"),
+            ],
+        )
+        if not path:
+            return
+
+        try:
+            records: List[Dict[str, str]] = []
+            suffix = Path(path).suffix.lower()
+            if suffix in {".xlsx", ".xlsm", ".xls"}:
+                records = read_xlsx_records(path)
+            else:
+                messagebox.showerror("Unsupported file", "Please select an Excel file.")
+                return
+
+            if not records:
+                messagebox.showerror("Empty file", "No exclusion rows found in the selected file.")
+                return
+
+            sample = records[0]
+            district_col = find_column(sample, ["District", "Market", "Area"])
+            product_col = find_column(sample, ["Product", "Product Name", "Device", "Model", "Item"])
+            imei_col = find_column(sample, ["IMEI", "IMEI Number", "ESN", "ESN Number", "Serial", "Serial 1", "Device ID"])
+            comments_col = find_column(sample, ["Comments", "Comment", "Notes", "Note", "Reason"])
+
+            if not product_col and not imei_col:
+                messagebox.showerror(
+                    "Missing columns",
+                    "Import file needs at least Product or IMEI. Supported headers: District, Product, IMEI, Comments.",
+                )
+                return
+
+            imported = 0
+            skipped = 0
+            for rec in records:
+                district = normalize_district(rec.get(district_col, "")) if district_col else ""
+                product = safe_text(rec.get(product_col, "")) if product_col else ""
+                imei = safe_text(rec.get(imei_col, "")) if imei_col else ""
+                comments = safe_text(rec.get(comments_col, "")) if comments_col else ""
+
+                if imei and not product:
+                    product = self.product_for_imei_from_loaded_rows(imei)
+
+                # IMEI exclusions ignore district. Product exclusions require district.
+                if imei:
+                    district = ""
+                elif product and (not district or district == "Unknown"):
+                    skipped += 1
+                    continue
+
+                if not product and not imei:
+                    skipped += 1
+                    continue
+
+                self.db.save_device_exclusion(product, imei, comments, district)
+                imported += 1
+
+            self.refresh_device_exclusions_table()
+            self.refresh_table()
+            messagebox.showinfo("Import complete", f"Imported {imported} exclusion row(s).\nSkipped {skipped} invalid row(s).\n\nProduct exclusions require District. IMEI exclusions are global.")
+            self.set_status(f"Imported excluded devices. Imported: {imported}. Skipped: {skipped}.")
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror("Import failed", str(exc))
+            self.set_status("Excluded devices import failed.")
+
+    def export_excluded_imeis_file(self) -> None:
+        rows = self.db.device_exclusions()
+        if not rows:
+            messagebox.showinfo("No exclusions", "No excluded devices are saved.")
+            return
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"GFH_Excluded_Devices_{stamp}.xlsx"
+        path = filedialog.asksaveasfilename(
+            title="Export Excluded Devices",
+            initialdir=str(EXPORT_DIR),
+            initialfile=default_name,
+            defaultextension=".xlsx",
+            filetypes=[("Excel Files", "*.xlsx")],
+        )
+        if not path:
+            return
+        output_path = Path(path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["District", "Product", "IMEI", "Comments"])
+        for r_idx, row in enumerate(rows, start=2):
+            ws.cell(row=r_idx, column=1, value=row.get("District", ""))
+            ws.cell(row=r_idx, column=2, value=row.get("Product", ""))
+            
+            imei_cell = ws.cell(row=r_idx, column=3, value=row.get("IMEI", ""))
+            imei_cell.data_type = 's'
+            imei_cell.number_format = '@'
+            
+            ws.cell(row=r_idx, column=4, value=row.get("Comments", ""))
+        wb.save(output_path)
+
+        self.set_status(f"Exported excluded devices: {output_path}")
+        messagebox.showinfo("Export complete", f"Excluded devices exported:\n{output_path}")
+
+    def delete_selected_device_exclusion(self) -> None:
+        selected = self.exclusion_tree.selection() if hasattr(self, "exclusion_tree") else []
+        if not selected:
+            messagebox.showinfo("No selection", "Select a device exclusion first.")
+            return
+        if not messagebox.askyesno("Delete exclusion", "Delete the selected device exclusion from the database?"):
+            return
+        self.db.delete_device_exclusion(selected[0])
+        self.refresh_device_exclusions_table()
+        self.refresh_entry_form_districts()
+        self.refresh_table()
+        self.clear_device_exclusion_form()
+        self.set_status("Deleted selected device exclusion.")
+
+    def clear_device_exclusion_form(self) -> None:
+        self.exclusion_district_var.set("")
+        self.exclusion_product_var.set("")
+        self.exclusion_imei_var.set("")
+        self.exclusion_comments_var.set("")
+        self.selected_exclusion_key_var.set("")
+
+    def on_device_exclusion_select(self, _event=None) -> None:
+        selected = self.exclusion_tree.selection() if hasattr(self, "exclusion_tree") else []
+        if not selected:
+            return
+        rule_key = selected[0]
+        self.selected_exclusion_key_var.set(rule_key)
+        for row in self.db.device_exclusions():
+            if row.get("RuleKey") == rule_key:
+                self.exclusion_district_var.set(row.get("District", ""))
+                self.exclusion_product_var.set(row.get("Product", ""))
+                self.exclusion_imei_var.set(row.get("IMEI", ""))
+                self.exclusion_comments_var.set(row.get("Comments", ""))
+                return
+
+    def filter_excluded_variance_rows(self, rows: List[VarianceRow]) -> List[VarianceRow]:
+        if not rows:
+            return []
+        return [row for row in rows if not self.db.is_device_excluded(row.district, row.product, row.imei)]
+
+    def _file_row(self, parent, row: int, label: str, var: tk.StringVar, command) -> None:
+        ttk.Label(parent, text=label, width=30).grid(row=row, column=0, sticky="w", pady=3)
+        ttk.Entry(parent, textvariable=var).grid(row=row, column=1, sticky="ew", pady=3)
+        ttk.Button(parent, text="Browse", command=command).grid(row=row, column=2, padx=(8, 0), pady=3)
+
+    def pick_inventory(self) -> None:
+        path = filedialog.askopenfilename(title="Select Inventory_Count_Result_Details", filetypes=[("Excel Files", "*.xlsx *.xlsm *.xls"), ("All Files", "*.*")])
+        if path:
+            self.inventory_path.set(path)
+
+    def pick_time_sheet(self) -> None:
+        path = filedialog.askopenfilename(title="Select Timesheet (timesheets_*.xlsx)", filetypes=[("Excel Files", "*.xlsx *.xlsm *.xls"), ("All Files", "*.*")])
+        if path:
+            self.time_sheet_path.set(path)
+
+    def set_status(self, text: str) -> None:
+        self.status_text.set(text)
+        self.update_idletasks()
+
+    def load_variances(self) -> None:
+        inventory = self.inventory_path.get().strip()
+        time_sheet = self.time_sheet_path.get().strip()
+        if not inventory or not os.path.exists(inventory):
+            messagebox.showerror("Missing file", "Select Inventory_Count_Result_Details.xlsx first.")
+            return
+        if not time_sheet or not os.path.exists(time_sheet):
+            messagebox.showerror("Missing file", "Select Timesheet file (timesheets_*.xlsx) first.")
+            return
+        try:
+            self.clear_current_ui(silent=True)
+            self.set_status("Reading Excel files...")
+            inv_records = read_xlsx_records(inventory)
+            ts_records = read_xlsx_records(time_sheet)
+            self.current_inventory_records = inv_records
+            self.current_time_sheet_records = ts_records
+            self.master_store_records = self.db.store_master_records()
+            self.set_status("Building Inventory Status and Variance Audit rows...")
+
+            self.status_rows, status_summary = build_inventory_status_rows(inv_records, ts_records, master_store_records=self.master_store_records, source_file=os.path.basename(inventory))
+            self.status_row_by_key = {r.key: r for r in self.status_rows}
+            self.db.upsert_inventory_status_rows(self.status_rows)
+            rows, variance_summary = extract_variances(inv_records, ts_records, master_store_records=self.master_store_records, source_file=os.path.basename(inventory))
+            self.db.upsert_rows(rows)
+            self.loaded_keys = {row.key for row in rows}
+            self.data_loaded = True
+
+            self.populate_status_filters()
+            self.populate_audit_filters()
+            self.refresh_status_table()
+            self.refresh_table()
+
+            self.summary_text.set(
+                f"Inventory Status. Completed: {status_summary['completed']}   Pending: {status_summary['pending']}   "
+                f"Variance Audit: {len(rows)}   SIMs skipped: {variance_summary['skipped_sims']}"
+            )
+            self.set_status(
+                f"Loaded current session. Inventory Status rows: {len(self.status_rows)}. Variances: {len(rows)}. "
+                f"Inventory rows read: {variance_summary['raw_inventory_rows']}. Latest rows used: {variance_summary['latest_inventory_rows']}. "
+                f"Stale rows skipped: {variance_summary['stale_inventory_rows']}. SIM rows skipped: {variance_summary['skipped_sims']}."
+            )
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror("Load failed", str(exc))
+            self.set_status("Load failed. Check the Excel columns and try again.")
+
+    def add_store_prompt(self) -> None:
+        district = simpledialog.askstring(
+            "Add Store",
+            "Enter district name.",
+            parent=self,
+        )
+        if district is None:
+            return
+        district = normalize_district(district)
+        if district == "Unknown":
+            messagebox.showerror("Invalid district", "Please enter a valid district name.")
+            return
+
+        store = simpledialog.askstring("Add Store", "Enter store name.", parent=self)
+        if store is None:
+            return
+        store = display_store(store)
+        if not store:
+            messagebox.showerror("Invalid store", "Store name is required.")
+            return
+
+        self.db.save_store_account(district, store, "", "", "")
+        self.master_store_records = self.db.store_master_records()
+        self.refresh_store_accounts_table()
+        self.refresh_entry_form_districts()
+
+        if self.data_loaded:
+            source_name = os.path.basename(self.inventory_path.get().strip()) if self.inventory_path.get().strip() else ""
+            self.status_rows, status_summary = build_inventory_status_rows(
+                self.current_inventory_records,
+                self.current_time_sheet_records,
+                master_store_records=self.master_store_records,
+                source_file=source_name,
+            )
+            self.status_row_by_key = {r.key: r for r in self.status_rows}
+            self.populate_status_filters()
+            self.refresh_status_table()
+            self.summary_text.set(
+                f"Inventory Audit Status. Completed: {status_summary['completed']}   Pending: {status_summary['pending']}   Variance Audit: {len(self.loaded_keys)}"
+            )
+        else:
+            self.populate_status_filters()
+
+        messagebox.showinfo("Store saved", f"Saved store.\nDistrict: {district}\nStore: {store}")
+        self.set_status(f"Added store: {district} | {store}")
+
+    def populate_status_filters(self) -> None:
+        districts = set()
+        for r in self.status_rows:
+            d = normalize_district(r.district or "Unknown")
+            if d and d != "Unknown":
+                districts.add(d)
+        for d in self.db.all_known_districts():
+            if d and d != "Unknown":
+                districts.add(d)
+        district_values = ["All Districts"] + sorted(districts)
+        self.status_district_combo["values"] = district_values
+        if self.status_district_filter.get() not in district_values:
+            self.status_district_filter.set("All Districts")
+        self.update_status_store_filter_values()
+
+    def update_status_store_filter_values(self) -> None:
+        selected_district = self.status_district_filter.get().strip()
+        rows = self.status_rows
+        if selected_district and selected_district != "All Districts":
+            rows = [r for r in rows if normalize_district(r.district) == normalize_district(selected_district)]
+        stores = sorted({r.store for r in rows if r.store})
+        values = ["All Stores"] + stores
+        self.status_store_combo["values"] = values
+        if self.status_store_filter.get() not in values:
+            self.status_store_filter.set("All Stores")
+
+    def populate_audit_filters(self) -> None:
+        districts = set()
+        rows = self.db.get_rows_by_keys(self.loaded_keys) if self.loaded_keys else []
+        for r in rows:
+            d = normalize_district(r.district or "Unknown")
+            if d and d != "Unknown":
+                districts.add(d)
+        for d in self.db.all_known_districts():
+            if d and d != "Unknown":
+                districts.add(d)
+        district_values = ["All Districts"] + sorted(districts)
+        self.audit_district_combo["values"] = district_values
+        if self.audit_district_filter.get() not in district_values:
+            self.audit_district_filter.set("All Districts")
+        # Also populate the final district combo
+        if hasattr(self, "final_district_combo"):
+            self.final_district_combo["values"] = district_values
+            if self.final_district_var.get() not in district_values:
+                self.final_district_var.set("All Districts")
+        self.update_audit_store_filter_values()
+
+    def update_audit_store_filter_values(self) -> None:
+        rows = self.db.get_rows_by_keys(self.loaded_keys) if self.loaded_keys else []
+        district = self.audit_district_filter.get().strip()
+        if district and district != "All Districts":
+            rows = [r for r in rows if normalize_district(r.district) == normalize_district(district)]
+        stores = sorted({r.store for r in rows if r.store})
+        values = ["All Stores"] + stores
+        self.audit_store_combo["values"] = values
+        if self.audit_store_filter.get() not in values:
+            self.audit_store_filter.set("All Stores")
+
+    def on_status_district_change(self, _event=None) -> None:
+        self.update_status_store_filter_values()
+        self.auto_check_status_rows()
+        self.refresh_status_table()
+
+    def on_status_store_change(self, _event=None) -> None:
+        self.auto_check_status_rows()
+        self.refresh_status_table()
+
+    def on_audit_district_change(self, _event=None) -> None:
+        self.update_audit_store_filter_values()
+        self.auto_check_audit_rows()
+        self.refresh_table()
+
+    def on_audit_store_change(self, _event=None) -> None:
+        self.auto_check_audit_rows()
+        self.refresh_table()
+
+    def matching_status_rows(self) -> List[InventoryStatusRow]:
+        rows = list(self.status_rows)
+        district = self.status_district_filter.get().strip()
+        store = self.status_store_filter.get().strip()
+        if district and district != "All Districts":
+            rows = [r for r in rows if normalize_district(r.district) == normalize_district(district)]
+        if store and store != "All Stores":
+            rows = [r for r in rows if r.store == store]
+
+        any_q = safe_text(self.status_search_any_var.get()).lower()
+        district_q = safe_text(self.status_search_district_var.get()).lower()
+        store_q = safe_text(self.status_search_store_var.get()).lower()
+        status_q = safe_text(self.status_search_status_var.get()).lower()
+        rep_q = safe_text(self.status_search_rep_var.get()).lower()
+
+        if district_q:
+            rows = [r for r in rows if district_q in safe_text(r.district).lower()]
+        if store_q:
+            rows = [r for r in rows if store_q in safe_text(r.store).lower()]
+        if status_q:
+            rows = [r for r in rows if status_q in safe_text(r.status).lower()]
+        if rep_q:
+            rows = [r for r in rows if rep_q in safe_text(r.rep_name).lower()]
+        if any_q:
+            rows = [
+                r for r in rows
+                if any_q in " ".join([
+                    safe_text(r.district),
+                    safe_text(r.store),
+                    safe_text(r.status),
+                    safe_text(r.rep_name),
+                ]).lower()
+            ]
+        return rows
+
+    def clear_status_search(self) -> None:
+        self.status_search_any_var.set("")
+        self.status_search_district_var.set("")
+        self.status_search_store_var.set("")
+        self.status_search_status_var.set("")
+        self.status_search_rep_var.set("")
+        self.refresh_status_table()
+
+    def status_row_tag(self, row: InventoryStatusRow, state_map: Optional[Dict[str, Dict[str, str]]] = None) -> str:
+        state_map = state_map if state_map is not None else self.db.inventory_status_state_map()
+        state = state_map.get(normalize_store(row.store), {})
+        status_norm = normalize_header(row.status)
+        previous_norm = normalize_header(state.get("Previous Status", ""))
+        sent_at = safe_text(state.get("Last Sent At", ""))
+
+        if status_norm != "completed":
+            return "status_pending"
+        if sent_at:
+            return "status_completed_sent"
+        if previous_norm == "pending":
+            return "status_completed_after_update"
+        return "status_completed"
+
+    def auto_check_pending_status_rows(self) -> None:
+        rows = [r for r in self.matching_status_rows() if normalize_header(r.status) != "completed"]
+        self.status_checked_keys = {r.key for r in rows}
+        self.refresh_status_table()
+        self.set_status(f"Prepared {len(rows)} pending inventory status row(s) for sending.")
+
+    def auto_check_status_rows(self) -> None:
+        rows = self.matching_status_rows()
+        self.status_checked_keys = {r.key for r in rows}
+        self.refresh_status_table()
+        self.set_status(f"Prepared {len(rows)} inventory status row(s) for sending. Uncheck any row you want to skip.")
+
+    def clear_status_checkmarks(self) -> None:
+        self.status_checked_keys.clear()
+        self.refresh_status_table()
+        self.set_status("Inventory status checkmarks cleared.")
+
+    def refresh_status_table(self) -> None:
+        for item in self.status_tree.get_children():
+            self.status_tree.delete(item)
+        self.status_key_by_iid.clear()
+        if not self.data_loaded:
+            return
+        rows = self.matching_status_rows()
+        rows.sort(key=lambda r: (r.district, r.store, r.rep_name, r.status))
+        state_map = self.db.inventory_status_state_map()
+        for row in rows:
+            checkbox = "☑ Send" if row.key in self.status_checked_keys else "☐ Skip"
+            tag = self.status_row_tag(row, state_map)
+            iid = self.status_tree.insert("", "end", values=(row.district, row.store, row.status, row.rep_name, checkbox), tags=(tag,))
+            self.status_key_by_iid[iid] = row.key
+        checked = len([r for r in rows if r.key in self.status_checked_keys])
+        self.set_status(f"Inventory Status rows shown: {len(rows)}. Checked for send: {checked}.")
+
+    def on_status_tree_click(self, event) -> None:
+        region = self.status_tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+        col_id = self.status_tree.identify_column(event.x)
+        columns = self.status_tree["columns"]
+        try:
+            col_name = columns[int(col_id.replace("#", "")) - 1]
+        except Exception:
+            return
+        if col_name != "checkbox":
+            return
+        iid = self.status_tree.identify_row(event.y)
+        if not iid or iid not in self.status_key_by_iid:
+            return
+        key = self.status_key_by_iid[iid]
+        if key in self.status_checked_keys:
+            self.status_checked_keys.remove(key)
+        else:
+            self.status_checked_keys.add(key)
+        self.refresh_status_table()
+
+    @staticmethod
+    def sort_any_tree(tree, col: str, reverse: bool) -> None:
+        data = [(tree.set(k, col), k) for k in tree.get_children("")]
+        data.sort(reverse=reverse)
+        for index, (_val, k) in enumerate(data):
+            tree.move(k, "", index)
+        tree.heading(col, command=lambda: GFHApp.sort_any_tree(tree, col, not reverse))
+
+    def matching_audit_rows(self) -> List[VarianceRow]:
+        rows = self.db.get_rows_by_keys(self.loaded_keys) if self.loaded_keys else []
+        if not self.include_cleared.get():
+            rows = [row for row in rows if not row.cleared]
+        district = self.audit_district_filter.get().strip()
+        store = self.audit_store_filter.get().strip()
+        if district and district != "All Districts":
+            rows = [row for row in rows if normalize_district(row.district) == normalize_district(district)]
+        if store and store != "All Stores":
+            rows = [row for row in rows if row.store == store]
+
+        any_q = safe_text(self.audit_search_any_var.get()).lower()
+        district_q = safe_text(self.audit_search_district_var.get()).lower()
+        store_q = safe_text(self.audit_search_store_var.get()).lower()
+        product_q = safe_text(self.audit_search_product_var.get()).lower()
+        imei_q = safe_text(self.audit_search_imei_var.get()).lower()
+        rep_q = safe_text(self.audit_search_rep_var.get()).lower()
+
+        if district_q:
+            rows = [row for row in rows if district_q in safe_text(row.district).lower()]
+        if store_q:
+            rows = [row for row in rows if store_q in safe_text(row.store).lower()]
+        if product_q:
+            rows = [row for row in rows if product_q in safe_text(row.product).lower()]
+        if imei_q:
+            rows = [row for row in rows if imei_q in safe_text(row.imei).lower()]
+        if rep_q:
+            rows = [row for row in rows if rep_q in safe_text(row.rep_name).lower()]
+        if any_q:
+            rows = [
+                row for row in rows
+                if any_q in " ".join([
+                    safe_text(row.district),
+                    safe_text(row.store),
+                    safe_text(row.product),
+                    safe_text(row.imei),
+                    safe_text(row.status),
+                    safe_text(row.rep_name),
+                ]).lower()
+            ]
+
+        rows = self.filter_excluded_variance_rows(rows)
+        return rows
+
+    def auto_check_audit_rows(self) -> None:
+        rows = self.matching_audit_rows()
+        self.audit_checked_keys = {r.key for r in rows}
+        self.refresh_table()
+        self.set_status(f"Prepared {len(rows)} variance row(s) for sending. Uncheck any row you want to skip.")
+
+    def clear_audit_checkmarks(self) -> None:
+        self.audit_checked_keys.clear()
+        self.refresh_table()
+        self.set_status("Variance checkmarks cleared.")
+
+    def clear_audit_search(self) -> None:
+        self.audit_search_any_var.set("")
+        self.audit_search_district_var.set("")
+        self.audit_search_store_var.set("")
+        self.audit_search_product_var.set("")
+        self.audit_search_imei_var.set("")
+        self.audit_search_rep_var.set("")
+        self.refresh_table()
+
+    def copy_text_to_clipboard(self, text_value: str, status_message: str = "Copied to clipboard.") -> None:
+        text_value = safe_text(text_value)
+        if not text_value:
+            return
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(text_value)
+            self.update()
+            self.set_status(status_message)
+        except Exception as exc:
+            messagebox.showerror("Copy failed", str(exc))
+
+    def copy_selected_imei(self, event=None) -> None:
+        selected = self.audit_tree.selection() if hasattr(self, "audit_tree") else []
+        if not selected:
+            messagebox.showinfo("No selection", "Select a variance row first.")
+            return "break"
+        imeis: List[str] = []
+        for iid in selected:
+            values = self.audit_tree.item(iid, "values")
+            if len(values) >= 4:
+                imei = safe_text(values[3])
+                if imei:
+                    imeis.append(imei)
+        if not imeis:
+            messagebox.showinfo("No IMEI", "No IMEI found in selected row.")
+            return "break"
+        self.copy_text_to_clipboard("\n".join(imeis), f"Copied {len(imeis)} IMEI(s) to clipboard.")
+        return "break"
+
+    @staticmethod
+    def audit_row_tag(row: VarianceRow) -> str:
+        if row.cleared:
+            return "variance_cleared"
+        if row.sent_count:
+            return "variance_sent"
+        return "variance_pending"
+
+    def refresh_table(self) -> None:
+        for item in self.audit_tree.get_children():
+            self.audit_tree.delete(item)
+        self.key_by_iid.clear()
+
+        if not self.data_loaded:
+            self.summary_text.set("No data loaded")
+            self.set_status("UI cleared. Select both file locations, then click Load Variances.")
+            return
+
+        rows = self.matching_audit_rows()
+        rows.sort(key=lambda r: (r.district, r.store, r.rep_name, r.status, r.product, r.imei))
+
+        for row in rows:
+            clearance = "Cleared" if row.cleared else ("Sent" if row.sent_count else "Not cleared")
+            checkbox = "☑ Send" if row.key in self.audit_checked_keys else "☐ Skip"
+            iid = self.audit_tree.insert("", "end", values=(row.district, row.store, row.product, row.imei, row.status, row.rep_name, clearance, checkbox), tags=(self.audit_row_tag(row),))
+            self.key_by_iid[iid] = row.key
+        cleared_count = sum(1 for r in rows if r.cleared)
+        pending_count = sum(1 for r in rows if not r.cleared)
+        checked = sum(1 for r in rows if r.key in self.audit_checked_keys)
+        self.set_status(f"Variance Audit rows shown: {len(rows)}. Cleared: {cleared_count}. Not cleared: {pending_count}. Checked for send: {checked}.")
+
+    def on_audit_double_click(self, event) -> None:
+        iid = self.audit_tree.identify_row(event.y)
+        if not iid or iid not in self.key_by_iid:
+            return
+        self.audit_tree.selection_set(iid)
+        self.send_selected()
+
+
+    def on_audit_tree_click(self, event) -> None:
+        region = self.audit_tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+        col_id = self.audit_tree.identify_column(event.x)
+        columns = self.audit_tree["columns"]
+        try:
+            col_name = columns[int(col_id.replace("#", "")) - 1]
+        except Exception:
+            return
+        iid = self.audit_tree.identify_row(event.y)
+        if not iid or iid not in self.key_by_iid:
+            return
+        if col_name == "imei":
+            values = self.audit_tree.item(iid, "values")
+            if len(values) >= 4:
+                self.copy_text_to_clipboard(values[3], f"Copied IMEI: {values[3]}")
+            return
+        if col_name != "checkbox":
+            return
+        key = self.key_by_iid[iid]
+        if key in self.audit_checked_keys:
+            self.audit_checked_keys.remove(key)
+        else:
+            self.audit_checked_keys.add(key)
+        self.refresh_table()
+
+
+    def selected_rows(self) -> List[VarianceRow]:
+        keys = [self.key_by_iid[iid] for iid in self.audit_tree.selection() if iid in self.key_by_iid]
+        return self.db.get_rows_by_keys(keys)
+
+    def current_mode_key(self) -> str:
+        label = self.audit_send_mode.get().strip().lower()
+        if label == "store":
+            return "store"
+        if label in {"sales rep", "rep", "salesperson"}:
+            return "rep"
+        return "district"
+
+    def current_status_mode_key(self) -> str:
+        label = self.status_send_mode.get().strip().lower()
+        if label == "store":
+            return "store"
+        if label in {"sales rep", "rep", "salesperson"}:
+            return "rep"
+        return "district"
+
+    @staticmethod
+    def grouped_batches(rows: List[VarianceRow], mode: str) -> List[Tuple[str, str, List[VarianceRow]]]:
+        grouped: Dict[Tuple[str, str], List[VarianceRow]] = {}
+        for row in rows:
+            district = normalize_district(row.district or "Unknown")
+            if mode == "store":
+                key = (district, row.store or "Unknown Store")
+            elif mode == "rep":
+                key = (district, row.rep_name or "Unknown Rep")
+            else:
+                key = (district, district)
+            grouped.setdefault(key, []).append(row)
+        batches: List[Tuple[str, str, List[VarianceRow]]] = []
+        for (district, value), group_rows in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1])):
+            title = district if mode == "district" else f"{value} | {district}"
+            batches.append((title, district, group_rows))
+        return batches
+
+    @staticmethod
+    def grouped_status_batches(rows: List[InventoryStatusRow], mode: str) -> List[Tuple[str, str, List[InventoryStatusRow]]]:
+        grouped: Dict[Tuple[str, str], List[InventoryStatusRow]] = {}
+        for row in rows:
+            district = normalize_district(row.district or "Unknown")
+            if mode == "store":
+                key = (district, row.store or "Unknown Store")
+            elif mode == "rep":
+                key = (district, row.rep_name or "Unknown Rep")
+            else:
+                key = (district, district)
+            grouped.setdefault(key, []).append(row)
+        batches: List[Tuple[str, str, List[InventoryStatusRow]]] = []
+        for (district, value), group_rows in sorted(grouped.items(), key=lambda item: (item[0][0], item[0][1])):
+            title = district if mode == "district" else f"{value} | {district}"
+            batches.append((title, district, group_rows))
+        return batches
+
+    @staticmethod
+    def chunks(rows: List, size: int) -> Iterable[List]:
+        for i in range(0, len(rows), size):
+            yield rows[i:i + size]
+
+    def send_checked_variances(self) -> None:
+        if not self.data_loaded:
+            messagebox.showinfo("Load files first", "Select both file locations and click Load Variances first.")
+            return
+        rows = [row for row in self.db.get_rows_by_keys(self.loaded_keys) if row.key in self.audit_checked_keys]
+        rows = [row for row in rows if self.include_cleared.get() or not row.cleared]
+        rows = self.filter_excluded_variance_rows(rows)
+        if not rows:
+            messagebox.showinfo("Nothing checked", "Select a district or store so variance rows get checked, then send them.")
+            return
+        mode = self.current_mode_key()
+        batches = self.grouped_batches(rows, mode)
+        if not messagebox.askyesno("Send checked variances", f"Send {len(rows)} checked variance row(s) in {len(batches)} image batch(es)?"):
+            return
+        self._send_rows_thread(rows, mode=mode, manual=True)
+
+    def send_selected(self) -> None:
+        rows = self.filter_excluded_variance_rows(self.selected_rows())
+        if not rows:
+            messagebox.showinfo("No selection", "Select one or more non-excluded variance rows first.")
+            return
+        mode = self.current_mode_key()
+        self._send_rows_thread(rows, mode=mode, manual=True)
+
+    def send_pending(self) -> None:
+        if not self.data_loaded:
+            messagebox.showinfo("Load files first", "Select both file locations and click Load Variances first.")
+            return
+        mode = self.current_mode_key()
+        rows = [row for row in self.db.get_rows_by_keys(self.loaded_keys) if not row.cleared]
+        district = self.audit_district_filter.get().strip()
+        store = self.audit_store_filter.get().strip()
+        if district and district != "All Districts":
+            rows = [row for row in rows if normalize_district(row.district) == normalize_district(district)]
+        if store and store != "All Stores":
+            rows = [row for row in rows if row.store == store]
+        rows = self.filter_excluded_variance_rows(rows)
+        if self.send_only_unsent.get():
+            rows = [row for row in rows if not row.last_sent_at]
+        if not rows:
+            messagebox.showinfo("Nothing to send", "No pending unsent variances found in the current filter.")
+            return
+        label = SEND_MODE_LABELS.get(mode, mode.title())
+        batches = self.grouped_batches(rows, mode)
+        if not messagebox.askyesno("Send pending", f"Send {len(rows)} pending variance rows in {len(batches)} image batch(es) by {label}?\n\nImages will route to district WhatsApp groups."):
+            return
+        self._send_rows_thread(rows, mode=mode, manual=False)
+
+    def send_checked_status(self) -> None:
+        if not self.data_loaded:
+            messagebox.showinfo("Load files first", "Select both file locations and click Load Variances first.")
+            return
+        rows = [self.status_row_by_key[k] for k in self.status_checked_keys if k in self.status_row_by_key]
+        if not rows:
+            messagebox.showinfo("Nothing checked", "Select a district or store so Inventory Audit Status rows get checked, then send them.")
+            return
+        mode = self.current_status_mode_key()
+        batches = self.grouped_status_batches(rows, mode)
+        if not messagebox.askyesno("Send Inventory Audit Status", f"Send {len(rows)} inventory status row(s) in {len(batches)} image batch(es)?"):
+            return
+        thread = threading.Thread(target=self._send_status_rows, args=(rows, mode), daemon=True)
+        thread.start()
+
+    def inventory_status_message(self) -> str:
+        today = dt.datetime.now()
+        return f"Inventory Audit Status as of {today.month}/{today.day}/{today.year}."
+
+    def variance_request_message(self, rows: List[VarianceRow]) -> str:
+        """Build WhatsApp @mention message for variance request.
+
+        Uses resolve_phone_for_rep() which tries:
+        1. created_by_mappings by 'Created By' username (ArmanAli → phone)
+        2. created_by_mappings by employee_name (Abdullah Hussain → phone)
+        3. sales_reps table by rep_name
+        """
+        seen_phones: set[str] = set()
+        phones: List[str] = []
+        missing: List[str] = []
+
+        for row in rows:
+            rep_name = safe_text(row.rep_name)
+            created_by = safe_text(row.created_by)
+            phone = normalize_phone(
+                self.db.resolve_phone_for_rep(rep_name, created_by)
+            )
+            if not phone:
+                missing.append(created_by or rep_name or "Unknown")
+                continue
+            if phone in seen_phones:
+                continue
+            seen_phones.add(phone)
+            phones.append(whatsapp_mention(phone))
+
+        if missing:
+            unique_missing = sorted(set(missing))
+            self.set_status(
+                "No phone found for: " + ", ".join(unique_missing[:5]) +
+                (f"... (+{len(unique_missing)-5} more)" if len(unique_missing) > 5 else "") +
+                " — add phone in the Employees tab (Created By column)."
+            )
+
+        if not phones:
+            return ""
+
+        return " ".join(phones) + " please share the images of the variances."
+
+    def pending_inventory_count_message(self, rows: List[InventoryStatusRow]) -> str:
+        """Build the per-store reminder sent after the Inventory Audit Status
+        image.
+
+        Each pending store is addressed by the PERSON responsible whenever
+        the row has one (the Salesperson column — which also carries the
+        timesheet-matched employee for stores absent from the count file):
+
+        1. Rep has a phone on file (Employees tab / sales reps): tag it —
+               @<phone>, please complete the inventory count ASAP.
+        2. Rep known but no phone anywhere: address the person by name —
+               <Rep Name>, please complete the inventory count ASAP.
+        3. No rep on the row: fall back to the store name —
+               <Store Name>, please complete the inventory count ASAP.
+
+        One line per pending store, blocks separated by a blank line.
+        """
+        messages: List[str] = []
+        seen_stores: set[str] = set()
+
+        for row in rows:
+            if safe_text(row.status).lower() == "completed":
+                continue
+
+            store_name = safe_text(row.store)
+            if not store_name or store_name in seen_stores:
+                continue
+            seen_stores.add(store_name)
+
+            rep_name = safe_text(row.rep_name)
+            if rep_name:
+                phone = normalize_phone(self.db.resolve_phone_for_rep(rep_name))
+                if phone:
+                    messages.append(
+                        f"{whatsapp_mention(phone)}, please complete the inventory count ASAP."
+                    )
+                    continue
+                messages.append(
+                    f"{rep_name}, please complete the inventory count ASAP."
+                )
+                continue
+
+            messages.append(f"{store_name}, please complete the inventory count ASAP.")
+
+        return "\n\n".join(messages)
+
+    def create_full_inventory_audit_log(self, final_results: List[Dict[str, str]]) -> Path:
+        EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = EXPORT_DIR / f"GFH_Full_Inventory_Audit_Log_{stamp}.xlsx"
+        variance_rows = self.db.get_rows_by_keys(self.loaded_keys) if self.loaded_keys else []
+        final_results = final_results or []
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        headers = [
+            "Section", "District", "Store", "Product", "IMEI", "Status", "Rep Name",
+            "Clearance Status", "Sent Count", "Last Sent At", "Final Caption",
+            "Pending Inventory Stores", "Final Image Path", "WhatsApp Group", "Generated At"
+        ]
+        ws.append(headers)
+        
+        imei_col_idx = headers.index("IMEI") + 1
+        
+        current_row = 2
+
+        for row in sorted(self.status_rows, key=lambda r: (r.district, r.store, r.rep_name)):
+            data = [
+                "Inventory Status", row.district, row.store, "", "", row.status, row.rep_name,
+                "", "", "", "", "", "", "", now_text()
+            ]
+            for c_idx, val in enumerate(data, start=1):
+                cell = ws.cell(row=current_row, column=c_idx, value=val)
+                if c_idx == imei_col_idx:
+                    cell.data_type = 's'
+                    cell.number_format = '@'
+            current_row += 1
+
+        for row in sorted(variance_rows, key=lambda r: (r.district, r.store, r.rep_name, r.product, r.imei)):
+            data = [
+                "Variance Audit", row.district, row.store, row.product, row.imei, row.status, row.rep_name,
+                "Cleared" if row.cleared else "Not Cleared", row.sent_count, row.last_sent_at,
+                "", "", "", "", now_text()
+            ]
+            for c_idx, val in enumerate(data, start=1):
+                cell = ws.cell(row=current_row, column=c_idx, value=val)
+                if c_idx == imei_col_idx:
+                    cell.data_type = 's'
+                    cell.number_format = '@'
+            current_row += 1
+
+        for item in final_results:
+            data = [
+                "Final District Send", item.get("district", ""), item.get("stores", ""), "", "",
+                item.get("status", ""), "", "", "", "", item.get("caption", ""),
+                item.get("pending_inventory_stores", ""), item.get("image_path", ""),
+                item.get("group_name", ""), item.get("sent_at", "")
+            ]
+            for c_idx, val in enumerate(data, start=1):
+                cell = ws.cell(row=current_row, column=c_idx, value=val)
+                if c_idx == imei_col_idx:
+                    cell.data_type = 's'
+                    cell.number_format = '@'
+            current_row += 1
+
+        wb.save(output_path)
+        return output_path
+
+    def _send_rows_thread(self, rows: List[VarianceRow], mode: str, manual: bool) -> None:
+        thread = threading.Thread(target=self._send_rows, args=(rows, mode, manual), daemon=True)
+        thread.start()
+
+    def _send_rows(self, rows: List[VarianceRow], mode: str, manual: bool) -> None:
+        try:
+            renderer = ImageRenderer()
+            sender = WhatsAppSender(status_callback=self.set_status,
+                                    mode=getattr(self, "wa_mode_var", tk.StringVar(value="web")).get() or "web")
+            batches = self.grouped_batches(rows, mode)
+            send_mode_for_file = mode
+            for batch_title, district, batch_rows in batches:
+                group_name = group_name_for_district(district, self.db)
+                for chunk_no, chunk_rows in enumerate(self.chunks(batch_rows, AUTO_SEND_CHUNK_SIZE), start=1):
+                    title = batch_title if len(batch_rows) <= AUTO_SEND_CHUNK_SIZE else f"{batch_title} | Part {chunk_no}"
+                    image_path = renderer.render_rows(title, chunk_rows, mode=send_mode_for_file)
+                    try:
+                        self.set_status(f"Sending {len(chunk_rows)} variance row(s) to {group_name}. {title}.")
+                        _win_state = self._save_window_state()
+                        sender.send_image(group_name, image_path, text_message=self.variance_request_message(chunk_rows))
+                        self._restore_window_state(_win_state)
+                        self.db.mark_sent(chunk_rows, group_name, title, str(image_path), mode=send_mode_for_file)
+                    except Exception as exc:
+                        self.db.mark_sent(chunk_rows, group_name, title, str(image_path), mode=send_mode_for_file, error=str(exc))
+                        messagebox.showerror("WhatsApp send failed", f"Image was created but WhatsApp send failed.\n\nGroup: {group_name}\nBatch: {title}\nImage: {image_path}\n\nError: {exc}")
+                        self.set_status(f"Send failed. Image saved: {image_path}")
+                        return
+            self.refresh_table()
+            self.set_status("Variance image sending completed.")
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror("Send failed", str(exc))
+            self.set_status("Send failed.")
+
+    def _render_status_rows(self, batch_title: str, rows: List[InventoryStatusRow], mode: str = "status") -> Path:
+        if Image is None:
+            raise RuntimeError("Pillow is required. Install with: py -m pip install pillow")
+
+        renderer = ImageRenderer()
+        width = 1320
+        margin = 28
+        title_font = renderer._font(28, True)
+        header_font = renderer._font(16, True)
+        cell_font = renderer._font(15, False)
+        cell_bold = renderer._font(15, True)
+        sub_font = renderer._font(15, False)
+        row_h = 34
+        black = (18, 20, 43)
+        border = (0, 0, 0)
+        light_green = (210, 240, 214)
+        pending_fill = (238, 230, 177)
+        white = (255, 255, 255)
+        district_colors = {
+            "Arizona": (196, 138, 230),
+            "Atlanta": (189, 49, 120),
+            "Colorado East": (96, 194, 236),
+            "Colorado West": (78, 186, 228),
+            "Houston": (244, 128, 128),
+            "Louisiana": (247, 199, 34),
+            "Tennessee": (74, 145, 62),
+        }
+
+        logo_img = None
+        logo_w = 0
+        logo_h_used = 0
+        if STATUS_LOGO_PATH.exists():
+            try:
+                logo_img = Image.open(STATUS_LOGO_PATH).convert("RGBA")
+                scale = min(560 / logo_img.width, 135 / logo_img.height)
+                size = (max(1, int(logo_img.width * scale)), max(1, int(logo_img.height * scale)))
+                logo_img = logo_img.resize(size)
+                logo_w, logo_h_used = size
+            except Exception:
+                logo_img = None
+                logo_w = 0
+                logo_h_used = 0
+
+        header_area_h = max(logo_h_used, 80) + 18
+        table_top = margin + header_area_h + 18
+        height = table_top + 26 + row_h * len(rows) + 24
+
+        img = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(img)
+
+        title_text = "GFH Inventory Audit"
+        today = dt.datetime.now()
+        date_text = f"{today.month}/{today.day}/{today.year}"
+
+        # Measure each string so we can center it horizontally
+        title_bbox = draw.textbbox((0, 0), title_text, font=title_font)
+        title_w = title_bbox[2] - title_bbox[0]
+        date_bbox = draw.textbbox((0, 0), date_text, font=cell_bold)
+        date_w = date_bbox[2] - date_bbox[0]
+
+        title_x = (width - title_w) // 2
+        title_y = margin + 6
+        draw.text((title_x, title_y), title_text, fill=black, font=title_font)
+
+        date_x = (width - date_w) // 2
+        draw.text((date_x, title_y + 40), date_text, fill=black, font=cell_bold)
+
+        if safe_text(batch_title):
+            bt_text = safe_text(batch_title)
+            bt_bbox = draw.textbbox((0, 0), bt_text, font=sub_font)
+            bt_w = bt_bbox[2] - bt_bbox[0]
+            bt_x = (width - bt_w) // 2
+            draw.text((bt_x, title_y + 40 + 26), bt_text, fill=black, font=sub_font)
+
+        if logo_img is not None:
+            logo_x = width - margin - logo_w
+            logo_y = margin
+            img.paste(logo_img, (logo_x, logo_y), logo_img)
+
+        y = table_top
+        x = margin
+        col_widths = [160, 280, 145, 679]
+        headers = ["District", "Store", "Status", "Salesperson"]
+        draw.rectangle((x, y, width - margin, y + 26), outline=border, fill=white)
+        cx = x
+        for idx, h in enumerate(headers):
+            draw.line((cx, y, cx, y + 26), fill=border, width=1)
+            draw.text((cx + 4, y + 4), h, fill=black, font=header_font)
+            cx += col_widths[idx]
+        draw.line((width - margin, y, width - margin, y + 26), fill=border, width=1)
+        draw.line((x, y + 26, width - margin, y + 26), fill=border, width=1)
+        y += 26
+
+        rows_sorted = sorted(rows, key=lambda r: (normalize_district(r.district), r.store))
+        for row in rows_sorted:
+            district = normalize_district(row.district)
+            row_fill = district_colors.get(district, (245, 245, 245))
+            draw.rectangle((x, y, width - margin, y + row_h), fill=row_fill, outline=border)
+            vals = [district, row.store, row.status, row.rep_name or "-"]
+            cx = x
+            for cidx, val in enumerate(vals):
+                if cidx == 2:
+                    status_fill = light_green if safe_text(row.status).lower() == "completed" else pending_fill
+                    draw.rectangle((cx, y, cx + col_widths[cidx], y + row_h), fill=status_fill, outline=border)
+                draw.line((cx, y, cx, y + row_h), fill=border, width=1)
+                text_val = safe_text(val) or "-"
+                if len(text_val) > 42 and cidx == 3:
+                    text_val = text_val[:39] + "..."
+                if len(text_val) > 22 and cidx == 1:
+                    text_val = text_val[:19] + "..."
+                font = cell_bold if cidx in (0, 1, 3) else cell_font
+                fill = (210, 0, 0) if (cidx == 2 and safe_text(row.status).lower() != "completed") else black
+                draw.text((cx + 4, y + 6), text_val, fill=fill, font=font)
+                cx += col_widths[cidx]
+            draw.line((width - margin, y, width - margin, y + row_h), fill=border, width=1)
+            y += row_h
+
+        safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", batch_title)[:60] or "Inventory_Audit_Status"
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = IMAGE_DIR / f"GFH_Inventory_Audit_Status_{safe_title}_{stamp}.png"
+        img.save(path)
+        return path
+
+    def _send_status_rows(self, rows: List[InventoryStatusRow], mode: str) -> None:
+        def _status(msg):
+            self.after(0, lambda: self.set_status(msg))
+        try:
+            sender = WhatsAppSender(status_callback=lambda m: _status(m),
+                                    mode=getattr(self, "wa_mode_var", tk.StringVar(value="web")).get() or "web")
+            batches = self.grouped_status_batches(rows, mode)
+            for batch_title, district, batch_rows in batches:
+                group_name = group_name_for_district(district, self.db)
+                for chunk_no, chunk_rows in enumerate(self.chunks(batch_rows, 28), start=1):
+                    title = batch_title if len(batch_rows) <= 28 else f"{batch_title} | Part {chunk_no}"
+                    image_path = self._render_status_rows(title, chunk_rows, mode="inventory status")
+                    _status(f"Sending Inventory Audit Status with {len(chunk_rows)} row(s) to {group_name}. {title}.")
+                    _win_state = self._save_window_state()
+                    sender.send_image(group_name, image_path, text_message=self.inventory_status_message())
+                    self._restore_window_state(_win_state)
+                    self.db.mark_status_sent(chunk_rows)
+                    pending_message = self.pending_inventory_count_message(chunk_rows)
+                    if pending_message:
+                        _status(f"Sending incomplete inventory count reminder to {group_name}.")
+                        _win_state2 = self._save_window_state()
+                        sender.send_text(group_name, pending_message)
+                        self._restore_window_state(_win_state2)
+            self.after(0, self.refresh_status_table)
+            _status("Inventory Audit Status image sending completed.")
+        except Exception as exc:
+            traceback.print_exc()
+            self.after(0, lambda: messagebox.showerror("Send failed", str(exc), parent=self))
+            _status("Inventory Audit Status send failed.")
+
+    @staticmethod
+    def format_store_list_caption(stores: List[str]) -> str:
+        clean = [safe_text(s) for s in stores if safe_text(s)]
+        if not clean:
+            return ""
+        if len(clean) == 1:
+            return clean[0]
+        if len(clean) == 2:
+            return f"{clean[0]} and {clean[1]}"
+        return ", ".join(clean[:-1]) + f", and {clean[-1]}"
+
+    def final_district_caption(self, district: str, rows: List[VarianceRow], pending_status_rows: Optional[List[InventoryStatusRow]] = None) -> str:
+        parts: List[str] = []
+        dm_phone = self.db.find_district_manager_phone(district)
+        if dm_phone:
+            parts.append(whatsapp_mention(dm_phone))
+
+        stores = sorted({safe_text(r.store) for r in rows if safe_text(r.store)})
+        if stores:
+            store_text = self.format_store_list_caption(stores)
+            parts.append(f"An Inventory audit has been completed, variance found in {store_text}.")
+        else:
+            parts.append("An Inventory audit has been completed and no variance found.")
+
+        pending_stores = sorted({safe_text(r.store) for r in (pending_status_rows or []) if safe_text(r.store)})
+        if pending_stores:
+            pending_text = self.format_store_list_caption(pending_stores)
+            verb = "did not complete" if len(pending_stores) == 1 else "did not complete"
+            parts.append(f"{pending_text} {verb} an inventory count.")
+
+        return " ".join(parts)
+
+    def _render_no_variance_image(self, district: str) -> Path:
+        if Image is None:
+            raise RuntimeError("Pillow is required. Install with: py -m pip install pillow")
+
+        renderer = ImageRenderer()
+        width = 1360
+        margin = 32
+        title_font = renderer._font(34, True)
+        sub_font = renderer._font(20, False)
+        body_font = renderer._font(28, True)
+        note_font = renderer._font(18, False)
+
+        dark = (18, 20, 43)
+        gray = (95, 95, 102)
+        red = (233, 27, 47)
+        border = (215, 218, 223)
+
+        logo_img = None
+        logo_w = 0
+        logo_h_used = 0
+        if STATUS_LOGO_PATH.exists():
+            try:
+                logo_img = Image.open(STATUS_LOGO_PATH).convert("RGBA")
+                scale = min(620 / logo_img.width, 150 / logo_img.height)
+                size = (max(1, int(logo_img.width * scale)), max(1, int(logo_img.height * scale)))
+                logo_img = logo_img.resize(size)
+                logo_w, logo_h_used = size
+            except Exception:
+                logo_img = None
+                logo_w = 0
+                logo_h_used = 0
+
+        header_area_h = max(logo_h_used, 74) + 18
+        box_top = margin + header_area_h + 16
+        height = box_top + 190 + 40
+        img = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(img)
+
+        draw.text((margin, margin + 4), "GFH Inventory Variance", fill=dark, font=title_font)
+        draw.text((margin, margin + 48), f"{district}   Generated: {now_text()}", fill=gray, font=sub_font)
+
+        if logo_img is not None:
+            logo_x = width - margin - logo_w
+            logo_y = margin
+            img.paste(logo_img, (logo_x, logo_y), logo_img)
+
+        draw.rectangle((margin, box_top, width - margin, box_top + 160), outline=border, fill=(255, 255, 255))
+        draw.rectangle((margin, box_top, width - margin, box_top + 46), fill=red)
+        draw.text((margin + 14, box_top + 11), "Final Audit Result", fill="white", font=sub_font)
+        draw.text((margin + 18, box_top + 78), "No variance found in this district.", fill=dark, font=body_font)
+        draw.text((margin + 18, box_top + 118), "All variances were cleared or none were found.", fill=gray, font=note_font)
+
+        safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", district)[:60] or "District"
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = IMAGE_DIR / f"GFH_Final_Audit_{safe_title}_{stamp}.png"
+        img.save(path)
+        return path
+
+    def send_starting_message(self) -> None:
+        """Send 'Please complete an Inventory count in 15 minutes.' to district WhatsApp groups."""
+        if not self.data_loaded:
+            messagebox.showinfo("Load files first", "Select both file locations and click Load Variances first.")
+            return
+        all_districts = sorted({normalize_district(row.district) for row in self.status_rows if safe_text(row.district)})
+        if not all_districts:
+            messagebox.showinfo("No districts", "No district data is available.")
+            return
+        selected = self.final_district_var.get().strip()
+        if selected and selected != "All Districts":
+            districts = [normalize_district(selected)]
+        else:
+            districts = all_districts
+        if not messagebox.askyesno("Send starting message", f"Send starting message to {len(districts)} district group(s)?\n\nMessage: Please complete an Inventory count in 15 minutes."):
+            return
+        thread = threading.Thread(target=self._send_starting_message_thread, args=(districts,), daemon=True)
+        thread.start()
+
+    def _send_starting_message_thread(self, districts: List[str]) -> None:
+        try:
+            sender = WhatsAppSender(status_callback=self.set_status,
+                                    mode=getattr(self, "wa_mode_var", tk.StringVar(value="web")).get() or "web")
+            message = "Please complete an Inventory count in 15 minutes."
+            for district in districts:
+                group_name = group_name_for_district(district, self.db)
+                self.set_status(f"Sending starting message to {group_name}...")
+                _win_state = self._save_window_state()
+                sender.send_text(group_name, message)
+                self._restore_window_state(_win_state)
+            self.set_status("Starting message sent to all selected districts.")
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror("Send failed", str(exc))
+            self.set_status(f"Starting message send failed: {exc}")
+
+    def send_reminder(self, reminder_number: int) -> None:
+        """Send a single reminder message for uncleared variances to district WhatsApp groups."""
+        reminder_messages = {
+            1: "Please clear the pending variances.",
+            2: "This is the second reminder. Please clear the pending variances immediately.",
+            3: "Final reminder. Uncleared variances will be reported.",
+        }
+        if reminder_number not in reminder_messages:
+            return
+        if not self.data_loaded:
+            messagebox.showinfo("Load files first", "Select both file locations and click Load Variances first.")
+            return
+        all_rows = self.db.get_rows_by_keys(self.loaded_keys)
+        uncleared_rows = [row for row in all_rows if not row.cleared]
+        uncleared_rows = self.filter_excluded_variance_rows(uncleared_rows)
+        if not uncleared_rows:
+            messagebox.showinfo("No uncleared variances", "All variances have been cleared. No reminder needed.")
+            return
+        all_districts = sorted({normalize_district(row.district) for row in uncleared_rows if safe_text(row.district)})
+        if not all_districts:
+            messagebox.showinfo("No districts", "No district data available for reminders.")
+            return
+        selected = self.final_district_var.get().strip()
+        if selected and selected != "All Districts":
+            districts = [normalize_district(selected)]
+        else:
+            districts = all_districts
+        message = reminder_messages[reminder_number]
+        if not messagebox.askyesno(
+            f"Send Reminder {reminder_number}",
+            f"Send reminder {reminder_number} to {len(districts)} district group(s)?\n\n"
+            f"Message: {message}\n\n"
+            f"Total {len(uncleared_rows)} uncleared variance row(s).",
+        ):
+            return
+        thread = threading.Thread(target=self._send_single_reminder_thread, args=(districts, uncleared_rows, reminder_number, message), daemon=True)
+        thread.start()
+
+    def _send_single_reminder_thread(self, districts: List[str], uncleared_rows: List[VarianceRow], reminder_number: int, message: str) -> None:
+        try:
+            sender = WhatsAppSender(status_callback=self.set_status,
+                                    mode=getattr(self, "wa_mode_var", tk.StringVar(value="web")).get() or "web")
+            for district in districts:
+                district_rows = [row for row in uncleared_rows if normalize_district(row.district) == normalize_district(district)]
+                if not district_rows:
+                    continue
+                group_name = group_name_for_district(district, self.db)
+                rep_mentions = self.variance_request_message(district_rows)
+                full_message = f"Reminder {reminder_number}/3: {message}"
+                if rep_mentions:
+                    full_message = f"{rep_mentions} {message}"
+                self.set_status(f"Sending reminder {reminder_number}/3 to {group_name}...")
+                _win_state = self._save_window_state()
+                sender.send_text(group_name, full_message)
+                self._restore_window_state(_win_state)
+                time.sleep(2)
+            self.set_status(f"Reminder {reminder_number} sent successfully.")
+            try:
+                messagebox.showinfo("Reminder sent", f"Reminder {reminder_number} has been sent to the selected district group(s).")
+            except Exception:
+                pass
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror("Send failed", str(exc))
+            self.set_status(f"Reminder {reminder_number} send failed: {exc}")
+
+    def send_final_district_result(self) -> None:
+        if not self.data_loaded:
+            messagebox.showinfo("Load files first", "Select both file locations and click Load Variances first.")
+            return
+        all_districts = sorted({normalize_district(row.district) for row in self.status_rows if safe_text(row.district)})
+        if not all_districts:
+            all_districts = sorted({normalize_district(row.district) for row in self.db.get_rows_by_keys(self.loaded_keys) if safe_text(row.district)})
+        if not all_districts:
+            messagebox.showinfo("No districts", "No district data is available for final sending.")
+            return
+        selected = self.final_district_var.get().strip()
+        if selected and selected != "All Districts":
+            districts = [normalize_district(selected)]
+        else:
+            districts = all_districts
+        if not messagebox.askyesno("Send final district result", f"Send final audit result to {len(districts)} district group(s)?"):
+            return
+        thread = threading.Thread(target=self._send_final_district_result_thread, args=(districts,), daemon=True)
+        thread.start()
+
+    def _send_final_district_result_thread(self, districts: List[str]) -> None:
+        final_results: List[Dict[str, str]] = []
+        try:
+            sender = WhatsAppSender(self.set_status, mode=getattr(self, "wa_mode_var", tk.StringVar(value="web")).get() or "web")  # noqa: E501
+            renderer = ImageRenderer()
+            all_rows = self.db.get_rows_by_keys(self.loaded_keys)
+            self.set_status("Sending final district audit results...")
+            for district in districts:
+                district_rows = [row for row in all_rows if normalize_district(row.district) == normalize_district(district)]
+                district_rows = [row for row in district_rows if not row.cleared]
+                district_rows = self.filter_excluded_variance_rows(district_rows)
+                group_name = group_name_for_district(district, self.db)
+                pending_status_rows = [
+                    row for row in self.status_rows
+                    if normalize_district(row.district) == normalize_district(district)
+                    and normalize_header(row.status) != "completed"
+                ]
+                caption = self.final_district_caption(district, district_rows, pending_status_rows)
+                if district_rows:
+                    image_path = renderer.render_rows(district, district_rows, mode="district")
+                    status = "Variance Found"
+                else:
+                    image_path = self._render_no_variance_image(district)
+                    status = "No Variance Found"
+                self.set_status(f"Sending final district result to {group_name}.")
+                _win_state = self._save_window_state()
+                sender.send_image(group_name, image_path, text_message=caption)
+                self._restore_window_state(_win_state)
+                final_results.append({
+                    "district": district,
+                    "stores": self.format_store_list_caption(sorted({safe_text(r.store) for r in district_rows if safe_text(r.store)})),
+                    "pending_inventory_stores": self.format_store_list_caption(sorted({safe_text(r.store) for r in pending_status_rows if safe_text(r.store)})),
+                    "status": status,
+                    "caption": caption,
+                    "image_path": str(image_path),
+                    "group_name": group_name,
+                    "sent_at": now_text(),
+                })
+
+            log_path = self.create_full_inventory_audit_log(final_results)
+            self.set_status(f"Final district audit result sending completed. Full audit log created: {log_path}")
+            try:
+                messagebox.showinfo("Audit log created", f"Full inventory audit log created:\n{log_path}")
+            except Exception:
+                pass
+        except Exception as exc:
+            traceback.print_exc()
+            messagebox.showerror("Send failed", str(exc))
+            self.set_status(f"Final district sending failed: {exc}")
+
+    def mark_selected(self, cleared: bool) -> None:
+        rows = self.selected_rows()
+        if not rows:
+            messagebox.showinfo("No selection", "Select one or more variance rows first.")
+            return
+        def _do():
+            for row in rows:
+                self.db.set_cleared(row.key, cleared)
+        self._db_write(_do)
+        self.refresh_table()
+        action = "cleared" if cleared else "not cleared"
+        self.set_status(f"Marked {len(rows)} variance row(s) as {action}.")
+
+    def clear_current_ui(self, silent: bool = False) -> None:
+        self.loaded_keys.clear()
+        self.data_loaded = False
+        self.status_rows = []
+        self.status_row_by_key = {}
+        self.status_checked_keys.clear()
+        self.audit_checked_keys.clear()
+        self.status_key_by_iid.clear()
+        self.populate_status_filters()
+        self.populate_audit_filters()
+        self.refresh_status_table()
+        self.refresh_table()
+        if not silent:
+            self.set_status("UI cleared. Select both file locations, then click Load Variances.")
+
+    def export_log(self) -> None:
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_path = EXPORT_DIR / f"GFH_Variance_Clearance_Log_{stamp}.xlsx"
+        path = filedialog.asksaveasfilename(title="Export Clearance Log", initialdir=str(EXPORT_DIR), initialfile=default_path.name, defaultextension=".xlsx", filetypes=[("Excel Files", "*.xlsx")])
+        if not path:
+            return
+        keys = self.loaded_keys if self.data_loaded else None
+        self.db.export_xlsx(Path(path), keys=keys)
+        self.set_status(f"Exported clearance log: {path}")
+        messagebox.showinfo("Export complete", f"Log exported:\n{path}")
+
+    # ── Cross-instance DB sync ───────────────────────────────────────────────
+    def _start_db_sync_poll(self) -> None:
+        """Begin the 2-second mtime-polling loop."""
+        self._schedule_db_sync()
+
+    def _schedule_db_sync(self) -> None:
+        self._db_sync_after_id = self.after(2000, self._check_db_sync)
+
+    def _check_db_sync(self) -> None:
+        """Called every 2 s.  If another instance modified the DB, refresh GUI."""
+        try:
+            if not self._db_sync_paused and DB_PATH.exists():
+                mtime = DB_PATH.stat().st_mtime
+                if mtime != self._db_mtime:
+                    self._db_mtime = mtime
+                    # Reload master data in case store/rep lists changed too
+                    try:
+                        self.master_store_records = self.db.store_master_records()
+                    except Exception:
+                        pass
+                    # Refresh both visible tables silently
+                    try:
+                        self.refresh_table()
+                    except Exception:
+                        pass
+                    try:
+                        self.refresh_status_table()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        self._schedule_db_sync()
+
+    def _on_close(self) -> None:
+        """Cancel background loops then destroy the window."""
+        try:
+            if self._db_sync_after_id is not None:
+                self.after_cancel(self._db_sync_after_id)
+                self._db_sync_after_id = None
+        except Exception:
+            pass
+        try:
+            self._wa_ocr_running = False
+        except Exception:
+            pass
+        try:
+            self._scheduler.stop()
+        except Exception:
+            pass
+        self.destroy()
+
+    def _db_write(self, fn, *args, **kwargs):
+        """Wrap any DB write so the sync poller does not re-trigger on our own write."""
+        self._db_sync_paused = True
+        try:
+            result = fn(*args, **kwargs)
+        finally:
+            # Update our own mtime baseline after writing, then re-enable polling
+            try:
+                self._db_mtime = DB_PATH.stat().st_mtime
+            except Exception:
+                pass
+            self._db_sync_paused = False
+        return result
+
+    def open_app_folder(self) -> None:
+        APP_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(str(APP_DIR))
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(APP_DIR)])
+            else:
+                subprocess.Popen(["xdg-open", str(APP_DIR)])
+        except Exception as exc:
+            messagebox.showerror("Open folder failed", str(exc))
+
+def _enable_dpi_awareness() -> None:
+    """Make Windows report physical pixels so winfo_screen* is accurate on
+    high-DPI displays (1080p, 1440p, 2K, 4K, DPI-scaled laptops)."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)  # system DPI aware
+        except Exception:
+            ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
+
+def main() -> None:
+    # AppUserModelID MUST be set before GFHApp() — that class inherits
+    # tk.Tk so the window is constructed on instantiation. Setting it
+    # inside __init__ is already too late; Windows ignores it.
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("GFHTelecom.InventoryAudit")
+    except Exception:
+        pass
+    _enable_dpi_awareness()
+    app = GFHApp()
+    app.mainloop()
+
+
+if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
+    try:
+        main()
+    except Exception as exc:
+        traceback.print_exc()
+        show_startup_error(exc)
+        if sys.stdin and sys.stdin.isatty():
+            input("Press Enter to close...")
