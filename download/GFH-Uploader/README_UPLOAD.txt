@@ -1,5 +1,18 @@
-GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.7 (MULTI-CREDENTIAL AUTH + ZERO-PROMPT)
+GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.8 (MULTI-CREDENTIAL AUTH + ZERO-PROMPT)
 ======================================================================================
+
+NAYA (v3.8): AAP KI WAALI FILE AB CHALTI HAI (Google OAuth CLIENT FILE)
+------------------------------------------------------------------------
+- Wo credential.json jo Google Cloud Console se milti hai
+  ({"installed": {client_id, client_secret, auth_uri, ...}} - OAuth 2.0
+  Client ID / gcloud client-secret) ab SUPPORTED hai.
+- Pehli baar: browser khulega -> Google account chuno -> 'Allow' dabao
+  (SIRF EK DAFA). Token credential_user.json me save ho jata hai.
+- Agli baar: browser NAHI khulega - seedha upload.
+- Agar OAuth login me issue aaye to BEST option wahi hai:
+  Firebase Console > gear > Project settings > Service accounts >
+  Generate new private key -> credential.json (2 min, kabhi expire
+  nahi hoti, browser login ki zaroorat nahi).
 
 NAYA (v3.7b): CREDENTIAL GHAR DHUND LIYA - DATABASE WALA FOLDER SHAMIL
 ----------------------------------------------------------------------

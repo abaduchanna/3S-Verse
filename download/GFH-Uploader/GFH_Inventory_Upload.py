@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 # ============================================================
-#  GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.7 (MULTI-CREDENTIAL AUTH + ZERO-PROMPT)
+#  GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.8 (MULTI-CREDENTIAL AUTH + ZERO-PROMPT)
 # ============================================================
 #  Kya karta hai:
 #    Aap ki Excel (.xlsx) ya CSV file ke SAARE rows read kar ke
 #    dashboard (gfhinventorydashboard.netlify.app) ke Firebase
 #    database par upload kar deta hai.
 #
-#  CREDENTIAL ENGINE (v3.7 - file ka TYPE khud pehchanta hai):
-#    Teen types support hain - jo bhi credential.json / credentials.json
+#  CREDENTIAL ENGINE (v3.8 - file ka TYPE khud pehchanta hai):
+#    Chaar types support hain - jo bhi credential.json / credentials.json
 #    mile, us ke andar ki keys se type detect hota hai:
 #      1. Firebase SERVICE-ACCOUNT key (private_key + client_email)
 #         -> RSA JWT se Google access token (pure Python - koi extra
 #            install nahi, sirf openpyxl pehle jaisa)
 #      2. Google ADC / gcloud credential (refresh_token + client_id)
 #         -> refresh flow se access token
+#      2b. Google OAuth CLIENT file ({"installed": {...}} / gcloud
+#          client-secret - client_id + client_secret, refresh_token
+#          NAHI) -> EK DAFA browser consent flow (aap Google login
+#          karo, Allow dabao) -> credential_user.json me save ->
+#          agli baar browser nahi khulega
 #      3. Firebase WEB CONFIG (apiKey) -> anonymous sign-in
 #         (Console > Authentication > Anonymous ON hona chahiye)
 #    Search: is folder + Desktop + Downloads + Documents + 2-level
@@ -105,6 +110,7 @@ def ensure_openpyxl():
 CRED_LABELS = {
     "service_account": "Firebase SERVICE-ACCOUNT key detect hui",
     "authorized_user": "Google ADC / gcloud credential detect hui",
+    "desktop_client": "Google OAuth CLIENT file detect hui (browser login SIRF EK DAFA lagega)",
     "web_config": "Firebase WEB CONFIG detect hui",
 }
 
@@ -120,6 +126,14 @@ def classify_cred(d):
             and str(d.get("client_id") or "").strip()
             and str(d.get("client_secret") or "").strip()):
         return "authorized_user"
+    # gcloud / Google Cloud Console wali OAuth client-secret file:
+    # {"installed": {client_id, client_secret, auth_uri, ...}}
+    if (str(d.get("client_id") or "").strip()
+            and str(d.get("client_secret") or "").strip()
+            and (str(d.get("auth_uri") or "").strip()
+                 or str(d.get("token_uri") or "").strip()
+                 or str(d.get("redirect_uris") or "").strip())):
+        return "desktop_client"
     if str(d.get("apiKey") or "").strip():
         return "web_config"
     return None
@@ -256,7 +270,7 @@ def adc_mint_token(cred):
     """gcloud ADC (authorized_user) -> access_token via refresh_token."""
     import urllib.parse
     st, resp = _http_post(
-        "https://oauth2.googleapis.com/token",
+        str(cred.get("token_uri") or "https://oauth2.googleapis.com/token"),
         urllib.parse.urlencode({
             "grant_type": "refresh_token",
             "refresh_token": cred["refresh_token"],
@@ -267,6 +281,119 @@ def adc_mint_token(cred):
     if st != 200 or "access_token" not in resp:
         raise RuntimeError(f"Google refresh fail (HTTP {st}): {str(resp)[:200]}")
     return resp["access_token"]
+
+
+def desktop_login_flow(client, script_dir, log=print):
+    """Google OAuth CLIENT file (gcloud client-secret / 'installed' shape)
+    -> EK DAFA browser consent -> token exchange -> credential_user.json
+    me save (authorized_user shape). Agle runs ke liye browser NAHI
+    khulega - seedha refresh_token se token banta hai.
+    Returns: (fresh access_token, saved_json_path)"""
+    import http.server
+    import socket as _sock
+    import threading
+    import urllib.parse
+    import webbrowser
+
+    # free loopback port (desktop OAuth clients allow any 127.0.0.1 port)
+    s = _sock.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    redirect_uri = f"http://127.0.0.1:{port}"
+    scope = ("https://www.googleapis.com/auth/firebase.database "
+             "https://www.googleapis.com/auth/userinfo.email")
+    auth_base = (str(client.get("auth_uri") or "").strip()
+                 or "https://accounts.google.com/o/oauth2/v2/auth")
+    auth_url = auth_base + "?" + urllib.parse.urlencode({
+        "client_id": client["client_id"],
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": scope,
+        "access_type": "offline",
+        "prompt": "consent",
+    })
+
+    holder = {"code": None, "error": None}
+
+    class _H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            q = urllib.parse.parse_qs(
+                urllib.parse.urlparse(self.path).query)
+            holder["code"] = (q.get("code") or [None])[0]
+            holder["error"] = (q.get("error") or [None])[0]
+            ok = holder["code"] is not None
+            msg = ("Login OK - ye tab band kar do aur uploader par wapas "
+                   "aao." if ok else
+                   f"Login fail: {holder['error']} - uploader dobara chalao.")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(
+                ("<html><body style='font-family:Segoe UI,sans-serif;"
+                 "text-align:center;padding-top:70px'><h2>" + msg +
+                 "</h2></body></html>").encode("utf-8"))
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", port), _H)
+    threading.Thread(target=srv.handle_request, daemon=True).start()
+
+    log("[AUTH] Browser khul raha hai - Google account chuno aur 'Allow' "
+        "dabao (SIRF EK DAFA).")
+    log("       Agar browser na khule to ye link khud kholo:")
+    log(f"       {auth_url}")
+    try:
+        webbrowser.open(auth_url)
+    except Exception:
+        pass
+
+    deadline = time.time() + 300.0
+    while time.time() < deadline:
+        if holder["code"] or holder["error"]:
+            break
+        time.sleep(0.5)
+    try:
+        srv.server_close()
+    except Exception:
+        pass
+    if holder["error"]:
+        raise RuntimeError(f"Google ne login mana kar diya: "
+                           f"{holder['error']} - dobara chalao aur 'Allow' "
+                           f"dabao.")
+    if not holder["code"]:
+        raise RuntimeError("Google login poora nahi hua (5 min timeout) - "
+                           "dobara chalao aur 'Allow' dabao.")
+
+    st, resp = _http_post(
+        str(client.get("token_uri") or "https://oauth2.googleapis.com/token"),
+        urllib.parse.urlencode({
+            "code": holder["code"],
+            "client_id": client["client_id"],
+            "client_secret": client["client_secret"],
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code",
+        }).encode(),
+        "application/x-www-form-urlencoded")
+    if st != 200 or "refresh_token" not in resp:
+        raise RuntimeError(f"Google code exchange fail (HTTP {st}): "
+                           f"{str(resp)[:200]}")
+
+    adc = {
+        "type": "authorized_user",
+        "refresh_token": resp["refresh_token"],
+        "client_id": client["client_id"],
+        "client_secret": client["client_secret"],
+        "token_uri": (str(client.get("token_uri") or "").strip()
+                      or "https://oauth2.googleapis.com/token"),
+    }
+    dst = os.path.join(script_dir, "credential_user.json")
+    with open(dst, "w", encoding="utf-8") as f:
+        json.dump(adc, f, indent=2)
+    log("[OK] Login save ho gaya (credential_user.json) - agli baar "
+        "browser NAHI khulega.")
+    return resp["access_token"], dst
 
 
 def anon_mint_token(webcfg):
@@ -293,6 +420,9 @@ def mint_token(cred, ctype):
         return adc_mint_token(c)
     if ctype == "web_config":
         return anon_mint_token(c)
+    if ctype == "desktop_client":
+        raise RuntimeError("desktop_client ko pehle desktop_login_flow se "
+                           "login karna parta hai")
     raise RuntimeError(f"Credential type '{ctype}' support nahi hai")
 
 
@@ -614,7 +744,7 @@ def find_credential(extra_folders=None):
         data, ctype, label, issue = check_file(p)
         if ctype is not None:
             rank = {"service_account": 0, "authorized_user": 1,
-                    "web_config": 2}[ctype]
+                    "desktop_client": 2, "web_config": 3}[ctype]
             if rank < best_rank:
                 best_rank = rank
                 best[:] = [p, data, ctype, label]
@@ -624,6 +754,12 @@ def find_credential(extra_folders=None):
         return False
 
     stop = False
+    # PASS 0: pehle SAVE KIYA HUA login (credential_user.json) - ye
+    # OAuth client file se ek dafa login ke baad banta hai; is se
+    # dobara browser nahi khulta
+    saved_login = os.path.join(script_dir, "credential_user.json")
+    if os.path.isfile(saved_login):
+        consider(saved_login)
     # PASS 1: *credential* naam wali files (sab folders, .txt variant samet)
     for folder in folders:
         if stop:
@@ -697,8 +833,9 @@ def find_credential(extra_folders=None):
 
 
 def authed_upload(node, payload, extra_folders=None):
-    """v3.7 credential engine: type detect -> token mint -> authenticated
+    """v3.8 credential engine: type detect -> token mint -> authenticated
     DELETE + SINGLE PUT (dashboard wala shape) + shallow verify.
+    desktop_client (gcloud OAuth client-secret) -> EK DAFA browser login.
     Returns: (True, None) kamyaab | (False, wajah) fail
              | (None, issue) supported credential nahi mili"""
     cred_path, cred, ctype, label, issue = find_credential(extra_folders)
@@ -718,23 +855,36 @@ def authed_upload(node, payload, extra_folders=None):
 
     print(f"[MODE] {label}")
     print(f"       File: {os.path.basename(cred_path)}")
-    pid = (unwrap_cred(cred).get("project_id") or "").strip()
+    unwrapped = unwrap_cred(cred)
+    pid = (unwrapped.get("project_id") or "").strip()
     if pid and pid != PROJECT_ID:
         print(f"[WARN] Credential ka project '{pid}' hai, expected "
               f"'{PROJECT_ID}' - phir bhi try karta hoon.")
 
     print("[AUTH] Google/Firebase token banata hoon...")
-    try:
-        auth = FBAuth(ctype, mint_token(cred, ctype))
-    except Exception as e:
-        msg = str(e)
-        extra = ""
-        if ctype == "web_config":
-            extra = ("\n        FIX A: Firebase Console > Authentication > "
-                     "Sign-in method > Anonymous > Enable -> dobara chalao.\n"
-                     "        FIX B: Project settings > Service accounts > "
-                     "Generate new private key -> 'credential.json' is folder mein.")
-        return False, f"token nahi ban saka: {msg[:250]}{extra}"
+    if ctype == "desktop_client":
+        try:
+            token, _saved = desktop_login_flow(unwrapped, script_dir)
+            auth = FBAuth("authorized_user", token)
+        except Exception as e:
+            msg = str(e)
+            extra = ("\n        ALTERNATIVE (best, 2 min): Firebase Console > "
+                     "gear icon > Project settings > Service accounts > "
+                     "Generate new private key -> 'credential.json' IS "
+                     "folder mein save karo.")
+            return False, f"OAuth login fail: {msg[:250]}{extra}"
+    else:
+        try:
+            auth = FBAuth(ctype, mint_token(cred, ctype))
+        except Exception as e:
+            msg = str(e)
+            extra = ""
+            if ctype == "web_config":
+                extra = ("\n        FIX A: Firebase Console > Authentication > "
+                         "Sign-in method > Anonymous > Enable -> dobara chalao.\n"
+                         "        FIX B: Project settings > Service accounts > "
+                         "Generate new private key -> 'credential.json' is folder mein.")
+            return False, f"token nahi ban saka: {msg[:250]}{extra}"
     print("[OK] Authentication tayyar hai.")
 
     base = f"{FIREBASE_DB_URL}/{node}.json"
@@ -834,7 +984,12 @@ def backup():
         print(f"        ({issue or 'supported credential nahi mili'})")
         return
     try:
-        auth = FBAuth(ctype, mint_token(cred, ctype))
+        if ctype == "desktop_client":
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            token, _saved = desktop_login_flow(unwrap_cred(cred), script_dir)
+            auth = FBAuth("authorized_user", token)
+        else:
+            auth = FBAuth(ctype, mint_token(cred, ctype))
     except Exception as e:
         print(f"[ERROR] Backup auth fail: {str(e)[:200]}")
         return
@@ -934,7 +1089,7 @@ def find_default_file(folder):
 def main():
     args = sys.argv[1:]
     print("=" * 58)
-    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.7")
+    print("   GFH INVENTORY DASHBOARD  -  FIREBASE UPLOADER v3.8")
     print("=" * 58)
 
     if "--backup" in args:
