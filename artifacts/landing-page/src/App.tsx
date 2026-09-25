@@ -12,6 +12,10 @@ const OrderStatusPage = lazy(() => import('@/pages/OrderStatus'));
    via the inline script in index.html (404.html SPA fallback). */
 const LegalPage = lazy(() => import('@/pages/Legal'));
 const DownloadPage = lazy(() => import('@/pages/DownloadPage'));
+/* About + Pricing — template-style standalone pages, same hash-routing
+   pattern as the legal views (static-safe on GitHub Pages). */
+const AboutPage = lazy(() => import('@/pages/About'));
+const PricingPage = lazy(() => import('@/pages/Pricing'));
 import DealerStore from '@/components/DealerStore';
 // NOTE: /order/:id + /admin routes were removed — they depended on the
 // Netlify server functions, which are dormant since the GitHub Pages deploy.
@@ -486,7 +490,7 @@ function BtnWhite({ children, href = '#contact', testId, className = '' }: { chi
     <a
       href={href}
       data-testid={testId}
-      className={`group inline-flex items-center justify-center gap-2.5 rounded-xl border bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] shadow-[0_10px_30px_rgba(255,255,255,.07)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] hover:shadow-[0_16px_40px_rgba(247,243,232,.13)] ${className}`}
+      className={`group inline-flex items-center justify-center gap-2.5 whitespace-nowrap rounded-xl border bg-white px-6 py-3.5 text-[15px] font-semibold tracking-tight text-[#0b0a10] shadow-[0_10px_30px_rgba(255,255,255,.07)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#f7f3e8] hover:shadow-[0_16px_40px_rgba(247,243,232,.13)] ${className}`}
     >
       {children}
       <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
@@ -546,9 +550,11 @@ const navItems = [
   { label: 'What we offer', href: '#services' },
   { label: 'How it works', href: '#how' },
   { label: 'Dealer tools', href: '#tools' },
+  { label: 'Pricing', href: '#/pricing' },
   { label: 'Guides', href: '#guides' },
   { label: 'FAQ', href: '#faq' },
   { label: 'Trust & Guarantees', href: '#reviews' },
+  { label: 'About', href: '#/about' },
 ];
 
 function Nav() {
@@ -559,29 +565,29 @@ function Nav() {
         <a href="#top" data-testid="link-brand" aria-label="3S Verse — back to top" className="shrink-0">
           <img src="/logo-240.png" alt="3S Verse" width={240} height={57} className="h-5 w-auto object-contain" />
         </a>
-        <nav className="hidden items-center gap-9 md:flex">
+        <nav className="hidden items-center gap-7 xl:flex">
           {navItems.map((item) => (
             <a
               key={item.href}
               href={item.href}
               data-testid={`link-nav-${item.label.toLowerCase().replace(/ /g, '-')}`}
-              className="text-[14px] font-medium text-foreground/75 transition-colors duration-300 hover:text-foreground"
+              className="whitespace-nowrap text-[14px] font-medium text-foreground/75 transition-colors duration-300 hover:text-foreground"
             >
               {item.label}
             </a>
           ))}
         </nav>
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden shrink-0 items-center gap-3 xl:flex">
           <ThemeToggle className="flex h-10 w-10 items-center justify-center rounded-xl border border-input text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan" />
           <BtnGhost href="#contact" testId="button-nav-contact" className="px-5 py-2.5 text-[14px]">Contact</BtnGhost>
           <BtnWhite href="#contact" testId="button-nav-get-started" className="px-5 py-2.5 text-[14px]">Get started</BtnWhite>
         </div>
-        <div className="flex items-center gap-2 md:hidden">
+        <div className="flex items-center gap-2 xl:hidden">
           <ThemeToggle className="flex h-10 w-10 items-center justify-center rounded-lg border border-input text-foreground transition-colors hover:border-brand-cyan/60 hover:text-brand-cyan" />
           <button
             data-testid="button-mobile-menu"
             onClick={() => setOpen(!open)}
-            className="rounded-lg border border-input p-2 text-foreground md:hidden"
+            className="rounded-lg border border-input p-2 text-foreground xl:hidden"
             aria-label={open ? 'Close menu' : 'Open menu'}
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -590,7 +596,7 @@ function Nav() {
       </div>
       <AnimatePresence>
         {open && (
-          <motion.nav initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden border-t border-border bg-card px-5 py-4 md:hidden">
+          <motion.nav initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden border-t border-border bg-card px-5 py-4 xl:hidden">
             {navItems.map((item) => (
               <a key={item.href} href={item.href} onClick={() => setOpen(false)} data-testid={`link-mobile-${item.label.toLowerCase().replace(/ /g, '-')}`} className="block border-b border-border py-3.5 text-[15px] font-medium text-foreground">
                 {item.label}
@@ -2552,6 +2558,28 @@ function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+  if (hash.startsWith('#/about')) {
+    return (
+      <Suspense fallback={
+        <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+          Loading…
+        </div>
+      }>
+        <AboutPage />
+      </Suspense>
+    );
+  }
+  if (hash.startsWith('#/pricing')) {
+    return (
+      <Suspense fallback={
+        <div className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+          Loading…
+        </div>
+      }>
+        <PricingPage />
+      </Suspense>
+    );
+  }
   const legalMatch = hash.match(/^#\/(privacy|terms|refund|eula|security)$/);
   if (legalMatch) {
     return (

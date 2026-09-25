@@ -73,6 +73,22 @@ const ROUTES = {
     canonical: `${SITE}/security/`,
     shim: "#/security",
   },
+  about: {
+    title: "About — 3S Verse",
+    description:
+      "Operator-built VidaPay dealer tools: local-first software that runs on your PC under your own login. Our mission, how we work and what we build — in plain English.",
+    robots: "index,follow",
+    canonical: `${SITE}/about/`,
+    shim: "#/about",
+  },
+  pricing: {
+    title: "Pricing — 3S Verse",
+    description:
+      "Per-PC pricing for the VidaPay dealer tools — free 7-day trial built into every download, lifetime one-time or monthly/annual plans, 30-day money-back guarantee.",
+    robots: "index,follow",
+    canonical: `${SITE}/pricing/`,
+    shim: "#/pricing",
+  },
   download: {
     title: "Download Free Trials — 3S Verse",
     description:
@@ -99,7 +115,7 @@ const ROUTES = {
   },
 };
 
-const SHIM = (view) => `<script>(function(){var p=location.pathname.replace(/\\/+$/,'').toLowerCase();var map={'/privacy':'#/privacy','/terms':'#/terms','/refund':'#/refund','/eula':'#/eula','/security':'#/security','/download':'#/download','/trial':'#/download'};var v=map[p];if(v){location.replace(location.origin+'/'+v+location.search);}})();</script>`;
+const SHIM = (view) => `<script>(function(){var p=location.pathname.replace(/\\/+$/,'').toLowerCase();var map={'/privacy':'#/privacy','/terms':'#/terms','/refund':'#/refund','/eula':'#/eula','/security':'#/security','/about':'#/about','/pricing':'#/pricing','/download':'#/download','/trial':'#/download'};var v=map[p];if(v){location.replace(location.origin+'/'+v+location.search);}})();</script>`;
 
 function buildPage(route, meta) {
   let html = readFileSync(indexHtml, "utf-8");

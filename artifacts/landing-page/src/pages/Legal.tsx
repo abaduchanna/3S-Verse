@@ -4,7 +4,7 @@
  * products actually work (local-first tools, GitHub-hosted license
  * ledger, FormSubmit-based forms) — no invented legal-entity details.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 
 export type LegalKind = 'privacy' | 'terms' | 'refund' | 'eula' | 'security';
@@ -14,7 +14,7 @@ const EMAIL = 'Connect@3SVerse.com';
 
 const META: Record<LegalKind, { title: string; kicker: string }> = {
   privacy: { title: 'Privacy Policy', kicker: 'How your information is handled' },
-  terms: { title: 'Terms of Service', kicker: 'The rules of doing business with us' },
+  terms: { title: 'Terms & Conditions', kicker: 'The rules of doing business with us' },
   refund: { title: 'Refund Policy', kicker: 'One precise promise, stated everywhere' },
   eula: { title: 'End-User License Agreement', kicker: 'What your license covers' },
   security: { title: 'Security', kicker: 'Local-first by design' },
@@ -136,6 +136,119 @@ function Terms() {
           We reply within one US Central business day.
         </p>
       </Section>
+    </>
+  );
+}
+
+/**
+ * User policy — the user-side rules (template structure: short intro +
+ * "User responsibilities"). Stays accurate to the real enforcement model
+ * (machine-locked seats, ledger tokens, no telemetry).
+ */
+function UserPolicy() {
+  return (
+    <>
+      <Section title="User responsibilities">
+        <p>
+          The tools run on your PC under your own VidaPay dealer login, so you stay in command of the account:
+          keep those credentials secure, review the workbooks and claims the tools prepare before anything is
+          submitted to the portal, and use the tools only for operations you are entitled to perform under your
+          dealer agreements. If your dealership&rsquo;s policies are stricter than what the tool automates, your
+          policies win — the tool pauses for every security or verification step precisely so nothing happens
+          without your approval.
+        </p>
+      </Section>
+      <Section title="Acceptable use">
+        <p>
+          Permitted use is your own dealership&rsquo;s work: extracting your own stores&rsquo; incentive data,
+          ordering for your own locations, filing claims for your own customers. The red lines:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>No redistributing or reselling the installers or license keys.</li>
+          <li>No sharing or sub-licensing seats outside your dealership.</li>
+          <li>No providing bulk filing or extraction services to other dealerships without a written agreement with us.</li>
+          <li>No attempting to defeat the license enforcement, the activation ledger, or the portal&rsquo;s security checks.</li>
+        </ul>
+        <p>
+          A license terminated for material breach is not eligible for a refund; everything else follows the Refund Policy.
+        </p>
+      </Section>
+      <Section title="Seats, machines and account security">
+        <p>
+          Each seat is machine-locked to the PC it was activated on. Replacing a PC or re-imaging Windows does not
+          burn the seat — contact support and we release the old binding, free and expected. If you suspect a
+          license key of yours has leaked or is being used outside your dealership, tell us at{' '}
+          <a className="text-brand-cyan hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a> and we will
+          investigate and reissue.
+        </p>
+      </Section>
+      <Section title="Enforcement and contact">
+        <p>
+          We enforce these rules to protect honest dealers: abuse (seat sharing, key leaks, chargeback fraud)
+          puts the fair pricing everyone else pays at risk. Questions about this policy — or a heads-up about
+          misuse you have noticed — go to{' '}
+          <a className="text-brand-cyan hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a>. We reply within
+          one US Central business day.
+        </p>
+      </Section>
+    </>
+  );
+}
+
+type TermsTab = 'terms' | 'privacy' | 'user';
+
+const TERMS_TABS: Array<{ id: TermsTab; label: string }> = [
+  { id: 'terms', label: 'Terms & conditions' },
+  { id: 'privacy', label: 'Privacy policy' },
+  { id: 'user', label: 'User policy' },
+];
+
+/**
+ * Template-style unified policies view: one page, three pill tabs
+ * (Terms & conditions / Privacy policy / User policy). Deep links keep
+ * working — #/terms opens the first tab, #/privacy opens the second.
+ */
+function TermsTabs({ initialTab }: { initialTab: TermsTab }) {
+  const [tab, setTab] = useState<TermsTab>(initialTab);
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
+
+  return (
+    <>
+      <p className="mt-6 text-[15px] font-light leading-7 text-foreground/75">
+        Everything that governs doing business with 3S Verse — the rules, your privacy, and your responsibilities
+        as a user — in three short documents, written in plain English and kept in sync with how the products
+        actually work.
+      </p>
+      <div className="mt-8 flex flex-wrap gap-2" role="tablist" aria-label="Policy sections" data-testid="terms-tabs">
+        {TERMS_TABS.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(t.id)}
+              data-testid={`terms-tab-${t.id}`}
+              className={
+                'rounded-full border px-4 py-2 text-[13px] font-medium transition-colors ' +
+                (active
+                  ? 'border-brand-cyan/70 bg-brand-cyan/10 text-brand-cyan'
+                  : 'border-input text-muted-foreground hover:border-foreground/40 hover:text-foreground')
+              }
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-2">
+        {tab === 'terms' && <Terms />}
+        {tab === 'privacy' && <Privacy />}
+        {tab === 'user' && <UserPolicy />}
+      </div>
     </>
   );
 }
@@ -325,8 +438,9 @@ export default function LegalPage({ kind }: { kind: LegalKind }) {
           Last updated {UPDATED} · Questions: <a className="normal-case text-brand-cyan hover:underline" href={`mailto:${EMAIL}`}>{EMAIL}</a>
         </p>
 
-        {kind === 'privacy' && <Privacy />}
-        {kind === 'terms' && <Terms />}
+        {(kind === 'terms' || kind === 'privacy') && (
+          <TermsTabs initialTab={kind === 'privacy' ? 'privacy' : 'terms'} />
+        )}
         {kind === 'refund' && <Refund />}
         {kind === 'eula' && <Eula />}
         {kind === 'security' && <Security />}
