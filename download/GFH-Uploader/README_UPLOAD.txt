@@ -1,6 +1,25 @@
 GFH INVENTORY DASHBOARD - FIREBASE UPLOADER v3.7 (MULTI-CREDENTIAL AUTH + ZERO-PROMPT)
 ======================================================================================
 
+NAYA (v3.7b): CREDENTIAL GHAR DHUND LIYA - DATABASE WALA FOLDER SHAMIL
+----------------------------------------------------------------------
+- credential.json ab us folder me bhi dhundta hai JAHAN 'gfh
+  database.xlsx' padi hai (Desktop / Downloads / Documents ke andar,
+  2 level tak). Aap ka setup - credential file database ke sath -
+  ab directly chalta hai. Drag & drop par file jis folder me ho,
+  wo folder bhi check hota hai.
+- Na mili to ERROR me print hota hai ke KAHAN KAHAN dekha.
+- RUN_UPLOAD.bat / RUN_BACKUP.bat ab English me hain.
+
+KOI AUR FILE NAHI CHAHIYE
+-------------------------
+- Sirf EK file chahiye: credential.json (service-account key).
+- Koi OAuth file nahi, client_secret nahi, token.json nahi,
+  gcloud login nahi - kuch nahi. Service-account key ke andar
+  private_key hoti hai, token khud banta hai.
+- Firebase Console > Project settings > Service accounts >
+  Generate new private key > JSON download = wahi credential.json.
+
 NAYA (v3.7): CREDENTIAL KA TYPE KHUD PEHCHANTA HAI + 401 KA PAKKA ILAAJ
 -----------------------------------------------------------------------
 - Ab TEEN credential types support hain. Jo bhi file mile, us ke

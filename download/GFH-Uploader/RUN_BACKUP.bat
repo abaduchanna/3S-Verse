@@ -4,7 +4,8 @@ cd /d "%~dp0"
 where python >nul 2>nul
 if errorlevel 1 (
   echo.
-  echo [ERROR] Python nahi mila. python.org se Python 3 install karo.
+  echo [ERROR] Python was not found. Install Python 3 from python.org
+  echo         and do NOT forget to tick "Add python.exe to PATH".
   echo.
   pause
   exit /b 1

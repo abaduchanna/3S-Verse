@@ -529,15 +529,42 @@ def fb_request(url, method="GET", payload=None, timeout=600):
     raise RuntimeError(f"Firebase {method} fail ho gaya: {last_err}")
 
 
-def find_credential():
+def _discover_db_folders(home):
+    """Folders jahan 'gfh database' (.xlsx/.xlsm/.csv) padi hai -
+    Desktop / Downloads / Documents (2 level deep). User ka setup:
+    credential.json usi folder me rakha hota hai jahan gfh database hai,
+    is liye YE folder credential search me sab se pehle aate hain."""
+    out = []
+    seen = set()
+    for sub in ("Desktop", "Downloads", "Documents"):
+        base = os.path.join(home, sub)
+        if not os.path.isdir(base):
+            continue
+        base_depth = base.rstrip(os.sep).count(os.sep)
+        for root, dirs, files in os.walk(base):
+            depth = root.rstrip(os.sep).count(os.sep) - base_depth
+            if depth >= 2:
+                dirs[:] = []          # isi se aage nahi
+            if depth > 2:
+                continue
+            if root not in seen and find_default_file(root):
+                seen.add(root)
+                out.append(root)
+                if len(out) >= 6:
+                    return out
+    return out
+
+
+def find_credential(extra_folders=None):
     """Koi bhi SUPPORTED Firebase credential dhoondta hai (v3.7).
-    Places: script folder, CWD, Desktop, Downloads, Documents +
+    Places: data-file folder (drag&drop / gfh database folder - AUTO),
+    script folder, CWD, home, Desktop, Downloads, Documents + unke
     2-level subfolders. Names: *credential* (.json/.txt) + baqi .json.
     Prefer: service_account > authorized_user > web_config.
     Returns: (path, data, ctype, label, issue)
       - path/data/ctype/label : credential mili (best type)
       - issue                 : file mili thi par supported nahi (wajah)
-      - sab None              : kahin nahi mili"""
+      - sab None              : kahin nahi mili (kahan dekha - batata hai)"""
     def load_json(p):
         last_err = None
         for enc in ("utf-8-sig", "utf-16", "cp1252"):
@@ -566,9 +593,17 @@ def find_credential():
 
     home = os.path.expanduser("~")
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    folders = [script_dir, os.getcwd()]
-    folders += [os.path.join(home, sub)
-                for sub in ("Desktop", "Downloads", "Documents")]
+    # 1) data-file folder (jahan gfh database.xlsx hai) sab se pehle
+    folders = [f for f in (extra_folders or []) if os.path.isdir(f)]
+    # 2) khud dhoonde hue 'gfh database' wale folders
+    folders += [f for f in _discover_db_folders(home) if f not in folders]
+    # 3) standard jagahen
+    folders += [f for f in ([script_dir, os.getcwd(), home]
+                            + [os.path.join(home, sub) for sub in
+                               ("Desktop", "Downloads", "Documents")])
+                if f not in folders]
+    home_areas = [os.path.join(home, sub)
+                  for sub in ("Desktop", "Downloads", "Documents")]
 
     best = [None, None, None, None]      # path, data, ctype, label
     best_rank = 99
@@ -609,45 +644,64 @@ def find_credential():
                 stop = True
                 break
 
-    # PASS 1b: script folder ke SUBFOLDERS (2 level deep)
-    base_depth = script_dir.rstrip(os.sep).count(os.sep)
-    for root, dirs, files in os.walk(script_dir):
+    # PASS 1b: SUBFOLDERS (2 level deep) - script folder, data-file
+    # folder aur Desktop/Downloads/Documents sab ke andar bhi dekho
+    walk_roots = [script_dir] + folders[:1] + home_areas
+    seen_roots = set()
+    for base in walk_roots:
         if stop:
             break
-        depth = root.rstrip(os.sep).count(os.sep) - base_depth
-        if depth >= 2:
-            dirs[:] = []          # isi se aage nahi
-        if depth > 2:
+        if not base or not os.path.isdir(base) or base in seen_roots:
             continue
-        for fn in files:
-            low = fn.lower()
-            if "credential" not in low or fn.startswith("~$"):
-                continue
-            if not (low.endswith(".json") or low.endswith(".txt")):
-                continue
-            if consider(os.path.join(root, fn)):
-                stop = True
+        seen_roots.add(base)
+        base_depth = base.rstrip(os.sep).count(os.sep)
+        for root, dirs, files in os.walk(base):
+            if stop:
                 break
-
-    # PASS 2: script folder ki doosri .json files (alphabetical)
-    if not stop:
-        for fn in sorted(os.listdir(script_dir)):
-            if not fn.lower().endswith(".json") or fn.startswith("~$"):
+            depth = root.rstrip(os.sep).count(os.sep) - base_depth
+            if depth >= 2:
+                dirs[:] = []      # isi se aage nahi
+            if depth > 2:
                 continue
-            if consider(os.path.join(script_dir, fn)):
+            for fn in files:
+                low = fn.lower()
+                if "credential" not in low or fn.startswith("~$"):
+                    continue
+                if not (low.endswith(".json") or low.endswith(".txt")):
+                    continue
+                if consider(os.path.join(root, fn)):
+                    stop = True
+                    break
+
+    # PASS 2: doosri .json files (alphabetical) - script + data folder
+    if not stop:
+        for folder in ([script_dir] + folders[:1]):
+            try:
+                names = sorted(os.listdir(folder))
+            except Exception:
+                continue
+            for fn in names:
+                if not fn.lower().endswith(".json") or fn.startswith("~$"):
+                    continue
+                if consider(os.path.join(folder, fn)):
+                    stop = True
+                    break
+            if stop:
                 break
 
     if best[0]:
         return best[0], best[1], best[2], best[3], None
-    return None, None, None, None, first_issue
+    where = (", ".join(folders[:6]) or "kahin nahi")
+    return None, None, None, None, (first_issue or
+            f"in jagahon me supported credential nahi mili: {where}")
 
 
-def authed_upload(node, payload):
+def authed_upload(node, payload, extra_folders=None):
     """v3.7 credential engine: type detect -> token mint -> authenticated
     DELETE + SINGLE PUT (dashboard wala shape) + shallow verify.
     Returns: (True, None) kamyaab | (False, wajah) fail
              | (None, issue) supported credential nahi mili"""
-    cred_path, cred, ctype, label, issue = find_credential()
+    cred_path, cred, ctype, label, issue = find_credential(extra_folders)
     if not cred_path:
         return None, issue
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -731,7 +785,7 @@ def authed_upload(node, payload):
     return False, f"verify fail: expected {total:,}, mila {count:,} - dobara chalao"
 
 
-def upload(payload, dry_run=False, node=DATA_NODE):
+def upload(payload, dry_run=False, node=DATA_NODE, extra_folders=None):
     url = f"{FIREBASE_DB_URL}/{node}.json"
     size_mb = len(json.dumps(payload, ensure_ascii=False, separators=(",", ":"))) / 1024 / 1024
     n_rows = len(payload) - 1
@@ -748,7 +802,7 @@ def upload(payload, dry_run=False, node=DATA_NODE):
 
     print("\n  Purana data delete ho kar is file ka data charhega - shuru...")
 
-    ok, info = authed_upload(node, payload)
+    ok, info = authed_upload(node, payload, extra_folders=extra_folders)
     if ok is True:
         print("\n  Dashboard kholo aur refresh karo:  https://gfhinventorydashboard.netlify.app")
         return
@@ -944,7 +998,10 @@ def main():
     print(f"\n[STEP 1/2] File read + check kar raha hoon...")
     payload = build_payload(path)
     print("[STEP 2/2] Ready.")
-    upload(payload, dry_run=dry, node=node)
+    # credential bhi data-file ke folder me dekho (user ka setup: file
+    # jahan gfh database hai wahi credential.json rakhi hoti hai)
+    upload(payload, dry_run=dry, node=node,
+           extra_folders=[os.path.dirname(os.path.abspath(path))])
 
 
 if __name__ == "__main__":
