@@ -42,7 +42,7 @@ const ROUTES = {
     shim: "#/privacy",
   },
   terms: {
-    title: "Terms of Service — 3S Verse",
+    title: "Terms & Conditions — 3S Verse",
     description:
       "The rules of doing business with 3S Verse: licenses, delivery, support and fair use — stated once, precisely, in plain English.",
     robots: "index,follow",
