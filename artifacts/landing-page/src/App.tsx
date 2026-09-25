@@ -1068,27 +1068,10 @@ const TOOLS = [
     ],
     tags: ['Rebates', 'Spiffs', 'Claims', 'One clean sheet'],
     visual: (
-      <div className="rounded-xl border border-border bg-foreground/[.02] p-5">
-        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
-          <span>Incentives · March</span><span className="rounded border border-brand-cyan/30 px-1.5 py-0.5 text-brand-cyan">EXTRACTED</span>
-        </div>
-        <div className="mt-4 space-y-2.5">
-          {[
-            ['Vendor rebate — row 14', '$1,240.00'],
-            ['Activation spiff — row 09', '$615.00'],
-            ['Bundle bonus — row 22', '$890.00'],
-          ].map(([row, amount], i) => (
-            <motion.div key={row} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-border bg-foreground/[.02] px-3.5 py-2.5">
-              <span className="text-[13px] text-foreground">{row}</span>
-              <span className="font-mono-tech text-[12px] text-brand-cyan">{amount}</span>
-            </motion.div>
-          ))}
-        </div>
-        <div className="mt-4 flex items-center justify-between border-t border-border pt-3.5">
-          <span className="font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">Total recovered</span>
-          <span className="text-[20px] font-light tracking-tight text-foreground">$2,745.00</span>
-        </div>
-      </div>
+      <figure>
+        <img src="/screenshots/vidapay-extractor-dark-light.gif" alt="VidaPay Incentive Dashboard Extractor switching between dark and light mode" width={1000} height={538} loading="lazy" className="w-full rounded-xl border border-border shadow-[0_24px_80px_rgba(0,0,0,.25)]" />
+        <figcaption className="mt-2.5 text-center font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">Live app - dark / light</figcaption>
+      </figure>
     ),
   },
   {
@@ -1104,27 +1087,10 @@ const TOOLS = [
     ],
     tags: ['Bulk', 'All stores', 'One submit', 'Fewer mistakes'],
     visual: (
-      <div className="rounded-xl border border-border bg-foreground/[.02] p-5">
-        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
-          <span>Order · 45 stores</span><span className="rounded border border-brand-magenta/40 px-1.5 py-0.5 text-brand-magenta">DRAFT</span>
-        </div>
-        <div className="mt-4 space-y-2.5">
-          {[
-            ['Galaxy S23 FE', '12 / store'],
-            ['Moto G Play', '20 / store'],
-            ['iPhone 13', '8 / store'],
-          ].map(([device, qty], i) => (
-            <motion.div key={device} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-border bg-foreground/[.02] px-3.5 py-2.5">
-              <span className="text-[13px] text-foreground">{device}</span>
-              <span className="font-mono-tech text-[12px] text-brand-magenta">{qty}</span>
-            </motion.div>
-          ))}
-        </div>
-        <div className="mt-4 flex items-center justify-between border-t border-border pt-3.5">
-          <span className="font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">1,340 units queued</span>
-          <span className="rounded-lg border bg-white px-4 py-1.5 text-[12px] font-semibold text-[#0b0a10]">Submit order</span>
-        </div>
-      </div>
+      <figure>
+        <img src="/screenshots/vidapay-device-ordering-dark-light.gif" alt="VidaPay Device Ordering Automation switching between dark and light mode" width={1000} height={538} loading="lazy" className="w-full rounded-xl border border-border shadow-[0_24px_80px_rgba(0,0,0,.25)]" />
+        <figcaption className="mt-2.5 text-center font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">Live app - dark / light</figcaption>
+      </figure>
     ),
   },
   {
@@ -1140,27 +1106,10 @@ const TOOLS = [
     ],
     tags: ['Rebates', 'Bulk', 'Status tracking', 'Validation'],
     visual: (
-      <div className="rounded-xl border border-border bg-foreground/[.02] p-5">
-        <div className="flex items-center justify-between font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">
-          <span>Rebate claims · Batch 12</span><span className="rounded border border-brand-cyan/30 px-1.5 py-0.5 text-brand-cyan">FILED</span>
-        </div>
-        <div className="mt-4 space-y-2.5">
-          {[
-            ['Vendor rebates — 24 claims', 'PAID'],
-            ['Activation spiffs — 41 claims', 'FILED'],
-            ['Bundle bonuses — 18 claims', 'QUEUED'],
-          ].map(([claim, status], i) => (
-            <motion.div key={claim} initial={{ opacity: 0, x: 14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: 0.25 + i * 0.12 }} className="flex items-center justify-between rounded-lg border border-border bg-foreground/[.02] px-3.5 py-2.5">
-              <span className="text-[13px] text-foreground">{claim}</span>
-              <span className={`font-mono-tech text-[11px] ${status === 'PAID' ? 'text-brand-lime' : status === 'FILED' ? 'text-brand-cyan' : 'text-brand-magenta'}`}>{status}</span>
-            </motion.div>
-          ))}
-        </div>
-        <div className="mt-4 flex items-center justify-between border-t border-border pt-3.5">
-          <span className="font-mono-tech text-[11px] uppercase tracking-[.18em] text-muted-foreground">83 claims this batch</span>
-          <span className="text-[20px] font-light tracking-tight text-foreground">$9,140.00</span>
-        </div>
-      </div>
+      <figure>
+        <img src="/screenshots/vidapay-rebate-filing-dark-light.gif" alt="VidaPay Rebate Filing switching between dark and light mode" width={1000} height={538} loading="lazy" className="w-full rounded-xl border border-border shadow-[0_24px_80px_rgba(0,0,0,.25)]" />
+        <figcaption className="mt-2.5 text-center font-mono-tech text-[9px] uppercase tracking-[.18em] text-muted-foreground">Live app - dark / light</figcaption>
+      </figure>
     ),
   },
 ];
